@@ -1,7 +1,7 @@
 {
   "name": "next-shadcn-dashboard-starter",
   "version": "1.0.0",
-  "packageManager": "pnpm@11.17.0",
+  "packageManager": "pnpm@9.15.0",
   "private": true,
   "author": {
     "name": "Kiran",
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p ${PORT:-3000}",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix && bun format",
     "lint:strict": "oxlint --deny-warnings",

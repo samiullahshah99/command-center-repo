@@ -6,7 +6,8 @@
 .pnp.js
 package-lock.json
 yarn.lock
-pnpm-lock.yaml
+# pnpm-lock.yaml is committed on purpose:
+# Docker builds run `pnpm install --frozen-lockfile` and need it in the image.
 
 # testing
 /coverage

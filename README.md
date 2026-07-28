@@ -28,7 +28,7 @@ A free, open source (MIT) admin dashboard starter built with Next.js 16, shadcn/
 
 Every feature is a working, production-ready implementation, not static demo UI. Tables search, filter, sort, and paginate for real. Forms validate and mutate with cache invalidation.
 Auth, organizations, and billing function end-to-end.
-Clone it, strip what you don't need with the built-in cleanup script, and start building on patterns you'd write yourself. It works well as a base for SaaS apps, internal tools, and admin panels.
+Clone it and start building on patterns you'd write yourself. It works well as a base for SaaS apps, internal tools, and admin panels.
 
 ### Why This Template
 
@@ -36,7 +36,7 @@ Most dashboard templates are static demo boilerplates: screens that look finishe
 
 - **Everything actually works.** Data tables run end-to-end: server prefetch, client-side React Query cache, and URL-synced search, filtering, sorting, and pagination via nuqs. Forms are built from reusable, composable fields with Zod validation, including advanced patterns like multi-step and dialog/sheet forms, with real create/update mutations and cache invalidation on success.
 - **Industry-standard implementations.** The data layer follows the official TanStack Query SSR pattern (server prefetch + `HydrationBoundary` + `useSuspenseQuery`), typed end to end, organized in a feature-based structure with a clean API layer per feature. These are patterns you copy into production code as-is, not mockups you rebuild from scratch.
-- **Minimal by design.** Deliberately lean, with no bloated boilerplate, so you spend your time tweaking it to your use case, not deleting someone else's code. The built-in [cleanup script](#cleanup-script-start-minimal-in-60-seconds) strips any feature you don't need in under a minute.
+- **Minimal by design.** Deliberately lean, with no bloated boilerplate, so you spend your time tweaking it to your use case, not deleting someone else's code.
 
 ### Tech Stack
 
@@ -49,7 +49,6 @@ Most dashboard templates are static demo boilerplates: screens that look finishe
 - Charts - [Recharts](https://recharts.org) • [Evil Charts](https://evilcharts.com/)
 - Schema validation - [Zod](https://zod.dev)
 - Data fetching - [TanStack React Query](https://tanstack.com/query)
-- State management - [Zustand](https://zustand-demo.pmnd.rs)
 - Search param state - [Nuqs](https://nuqs.47ng.com/)
 - Tables - [TanStack Data Tables](https://ui.shadcn.com/docs/components/data-table) • [Dice Table](https://www.diceui.com/docs/components/data-table)
 - Forms - [TanStack Form](https://tanstack.com/form) + [Zod](https://zod.dev)
@@ -94,15 +93,7 @@ A few things you can build with it:
 | [Product List (Table)](https://shadcn-dashboard.kiranism.dev/dashboard/product)                                                                                       | TanStack Table plus React Query (server prefetch, client cache) with nuqs URL state for search, filter, and pagination. `shallow: true` keeps interactions on the client.           |
 | [Create Product Form](https://shadcn-dashboard.kiranism.dev/dashboard/product/new)                                                                                    | TanStack Form and Zod with `useMutation` for create and update. Cache is invalidated on success.                                                                                    |
 | [Users (Table)](https://shadcn-dashboard.kiranism.dev/dashboard/users)                                                                                                | Same setup as Products: React Query with nuqs, server prefetch, and client-side pagination and filtering.                                                                           |
-| [React Query Demo](https://shadcn-dashboard.kiranism.dev/dashboard/react-query)                                                                                       | A Pokemon API example showing the server prefetch, `HydrationBoundary`, and `useSuspenseQuery` pattern with client-side cache. |
 | [Profile](https://shadcn-dashboard.kiranism.dev/dashboard/profile)                                                                                                   | Clerk's account management UI for profile and security settings. |
-| [Kanban Board](https://shadcn-dashboard.kiranism.dev/dashboard/kanban)                                                                                                | Drag-and-drop task board built with dnd-kit and Zustand. Column sorting, priority badges, assignees, and due dates. |
-| [Chat](https://shadcn-dashboard.kiranism.dev/dashboard/chat)                                                                                                          | Messaging UI with a conversation list, message bubbles, quick replies, attachments, and an auto-reply demo. Multi-panel layout that works on mobile. |
-| [Notifications](https://shadcn-dashboard.kiranism.dev/dashboard/notifications)                                                                                        | Notification center with a header badge, popover preview, and a full page with All / Unread / Read tabs. Includes mark-as-read and mark-all-as-read. |
-| [Workspaces](https://shadcn-dashboard.kiranism.dev/dashboard/workspaces)                                                                                              | Organization management using Clerk's `<OrganizationList />`. View, create, and switch between organizations. |
-| [Team Management](https://shadcn-dashboard.kiranism.dev/dashboard/workspaces/team)                                                                                    | Team management using Clerk's `<OrganizationProfile />`. Manage members, roles, permissions, security, and org details. Needs an active organization. |
-| [Billing & Plans](https://shadcn-dashboard.kiranism.dev/dashboard/billing)                                                                                            | Billing page using Clerk's `<PricingTable />`. View plans, subscribe, and manage subscriptions. Needs an active organization. |
-| [Exclusive Page](https://shadcn-dashboard.kiranism.dev/dashboard/exclusive)                                                                                           | Plan-based access control with Clerk's `<Protect>`. Only available to organizations on the Pro plan, with a fallback UI for everyone else. |
 | [Not Found](https://shadcn-dashboard.kiranism.dev/dashboard/notfound)                                                                                                 | A root-level not-found page.                                                                                                                                                        |
 | [Global Error](https://sentry.io/for/nextjs/?utm_source=github&utm_medium=paid-community&utm_campaign=general-fy26q2-nextjs&utm_content=github-banner-project-tryfree) | A shared error page wired to Sentry for logging, reports, and session replay. |
 
@@ -116,10 +107,6 @@ src/
 │   │   ├── overview/              # Analytics with parallel routes
 │   │   ├── product/               # Product CRUD pages (React Query)
 │   │   ├── users/                 # Users table (React Query + nuqs)
-│   │   ├── react-query/           # React Query demo page
-│   │   ├── kanban/                # Task board page
-│   │   ├── chat/                  # Messaging page
-│   │   ├── notifications/         # Notifications page
 │   │   ├── workspaces/            # Org management & teams
 │   │   ├── billing/               # Billing & plans
 │   │   ├── profile/               # User profile
@@ -136,10 +123,6 @@ src/
 │   ├── overview/                  # Dashboard analytics (charts, cards)
 │   ├── products/                  # Product listing, form, tables (React Query)
 │   ├── users/                     # User management table (React Query)
-│   ├── react-query-demo/          # React Query demo (Pokemon API)
-│   ├── kanban/                    # Drag-drop task board
-│   ├── chat/                      # Messaging (conversations, bubbles, composer)
-│   ├── notifications/             # Notification center & store
 │   ├── auth/                      # Auth components
 │   └── profile/                   # Profile form schemas
 │
@@ -185,16 +168,8 @@ The app should now be running at http://localhost:3000.
 
 ## Cleanup Script: Start Minimal in 60 Seconds
 
-Most starters make you hand-delete demo pages and rip out dependencies. This one ships with a cleanup script that removes the optional features you don't need (folders, files, dependencies, docs, and env entries), leaving a minimal base to build on. Run `--list` to see what's removable:
+This template has already been trimmed: Clerk Organizations, Clerk Billing, navigation RBAC, and the Kanban, Chat, Notifications, Forms-demo, React Query demo, and Icons pages have been removed. Clerk auth, the data-table stack, the TanStack Form system, kbar, and Sentry remain.
 
-```bash
-bun run cleanup --interactive    # interactive mode
-bun run cleanup --list           # see available features
-bun run cleanup --dry-run chat   # preview before removing
-bun run cleanup kanban chat      # remove specific features
-```
-
-Run `bun run cleanup --help` for all options (with npm, pass flags after `--`: `npm run cleanup -- --list`). The replacement files it writes live in `scripts/cleanup-templates/` as real, typechecked code. When you're done, delete `scripts/cleanup.js`, `scripts/cleanup-templates/`, and the `cleanup` entry in `package.json`.
 
 ## FAQ
 
@@ -205,10 +180,10 @@ Yes. Every feature is a complete, working implementation: authentication, CRUD f
 Yes. MIT-licensed and free for both personal and commercial projects: no paid tier, no license keys.
 
 **Can I use it without Clerk?**
-Yes. Run `bun run cleanup clerk` to remove Clerk authentication (along with organizations and billing) and wire in your own auth solution.
+Yes. Clerk auth is wired through `src/proxy.ts` and `src/components/layout/providers.tsx` — swap those for your own provider. Organizations and Billing have already been removed.
 
 **How do I remove demo pages or features I don't need?**
-Run `bun run cleanup --interactive` and pick what to strip, or `bun run cleanup --list` to see what can be removed.
+Edit the code directly — the cleanup script has been removed.
 
 **Does it support Next.js 16, React 19, and Tailwind CSS v4?**
 Yes. The template is built on Next.js 16 (App Router), React 19, and Tailwind CSS v4, with shadcn/ui on Base UI primitives, and is actively maintained to track new releases.

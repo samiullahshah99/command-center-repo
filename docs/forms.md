@@ -610,8 +610,6 @@ const form = useAppForm({
 <Step1 form={form} fields={{ name: 'name', category: 'category' }} />
 ```
 
-See `src/features/forms/components/multi-step-product-form.tsx`.
-
 ### Nested object fields
 
 Use dot-notation for nested paths. `DeepKeys<T>` provides autocomplete for `team.name`, `team.size`, etc.
@@ -860,8 +858,6 @@ const { FormTextField, FormSelectField, FormTextareaField, FormFileUploadField }
 <form.AppField name="available-date">...</form.AppField>
 ```
 
-See `/dashboard/forms/basic` for the full working example.
-
 ---
 
 ## Production Utilities
@@ -1031,19 +1027,9 @@ To include in `useFormFields`, add to its return object.
 
 ## Dashboard Examples
 
-### Form Pages (`/dashboard/forms/...`)
-
-| Page                  | Route                         | Patterns demonstrated                                                                                                                                                                                                                           |
-| --------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Basic Form**        | `/dashboard/forms/basic`      | All 8 field types, `useFormFields`, `onBlur` + async validation, listeners, form data preview                                                                                                                                                   |
-| **Multi-Step Form**   | `/dashboard/forms/multi-step` | `withFieldGroup`, per-step Zod schemas, `revalidateLogic`, step navigation, review summary                                                                                                                                                      |
-| **Sheet & Dialog**    | `/dashboard/forms/sheet-form` | Form in Sheet with external submit button, form in Dialog, close + reset on success                                                                                                                                                             |
-| **Advanced Patterns** | `/dashboard/forms/advanced`   | Async validation (username check), linked fields (`onChangeListenTo` for password confirm), nested objects (`team.name`), dynamic array rows (members), dependent dropdowns (country → state with listener), `FormErrors`, `scrollToFirstError` |
-
 ### Other Forms
 
 | Form          | File                                                   | Patterns                                   |
 | ------------- | ------------------------------------------------------ | ------------------------------------------ |
 | Product CRUD  | `src/features/products/components/product-form.tsx`    | Pattern 1, split schema, onBlur validators |
-| Sheet Product | `src/features/forms/components/sheet-product-form.tsx` | Pattern 2 in Sheet |
 | Auth          | `src/features/auth/components/user-auth-form.tsx`      | Pattern 2, minimal |

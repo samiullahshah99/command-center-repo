@@ -7,8 +7,15 @@ This is a Next.js 16 + shadcn/ui admin dashboard starter kit.
 - **[AGENTS.md](./AGENTS.md)** — Full project overview, tech stack, structure, conventions, data fetching patterns, deployment
 - **[docs/forms.md](./docs/forms.md)** — Form system: TanStack Form + Zod, composable fields, validation, multi-step, sheet/dialog forms
 - **[docs/themes.md](./docs/themes.md)** — Theme system: OKLCH colors, adding themes, font config
-- **[docs/nav-rbac.md](./docs/nav-rbac.md)** — Navigation RBAC: access control, Clerk integration
-- **[docs/clerk_setup.md](./docs/clerk_setup.md)** — Clerk auth setup: organizations, billing, environment variables
+- **[docs/clerk_setup.md](./docs/clerk_setup.md)** — Clerk auth setup: environment variables, sign-in/sign-up
+
+## Removed from this template
+
+Clerk Organizations (multi-tenant workspaces/teams), Clerk Billing/subscriptions,
+navigation RBAC (it was powered by org membership), and the Kanban, Chat,
+Notifications, Forms-demo, React Query demo, and Icons pages. **Clerk auth is
+still in use.** Do not reintroduce `useOrganization`, `<Protect>`, `has({ plan })`,
+`PricingTable`, or `NavItem.access`.
 
 ## Critical Conventions
 
@@ -18,4 +25,4 @@ This is a Next.js 16 + shadcn/ui admin dashboard starter kit.
 - **Icons** — only import from `@/components/icons`, never from `@tabler/icons-react` directly
 - **Forms** — use `useAppForm` + `useFormFields<T>()` from `@/components/ui/tanstack-form`
 - **Page headers** — use `PageContainer` props (`pageTitle`, `pageDescription`, `pageHeaderAction`), never import `<Heading>` manually
-- **Formatting** — single quotes, JSX single quotes, no trailing comma, 2-space indent
+- **Formatting** — single quotes, JSX single quotes, no trailing comma, 2-space indent. Tooling is **oxfmt + oxlint** (`bun run format`, `bun run lint`), not Prettier/ESLint

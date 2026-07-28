@@ -39,7 +39,6 @@ The project follows a feature-based folder structure designed for scalability in
 
 ### State Management
 
-- Zustand 5.x for local UI state in the stateful demo features
 - Nuqs for URL search params state management
 - TanStack Form + Zod for form handling (via `useAppForm` hook)
 
@@ -70,8 +69,8 @@ The project follows a feature-based folder structure designed for scalability in
 
 ### Development Tools
 
-- ESLint 8.x with Next.js core-web-vitals config
-- Prettier 3.x with prettier-plugin-tailwindcss
+- oxlint for linting (`bun run lint`)
+- oxfmt for formatting (`bun run format`), config in `.oxfmtrc.json`
 - Husky for git hooks
 - lint-staged for pre-commit formatting
 
@@ -86,9 +85,6 @@ The project follows a feature-based folder structure designed for scalability in
 │   ├── dashboard/         # Dashboard routes
 │   │   ├── overview/      # Parallel routes (@area_stats, @bar_stats, etc.)
 │   │   ├── product/       # Product management pages
-│   │   ├── kanban/        # Kanban board page
-│   │   ├── chat/          # Messaging page
-│   │   ├── notifications/ # Notifications page
 │   │   ├── workspaces/    # Organization management
 │   │   ├── billing/       # Subscription billing
 │   │   ├── exclusive/     # Pro plan feature example
@@ -122,10 +118,6 @@ The project follows a feature-based folder structure designed for scalability in
 │   ├── users/             # User management (React Query + nuqs)
 │   │   ├── api/           # Same pattern: types.ts → service.ts → queries.ts
 │   │   └── components/    # Listing, table components
-│   ├── react-query-demo/  # React Query showcase (Pokemon API)
-│   ├── kanban/            # Kanban board with dnd-kit
-│   ├── chat/              # Messaging UI (conversations, bubbles, composer)
-│   ├── notifications/     # Notification center & store
 │   └── profile/           # Profile management
 │
 ├── config/                # Configuration files
@@ -133,7 +125,6 @@ The project follows a feature-based folder structure designed for scalability in
 │   └── ...
 │
 ├── hooks/                 # Custom React hooks
-│   ├── use-nav.ts         # RBAC navigation filtering
 │   ├── use-data-table.ts  # Data table state
 │   └── ...
 │
@@ -152,12 +143,8 @@ The project follows a feature-based folder structure designed for scalability in
 
 /docs                      # Documentation
 │   ├── clerk_setup.md     # Clerk configuration guide
-│   ├── nav-rbac.md        # Navigation RBAC documentation
 │   └── themes.md          # Theme customization guide
 
-/scripts                   # Dev tooling
-    ├── cleanup.js         # Feature removal, run via `bun run cleanup` (templates in cleanup-templates/, typechecked)
-    └── cleanup-templates/ # Replacement files cleanup.js copies into the repo
 
 Dockerfile                 # Node.js production Dockerfile
 Dockerfile.bun             # Bun production Dockerfile
@@ -182,13 +169,13 @@ bun run build
 bun run start
 
 # Linting
-bun run lint         # Run ESLint
-bun run lint:fix     # Fix ESLint issues and format
+bun run lint         # Run oxlint
+bun run lint:fix     # Fix oxlint issues and format
 bun run lint:strict  # Zero warnings tolerance
 
 # Formatting
-bun run format       # Format with Prettier
-bun run format:check # Check formatting
+bun run format       # Format with oxfmt
+bun run format:check # Check formatting with oxfmt
 
 # Git hooks
 bun run prepare      # Install Husky hooks
@@ -236,7 +223,7 @@ NEXT_PUBLIC_SENTRY_DISABLED="false"  # Set to "true" to disable in dev
 - Prefer interface over type for object definitions
 - Use `@/*` alias for imports from src
 
-### Formatting (Prettier)
+### Formatting (oxfmt)
 
 ```json
 {
@@ -249,7 +236,7 @@ NEXT_PUBLIC_SENTRY_DISABLED="false"  # Set to "true" to disable in dev
 }
 ```
 
-### ESLint Rules
+### Lint Rules (oxlint)
 
 - `@typescript-eslint/no-unused-vars`: warn
 - `no-console`: warn
@@ -299,9 +286,7 @@ See `docs/themes.md` for detailed theming guide.
 
 ---
 
-## Navigation & RBAC System
-
-### Navigation Configuration
+## Navigation System
 
 Navigation is organized into groups in `src/config/nav-config.ts`:
 
@@ -317,67 +302,48 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/overview',
         icon: 'dashboard',
         shortcut: ['d', 'd'],
-        items: [],
-        access: { requireOrg: true } // RBAC check
+        items: []
       }
     ]
   }
 ];
 ```
 
-### Access Control Properties
+The same config drives both the sidebar (`app-sidebar.tsx`) and the Cmd+K bar
+(`components/kbar/`).
 
-- `requireOrg: boolean` - Requires active organization
-- `permission: string` - Requires specific permission
-- `role: string` - Requires specific role
-- `plan: string` - Requires specific subscription plan
-- `feature: string` - Requires specific feature
-
-### Client-Side Filtering
-
-The `useFilteredNavItems()` hook in `src/hooks/use-nav.ts` filters navigation client-side using Clerk's `useOrganization()` and `useUser()` hooks. This is for UX only - actual security checks must happen server-side.
+> Navigation RBAC was removed along with Clerk Organizations. `NavItem` has no
+> `access` property and there is no `use-nav.ts` filtering hook. To add role-aware
+> navigation later, drive it from Clerk user metadata rather than org membership.
 
 ---
 
 ## Authentication Patterns
 
+Clerk provides **authentication only** in this project. Organizations and Billing
+have been removed — do not use `useOrganization()`, `orgId`, `<Protect>`,
+`has({ plan })`, or `<PricingTable />`.
+
 ### Protected Routes
 
-Dashboard routes use Clerk's middleware pattern. Pages that require organization:
+`src/proxy.ts` (Next.js 16's renamed middleware) protects everything under
+`/dashboard` via `clerkMiddleware` + `auth.protect()`.
+
+For a server-side user check inside a page:
 
 ```tsx
-import { auth } from '@clerk/nextjs';
+import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 
 export default async function Page() {
-  const { orgId } = await auth();
-  if (!orgId) redirect('/dashboard/workspaces');
+  const { userId } = await auth();
+  if (!userId) redirect('/auth/sign-in');
   // ...
 }
 ```
 
-### Plan/Feature Protection
-
-Use Clerk's `<Protect>` component for client-side:
-
-```tsx
-import { Protect } from '@clerk/nextjs';
-
-<Protect plan='pro' fallback={<UpgradePrompt />}>
-  <PremiumContent />
-</Protect>;
-```
-
-Use `has()` function for server-side checks:
-
-```tsx
-import { auth } from '@clerk/nextjs';
-
-const { has } = await auth();
-const hasFeature = has({ feature: 'premium_access' });
-```
-
 ---
+
 
 ## Data Fetching Patterns
 
@@ -577,37 +543,12 @@ Both use `output: 'standalone'` in `next.config.ts`. Pass `NEXT_PUBLIC_*` vars a
 
 ## Feature Cleanup System
 
-A single `scripts/cleanup.js` file handles removal of optional features:
-
-```bash
-# Interactive mode — prompts for each feature
-node scripts/cleanup.js --interactive
-
-# Remove specific features
-node scripts/cleanup.js clerk           # Remove auth/org/billing
-node scripts/cleanup.js kanban          # Remove kanban board
-node scripts/cleanup.js chat            # Remove messaging UI
-node scripts/cleanup.js notifications   # Remove notification center
-node scripts/cleanup.js themes          # Keep one theme, remove rest
-node scripts/cleanup.js sentry          # Remove error tracking
-
-# Remove multiple at once
-node scripts/cleanup.js kanban chat notifications
-
-# Preview without changing files
-node scripts/cleanup.js --dry-run kanban
-
-# List all features
-node scripts/cleanup.js --list
-```
-
-**Safety**: Script requires git repository with at least one commit. Use `--force` to skip.
-
-Replacement files live in `scripts/cleanup-templates/` as real `.ts`/`.tsx` files typechecked by `tsc` and `next build`, so template rot fails loudly instead of shipping broken code.
-
-After cleanup, delete `scripts/cleanup.js` and `scripts/cleanup-templates/` — the dev server message auto-cleans on next start.
+Removed. `scripts/cleanup.js` and `scripts/cleanup-templates/` were deleted after
+the template was trimmed to this project's needs. To drop anything further, edit
+the code directly.
 
 ---
+
 
 ## Icon System
 
@@ -658,10 +599,6 @@ export const Icons = {
 | Theme           | `sun`, `moon`, `brightness`, `laptop`, `palette`                              |
 | Text formatting | `bold`, `italic`, `underline`, `text`                                         |
 | Data / Charts   | `trendingUp`, `trendingDown`, `eyeOff`, `adjustments`                         |
-
-### Icon Showcase Page
-
-Browse all available icons at `/dashboard/elements/icons` — a searchable grid of every icon in the registry.
 
 ### Why This Pattern?
 

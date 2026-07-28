@@ -14,8 +14,12 @@ WORKDIR /app
 # pnpm is resolved from the "packageManager" field in package.json
 RUN corepack enable
 
-# Copy manifests first so the install layer caches independently of source
-COPY package.json pnpm-lock.yaml ./
+# Copy manifests first so the install layer caches independently of source.
+# .npmrc MUST be included: it sets shamefully-hoist=true. Without it the image
+# gets pnpm's strict isolated node_modules while local dev gets a hoisted one,
+# so imports resolve locally and fail in Docker. It also carries the Sentry
+# module-resolution workaround.
+COPY package.json pnpm-lock.yaml .npmrc ./
 
 # No BuildKit cache mount here, deliberately.
 #

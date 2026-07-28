@@ -44,14 +44,14 @@ still in use.** Do not reintroduce `useOrganization`, `<Protect>`, `has({ plan }
 Copy `env.example.txt` to `.env.local`. Without the first two, every
 `/dashboard/*` route returns 500 with `@clerk/backend: Missing publishableKey`.
 
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **Required.** `pk_test_` dev, `pk_live_` prod |
-| `CLERK_SECRET_KEY` | **Required.** `sk_test_` dev, `sk_live_` prod |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_URL` | `/auth/sign-in` |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_URL` | `/auth/sign-up` |
-| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/dashboard/overview` |
-| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/dashboard/overview` |
+| Variable                                          | Purpose                                       |
+| ------------------------------------------------- | --------------------------------------------- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`               | **Required.** `pk_test_` dev, `pk_live_` prod |
+| `CLERK_SECRET_KEY`                                | **Required.** `sk_test_` dev, `sk_live_` prod |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_URL`                   | `/auth/sign-in`                               |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_URL`                   | `/auth/sign-up`                               |
+| `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` | `/dashboard/overview`                         |
+| `NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL` | `/dashboard/overview`                         |
 
 **Do not use `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` / `AFTER_SIGN_UP_URL`.**
 Those names do not exist in `@clerk/nextjs` v7 (verified against 7.6.1) and are
@@ -69,3 +69,10 @@ are gitignored and must stay that way.
 - **Forms** — use `useAppForm` + `useFormFields<T>()` from `@/components/ui/tanstack-form`
 - **Page headers** — use `PageContainer` props (`pageTitle`, `pageDescription`, `pageHeaderAction`), never import `<Heading>` manually
 - **Formatting** — single quotes, JSX single quotes, no trailing comma, 2-space indent. Tooling is **oxfmt + oxlint** (`bun run format`, `bun run lint`), not Prettier/ESLint
+
+## Day-1 notes
+
+- Production Clerk instance will need restricted mode re-enabled — it's per-instance and defaults off
+- New teammates join via Users → Invitations, not self-serve sign-up
+- Middleware uses deprecated createRouteMatcher; new protected routes should use resource-based checks
+- /dashboard/overview has ~3s artificial delays to strip when you replace it

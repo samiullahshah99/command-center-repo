@@ -10,9 +10,9 @@ WORKDIR /app
 COPY package.json bun.lock* ./
 
 # Install dependencies with frozen lockfile for reproducible builds
-# The id is required by stricter BuildKit frontends (e.g. Railway's builder).
-RUN --mount=type=cache,id=bun-install,target=/root/.bun/install/cache \
-    bun install --no-save --frozen-lockfile
+# No BuildKit cache mount — Railway's builder requires its own `s/<service-id>-`
+# prefix on cache mount ids and forbids env vars in them. See Dockerfile.
+RUN bun install --no-save --frozen-lockfile
 
 # ============================================
 # Stage 2: Build the Next.js application

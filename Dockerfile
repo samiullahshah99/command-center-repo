@@ -17,12 +17,20 @@ RUN corepack enable
 # Copy manifests first so the install layer caches independently of source
 COPY package.json pnpm-lock.yaml ./
 
-# NOTE: the cache mount MUST carry an id. Some builders (Railway's Metal
-# builder among them) reject `--mount=type=cache` without one:
-#   "flag '--mount=type=cache,target=...' is missing an id argument"
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm config set store-dir /pnpm/store --global \
-    && pnpm install --frozen-lockfile
+# No BuildKit cache mount here, deliberately.
+#
+# Railway's Metal builder requires cache mount ids to be literally prefixed with
+# its own cache key -- `id=s/<service-id>-<target>` -- and forbids environment
+# variables inside the id, so the service id would have to be hardcoded. That
+# pins the Dockerfile to a single Railway service and breaks every other
+# builder. A plain install is portable and costs only the download time.
+#
+# To re-enable caching for one specific Railway service, replace the RUN below
+# with (service id from Railway -> service -> Settings):
+#   RUN --mount=type=cache,id=s/<service-id>-/pnpm/store,target=/pnpm/store \
+#       pnpm config set store-dir /pnpm/store --global \
+#       && pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 
 COPY . .
 

@@ -193,20 +193,14 @@ Yes. Bun is preferred, but npm works too, and the repo even ships both Node.js a
 
 ## Deploy
 
-The project includes Dockerfiles (`Dockerfile` for Node.js, `Dockerfile.bun` for Bun) that use standalone output mode. For other options, see the [Next.js deployment docs](https://nextjs.org/docs/app/getting-started/deploying).
+The project includes a `Dockerfile` (Node.js + pnpm) that uses standalone output mode. For other options, see the [Next.js deployment docs](https://nextjs.org/docs/app/getting-started/deploying).
 
 ### Docker
 
 Build the image:
 
 ```bash
-# Node.js
 docker build \
-  --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx \
-  -t shadcn-dashboard .
-
-# OR Bun
-docker build -f Dockerfile.bun \
   --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx \
   -t shadcn-dashboard .
 ```

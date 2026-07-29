@@ -146,8 +146,7 @@ The project follows a feature-based folder structure designed for scalability in
 │   └── themes.md          # Theme customization guide
 
 
-Dockerfile                 # Node.js production Dockerfile
-Dockerfile.bun             # Bun production Dockerfile
+Dockerfile                 # Node.js + pnpm production Dockerfile
 .dockerignore              # Docker build exclusions
 ```
 
@@ -528,10 +527,9 @@ Ensure these are set in your deployment platform:
 
 Production-ready Dockerfiles are included:
 
-- `Dockerfile` — Node.js-based
-- `Dockerfile.bun` — Bun-based
+- `Dockerfile` — Node.js + pnpm (via corepack)
 
-Both use `output: 'standalone'` in `next.config.ts`. Pass `NEXT_PUBLIC_*` vars as `--build-arg` at build time, and runtime secrets via `-e` at run time.
+It uses `output: 'standalone'` in `next.config.ts`. Pass `NEXT_PUBLIC_*` vars as `--build-arg` at build time, and runtime secrets via `-e` at run time.
 
 ### Build Considerations
 
@@ -591,7 +589,7 @@ export const Icons = {
 | --------------- | ----------------------------------------------------------------------------- |
 | General         | `check`, `close`, `search`, `settings`, `trash`, `spinner`, `info`, `warning` |
 | Navigation      | `chevronDown`, `chevronLeft`, `chevronRight`, `chevronUp`, `chevronsUpDown`   |
-| Layout          | `dashboard`, `kanban`, `panelLeft`                                            |
+| Layout          | `dashboard`, `panelLeft`                                                      |
 | User            | `user`, `account`, `profile`, `teams`                                         |
 | Communication   | `chat`, `notification`, `phone`, `video`, `send`                              |
 | Files           | `page`, `post`, `media`, `fileTypePdf`, `fileTypeDoc`                         |

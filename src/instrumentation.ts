@@ -18,7 +18,10 @@ const sentryOptions: Sentry.NodeOptions | Sentry.EdgeOptions = {
 };
 
 export async function register() {
-  if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
+  // Opt-out flag is a string. Only the literal 'true' disables Sentry — a bare
+  // `!process.env.NEXT_PUBLIC_SENTRY_DISABLED` check treats the documented
+  // default of "false" as truthy and silently switches Sentry off.
+  if (process.env.NEXT_PUBLIC_SENTRY_DISABLED !== 'true') {
     if (process.env.NEXT_RUNTIME === 'nodejs') {
       // Node.js Sentry configuration
       Sentry.init(sentryOptions);

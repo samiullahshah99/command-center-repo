@@ -60,6 +60,31 @@ silently ignored — the redirect appears broken with no error.
 Env changes do not hot-reload; restart the dev server. `.env*` and `/.clerk/`
 are gitignored and must stay that way.
 
+## Search-engine indexing: blocked everywhere
+
+This is an internal portal and must **never** be indexed. The block is enforced
+in three places and **all three must be kept**:
+
+1. **`next.config.ts`** — `async headers()` in `baseConfig` sets
+   `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet` on `/:path*`.
+   This is the only layer that covers non-HTML responses (API routes, assets).
+2. **`src/app/robots.ts`** — generated route serving `User-Agent: * / Disallow: /`.
+3. **`src/app/layout.tsx`** — `robots: { index: false, follow: false }` in the
+   exported `metadata`.
+
+> ⚠️ **Easy to lose in a refactor.** The `headers()` function sits inside
+> `baseConfig`, which is then wrapped twice by `withSentryConfig` — anyone
+> restructuring that file can drop it without any test failing. Nothing in the
+> build catches its absence. If you touch `next.config.ts`, verify
+> `curl -I localhost:3000 | grep -i x-robots-tag` still returns the header.
+>
+> Do **not** re-add `public/robots.txt`. A static file in `public/` silently
+> takes precedence over `src/app/robots.ts`. The one that used to live there
+> disallowed only four paths and implicitly allowed everything else.
+
+These are crawler *requests*, not access control. Actual protection is Clerk on
+`/dashboard/*` via `src/proxy.ts`.
+
 ## LLM access (OpenRouter)
 
 - **All LLM traffic goes through OpenRouter**, not the Anthropic API directly.

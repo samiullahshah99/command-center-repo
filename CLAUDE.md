@@ -313,17 +313,72 @@ Ignore any `bun run` references still in AGENTS.md.
 | `pnpm format:check` | Verify formatting |
 | `CI=1 pnpm build` | Build with Sentry source-map upload logs visible |
 
-**Not yet available — Day 2 work:**
+### Database commands
 
-| Command | Status |
+| Command | Purpose |
 | --- | --- |
-| `pnpm db:generate` | ❌ Does not exist. Drizzle not installed. |
-| `pnpm db:migrate` | ❌ Does not exist. |
-| `pnpm db:seed` | ❌ Does not exist. |
-| `pnpm db:studio` | ❌ Does not exist. |
+| `pnpm db:generate` | Emit a migration from schema changes into `drizzle/` |
+| `pnpm db:migrate` | Apply pending migrations |
+| `pnpm db:push` | Push schema without a migration file — **dev only, never production** |
+| `pnpm db:studio` | Drizzle Studio |
+| `pnpm db:seed` | ⚠️ Scripted but `src/db/seed.ts` does not exist yet |
 
-`DATABASE_URL` is already set in `.env.local`. The connection string is
-provider-agnostic — nothing in the repo assumes Railway, Neon, or Supabase.
+---
+
+## Database (Drizzle + Postgres)
+
+Postgres 18 on Railway. Drizzle ORM with the `node-postgres` driver.
+
+**Two URLs, on purpose:**
+
+| Variable | Used by | Should point at |
+| --- | --- | --- |
+| `DATABASE_URL` | the running app (`src/db/index.ts`) | `postgres.railway.internal` in Railway — keeps queries on the private network |
+| `DATABASE_PUBLIC_URL` | migrations (`drizzle.config.ts`) | the `*.proxy.rlwy.net` host — drizzle-kit runs from a laptop or CI and cannot reach `*.railway.internal` |
+
+`drizzle.config.ts` falls back to `DATABASE_URL` when `DATABASE_PUBLIC_URL` is
+unset, so a local setup with a single public URL keeps working.
+
+- **A connection `Pool` is correct here**, not a per-request client. This app runs
+  as a long-lived container (`output: 'standalone'`), not serverless. The pool is
+  cached on `globalThis` outside production so dev hot-reloads don't leak pools.
+- **SSL is `{ rejectUnauthorized: false }`.** Railway's proxy terminates TLS with
+  a certificate that does not chain to a public root, so strict verification
+  fails — but the connection genuinely is TLS 1.3 (confirmed via `pg_stat_ssl`).
+  This protects confidentiality, not against an active MITM.
+- **`drizzle.config.ts` loads `.env.local` itself** via a small inline loader,
+  because drizzle-kit runs outside Next.js and does not get it for free.
+
+### Migrations run manually, from a laptop
+
+Decided deliberately for a one-week single-developer project: a Railway
+pre-deploy hook means a bad migration blocks **every** deploy with logs as the
+only feedback. Manual keeps failures visible and rollback trivial.
+
+```bash
+pnpm db:generate    # review the SQL in drizzle/ before applying
+pnpm db:migrate     # apply against DATABASE_PUBLIC_URL
+git push            # then deploy
+```
+
+**The tradeoff is real: schema and deployed code can drift if you forget.**
+Revisit and add a pre-deploy hook once the model settles or a second developer
+joins.
+
+### Zod schemas mirror the tables
+
+`createInsertSchema`/`createSelectSchema` from `drizzle-zod`, defined in the same
+file as the table, with hand-written refinements for what Drizzle cannot express
+(the `status`/`cadence` unions, JSONB shapes). Feature folders import and extend
+these rather than redefining them.
+
+> ⚠️ **Overriding a column that has a Postgres default makes it required on
+> insert** unless you add `.optional()`. The override replaces the whole type,
+> optionality included. This silently broke `status`, `auto_complete_rule`, and
+> the `role_profile` JSONB columns before it was caught.
+
+`raw_event.payload` is intentionally `z.unknown()` — the table stores events
+verbatim before any parser exists.
 
 ---
 

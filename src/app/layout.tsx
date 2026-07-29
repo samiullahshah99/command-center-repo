@@ -54,7 +54,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           }}
         />
       </head>
+      {/*
+        suppressHydrationWarning is for browser extensions, not our own markup.
+        Grammarly and similar tools write attributes onto <body> before React
+        hydrates (data-gr-ext-installed, data-new-gr-c-s-check-loaded), which the
+        server never rendered and React then reports as a mismatch.
+
+        This suppresses warnings for THIS element's own attributes only — it does
+        not extend to children, so genuine hydration bugs inside the app are
+        still reported.
+      */}
       <body
+        suppressHydrationWarning
         className={cn(
           'bg-background overflow-x-hidden overscroll-none font-sans antialiased',
           fontVariables

@@ -37,6 +37,28 @@ export const navGroups: NavGroup[] = [
     ]
   },
   {
+    label: 'Command Center',
+    items: [
+      {
+        title: 'People',
+        url: '/dashboard/people',
+        // Existing registry keys — no new @tabler imports needed.
+        icon: 'employee',
+        shortcut: ['e', 'e'],
+        isActive: false,
+        items: []
+      },
+      {
+        title: 'Role Profiles',
+        url: '/dashboard/role-profiles',
+        icon: 'badgeCheck',
+        shortcut: ['r', 'r'],
+        isActive: false,
+        items: []
+      }
+    ]
+  },
+  {
     label: '',
     items: [
       {

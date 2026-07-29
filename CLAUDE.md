@@ -60,6 +60,32 @@ silently ignored — the redirect appears broken with no error.
 Env changes do not hot-reload; restart the dev server. `.env*` and `/.clerk/`
 are gitignored and must stay that way.
 
+## LLM access (OpenRouter)
+
+- **All LLM traffic goes through OpenRouter**, not the Anthropic API directly.
+  OpenAI-compatible schema at `https://openrouter.ai/api/v1`.
+- **`OPENROUTER_API_KEY` is server-side only.** Never prefix it `NEXT_PUBLIC_` —
+  that inlines the key into the client bundle and leaks it to every visitor.
+- **Every LLM call must go through a single `src/lib/ai/client.ts` module.**
+  No inline `fetch` to OpenRouter inside feature code. One module means one
+  place for retries, timeouts, cost logging, and model-slug changes.
+  *(Not written yet — Week 2 work.)*
+
+### Model slugs
+
+Verified against the live OpenRouter catalog. Slugs move; re-check with
+`curl -s https://openrouter.ai/api/v1/models` before pinning new ones.
+
+| Tier | Slug | $/M in | $/M out |
+| --- | --- | --- | --- |
+| Haiku | `anthropic/claude-haiku-4.5` | 1.00 | 5.00 |
+| Sonnet | `anthropic/claude-sonnet-5` | 2.00 | 10.00 |
+| Opus | `anthropic/claude-opus-5` | 5.00 | 25.00 |
+
+A `:batch` variant exists for most slugs at ~50% cost with async delivery —
+worth using for scheduled work (nightly role monitors, Control Tower recompute)
+where latency does not matter.
+
 ## Critical Conventions
 
 - **React Query** for all data fetching — `void prefetchQuery()` on server + `useSuspenseQuery` on client (standard TanStack pattern), `useMutation` for forms, `HydrationBoundary` + `dehydrate` for hydration, `<Suspense fallback>` for streaming

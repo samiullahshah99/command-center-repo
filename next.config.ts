@@ -26,6 +26,22 @@ const baseConfig: NextConfig = {
   transpilePackages: ['geist'],
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production'
+  },
+  // Internal portal — block indexing at the HTTP layer as well as via
+  // robots.ts and the layout metadata. Belt-and-braces: a header covers
+  // responses a crawler reaches without parsing HTML (assets, API routes).
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-Robots-Tag',
+            value: 'noindex, nofollow, noarchive, nosnippet'
+          }
+        ]
+      }
+    ];
   }
 };
 

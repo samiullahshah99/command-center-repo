@@ -24,7 +24,8 @@ export const metadata: Metadata = {
     template: '%s | Shadcn Dashboard'
   },
   description:
-    'Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.'
+    'Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript.',
+  robots: { index: false, follow: false }
 };
 
 export const viewport: Viewport = {

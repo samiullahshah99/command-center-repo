@@ -147,13 +147,13 @@ git clone https://github.com/Kiranism/next-shadcn-dashboard-starter.git
 ```
 
 - `bun install`
-- Copy the example env file: `cp env.example.txt .env.local`
+- Copy the example env file: `cp .env.example .env.local`
 - Fill in the required variables in `.env.local`
 - `bun run dev`
 
 ##### Environment variables
 
-See `env.example.txt` for the variables you need. They cover authentication and error tracking.
+See `.env.example` for the variables you need. They cover authentication and error tracking.
 
 ##### Clerk setup
 

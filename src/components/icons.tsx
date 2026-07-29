@@ -51,7 +51,6 @@ import {
   IconLock,
   IconLogin,
   IconLogout,
-  IconMessage,
   IconMinus,
   IconMoon,
   IconMusic,
@@ -69,9 +68,7 @@ import {
   IconSettings,
   IconShare,
   IconSlash,
-  IconSparkles,
   IconStack2,
-  IconStar,
   IconSun,
   IconTrash,
   IconTrendingDown,
@@ -141,7 +138,6 @@ export const Icons = {
   logo: IconCommand,
 
   // Communication
-  chat: IconMessage,
   notification: IconBell,
   phone: IconPhone,
   video: IconVideo,
@@ -182,12 +178,9 @@ export const Icons = {
   palette: IconPalette,
 
   // Commerce / Plans
-  billing: IconCreditCard,
   creditCard: IconCreditCard,
   product: IconBox,
   pro: IconCrown,
-  exclusive: IconStar,
-  sparkles: IconSparkles,
   badgeCheck: IconRosetteDiscountCheck,
   lock: IconLock,
 

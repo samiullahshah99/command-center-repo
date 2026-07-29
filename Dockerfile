@@ -49,7 +49,39 @@ ARG NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/sign-in
 ARG NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/sign-up
 ARG NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard/overview
 ARG NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard/overview
-ARG NEXT_PUBLIC_SENTRY_DISABLED=true
+
+# Sentry.
+#
+# Default is 'false' (enabled). It used to default to 'true', which silently
+# shipped every production image with Sentry switched off — no events captured
+# at all, not merely unresolved stack traces. An ARG default cannot be
+# overridden by a runtime variable, so this must be correct here.
+ARG NEXT_PUBLIC_SENTRY_DISABLED=false
+
+# Inlined into the client bundle at build time. Without it the browser SDK has
+# no DSN and reports nothing, even when enabled above.
+ARG NEXT_PUBLIC_SENTRY_DSN
+
+# Optional overrides; next.config.ts falls back to lucky-fours/command-center.
+ARG NEXT_PUBLIC_SENTRY_ORG
+ARG NEXT_PUBLIC_SENTRY_PROJECT
+
+# Required for source map upload. Locally this comes from
+# .env.sentry-build-plugin, which is gitignored and therefore absent from the
+# build context — so it has to be passed in here.
+#
+# This is a secret. It is an ARG rather than a BuildKit secret mount because
+# Railway auto-supplies service variables as build args and does not expose
+# --secret. Exposure is bounded: ARG values are readable via `docker history`
+# on the stage that declares them, and this is the `builder` stage, which is
+# discarded — only .next/standalone and .next/static cross into the runner, so
+# the token is not present in the published image. It is deliberately NOT
+# re-declared as ENV in the runner stage.
+#
+# When source maps are missing in production, check this first: next.config.ts
+# sets sourcemaps.disable when SENTRY_AUTH_TOKEN is absent, so the build
+# succeeds quietly with unresolved stack traces.
+ARG SENTRY_AUTH_TOKEN
 
 RUN pnpm run build
 

@@ -12,11 +12,11 @@ This file provides essential information for AI coding agents working on this pr
 - **Language**: TypeScript 5.7
 - **Styling**: Tailwind CSS v4
 - **UI Components**: shadcn/ui (New York style)
-- **Authentication**: Clerk (with Organizations/Billing support)
+- **Authentication**: Clerk (authentication only — Organizations and Billing removed)
 - **Error Tracking**: Sentry
 - **Charts**: Recharts
-- **Containerization**: Docker (Node.js & Bun Dockerfiles)
-- **Package Manager**: Bun (preferred) or npm
+- **Containerization**: Docker (single Node.js + pnpm Dockerfile)
+- **Package Manager**: pnpm (pinned via `packageManager` in package.json)
 
 The project follows a feature-based folder structure designed for scalability in SaaS applications, internal tools, and admin panels.
 
@@ -53,9 +53,7 @@ The project follows a feature-based folder structure designed for scalability in
 ### Authentication & Authorization
 
 - Clerk for authentication and user management
-- Clerk Organizations for multi-tenant workspaces
-- Clerk Billing for subscription management (B2B)
-- Client-side RBAC for navigation visibility
+- Organizations, Billing, and navigation RBAC have been REMOVED from this repo
 
 ### Data & APIs
 
@@ -69,8 +67,8 @@ The project follows a feature-based folder structure designed for scalability in
 
 ### Development Tools
 
-- oxlint for linting (`bun run lint`)
-- oxfmt for formatting (`bun run format`), config in `.oxfmtrc.json`
+- oxlint for linting (`pnpm lint`)
+- oxfmt for formatting (`pnpm format`), config in `.oxfmtrc.json`
 - Husky for git hooks
 - lint-staged for pre-commit formatting
 
@@ -85,9 +83,6 @@ The project follows a feature-based folder structure designed for scalability in
 │   ├── dashboard/         # Dashboard routes
 │   │   ├── overview/      # Parallel routes (@area_stats, @bar_stats, etc.)
 │   │   ├── product/       # Product management pages
-│   │   ├── workspaces/    # Organization management
-│   │   ├── billing/       # Subscription billing
-│   │   ├── exclusive/     # Pro plan feature example
 │   │   └── profile/       # User profile
 │   ├── api/               # API routes (if any)
 │   ├── layout.tsx         # Root layout with providers
@@ -121,7 +116,7 @@ The project follows a feature-based folder structure designed for scalability in
 │   └── profile/           # Profile management
 │
 ├── config/                # Configuration files
-│   ├── nav-config.ts      # Navigation with RBAC
+│   ├── nav-config.ts      # Navigation (RBAC removed)
 │   └── ...
 │
 ├── hooks/                 # Custom React hooks
@@ -156,35 +151,35 @@ Dockerfile                 # Node.js + pnpm production Dockerfile
 
 ```bash
 # Install dependencies
-bun install
+pnpm install
 
 # Development server
-bun run dev          # Starts at http://localhost:3000
+pnpm dev          # Starts at http://localhost:3000
 
 # Build for production
-bun run build
+pnpm build
 
 # Start production server
-bun run start
+pnpm start
 
 # Linting
-bun run lint         # Run oxlint
-bun run lint:fix     # Fix oxlint issues and format
-bun run lint:strict  # Zero warnings tolerance
+pnpm lint         # Run oxlint
+pnpm lint:fix     # Fix oxlint issues and format
+pnpm lint:strict  # Zero warnings tolerance
 
 # Formatting
-bun run format       # Format with oxfmt
-bun run format:check # Check formatting with oxfmt
+pnpm format       # Format with oxfmt
+pnpm format:check # Check formatting with oxfmt
 
 # Git hooks
-bun run prepare      # Install Husky hooks
+pnpm prepare      # Install Husky hooks
 ```
 
 ---
 
 ## Environment Configuration
 
-Copy `env.example.txt` to `.env.local` and configure:
+Copy `.env.example` to `.env.local` and configure:
 
 ### Required for Authentication (Clerk)
 
@@ -195,8 +190,10 @@ CLERK_SECRET_KEY=sk_...
 # Redirect URLs
 NEXT_PUBLIC_CLERK_SIGN_IN_URL="/auth/sign-in"
 NEXT_PUBLIC_CLERK_SIGN_UP_URL="/auth/sign-up"
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL="/dashboard/overview"
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL="/dashboard/overview"
+# NOTE: AFTER_SIGN_IN_URL / AFTER_SIGN_UP_URL do NOT exist in @clerk/nextjs v7
+# and are silently ignored. Use the FALLBACK names:
+NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL="/dashboard/overview"
+NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL="/dashboard/overview"
 ```
 
 ### Optional for Error Tracking (Sentry)
@@ -206,10 +203,10 @@ NEXT_PUBLIC_SENTRY_DSN=https://...@....ingest.sentry.io/...
 NEXT_PUBLIC_SENTRY_ORG=your-org
 NEXT_PUBLIC_SENTRY_PROJECT=your-project
 SENTRY_AUTH_TOKEN=sntrys_...
-NEXT_PUBLIC_SENTRY_DISABLED="false"  # Set to "true" to disable in dev
+NEXT_PUBLIC_SENTRY_DISABLED=  # ONLY the literal 'true' disables Sentry; "false" also leaves it ON
 ```
 
-**Note**: Clerk supports "keyless mode" - the app works without API keys for initial development.
+**Note**: This repo requires real Clerk keys. Without them every `/dashboard/*` route returns 500.
 
 ---
 
@@ -647,10 +644,11 @@ See "Theming System" section above or `docs/themes.md`.
 - Ensure using Tailwind CSS v4 syntax (`@import 'tailwindcss'`)
 - Check `postcss.config.js` uses `@tailwindcss/postcss`
 
-**Clerk keyless mode popup**
+**`@clerk/backend: Missing publishableKey`**
 
-- Normal in development without API keys
-- Click popup to claim application or set env variables
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are required — this
+  repo is wired to a real Clerk instance, not keyless mode
+- Env changes are not hot-reloaded; restart the dev server
 
 **Theme not applying**
 

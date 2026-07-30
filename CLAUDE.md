@@ -295,6 +295,33 @@ where latency does not matter.
 
 ---
 
+## Notion (PRD §5.8 — later phase)
+
+Source for the company AI search feature. **Not on this week's critical path** —
+the PRD marks §5.8 as possibly phased separately.
+
+- Base URL `https://api.notion.com/v1`, `Authorization: Bearer <token>`.
+- **`Notion-Version` is mandatory on every request** (currently `2022-06-28`).
+  Omitting it returns `400 validation_error` — there is no default version.
+- **PULL-ONLY.** Notion has no webhook API for internal integrations, so it does
+  **not** fit the `raw_event` inbound-webhook pattern the other connectors use.
+  It has to be polled or fetched on demand, which is a different shape — do not
+  assume the Slack/Fireflies design transfers.
+- **Deny-by-default per page.** An integration sees nothing until a page or
+  database is explicitly shared with it (⋯ → Connections → Command Center).
+  Sharing a *parent* page cascades to its children.
+  > A `404 object_not_found` here almost always means "not shared", **not**
+  > "wrong ID". Chasing the ID is the standard wasted hour.
+- **Rate limit ≈ 3 requests/second** average. Bursts get `429`.
+- **Cursor pagination on every list endpoint** — `has_more` / `next_cursor`.
+  Reading only the first page silently under-reports.
+
+Verify the credential and list shared databases with `pnpm verify:notion`
+(`scripts/verify-notion.ts`). That script is read-only and is not the client.
+
+The client will live at `src/features/connectors/notion/` **once the shared
+connector interface exists** (Day 3). It is deliberately not written yet.
+
 ## Commands
 
 Package manager is **pnpm** (pinned via `packageManager` in `package.json`).

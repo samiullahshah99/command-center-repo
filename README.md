@@ -1,240 +1,229 @@
-<h1 align="center">Admin Dashboard Template with Next.js &amp; Shadcn UI</h1>
+# Command Center
 
-<div align="center">Free, open source admin dashboard starter built with Next.js 16, shadcn/ui, Tailwind CSS, and TypeScript</div>
+Internal operations portal. Tracks commitments, role expectations, and recurring
+work across the tools the team already uses.
 
-<div align="center">
-  <a href="https://dub.sh/shadcn-dashboard"><strong>View Demo</strong></a>
-</div>
+> [!IMPORTANT]
+> **This is an internal application, not a public product.** All `/dashboard/*`
+> routes require authentication, and search-engine indexing is blocked in three
+> places (see [CLAUDE.md](./CLAUDE.md)). It is not a template — do not treat the
+> upstream starter's documentation as authoritative for this repo.
 
-<br />
+Built on [next-shadcn-dashboard-starter](https://github.com/Kiranism/next-shadcn-dashboard-starter)
+(MIT, © 2023 Kiranism — see [LICENSE](./LICENSE)), then trimmed and extended.
 
-<div align="center">
-  <img src="/public/shadcn-dashboard.png" alt="Shadcn Dashboard Cover" style="max-width: 100%; border-radius: 8px;" />
-</div>
+## Status
 
-<br />
+Week 1, in progress.
 
-<p align="center">
-  <a href="https://github.com/Kiranism/next-shadcn-dashboard-starter/stargazers"><img src="https://img.shields.io/github/stars/Kiranism/next-shadcn-dashboard-starter?style=social" alt="GitHub stars" /></a>
-  <a href="https://github.com/Kiranism/next-shadcn-dashboard-starter/network/members"><img src="https://img.shields.io/github/forks/Kiranism/next-shadcn-dashboard-starter?style=social" alt="Forks" /></a>
-  <a href="https://github.com/Kiranism/next-shadcn-dashboard-starter/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Kiranism/next-shadcn-dashboard-starter" alt="MIT License" /></a>
-  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js" />
-  <a href="https://go.clerk.com/ILdYhn7"><img src="https://img.shields.io/badge/Sponsored_by-Clerk-6C47FF?style=flat-square&logo=clerk" alt="Sponsored by Clerk" /></a>
-</p>
+**Working**
 
-## Overview
+- Clerk authentication, single-org, invitation-only sign-up
+- **People** — team roster with role-profile assignment, search, filtering
+- **Role Profiles** — tracked signals, source channels, quota config
+- Postgres schema and migrations via Drizzle, with an idempotent seed
+- Sentry error tracking across client, server, and edge
+- Deployed to Railway from `Dockerfile` (standalone output)
 
-A free, open source (MIT) admin dashboard starter built with Next.js 16, shadcn/ui on Base UI primitives, TypeScript, and Tailwind CSS v4.
+**Not built yet**
 
-Every feature is a working, production-ready implementation, not static demo UI. Tables search, filter, sort, and paginate for real. Forms validate and mutate with cache invalidation.
-Auth, organizations, and billing function end-to-end.
-Clone it and start building on patterns you'd write yourself. It works well as a base for SaaS apps, internal tools, and admin panels.
+- ClickUp / Slack / Fireflies connectors (credentials verified, clients pending)
+- Notion client — verified credential only, feeds a later phase
+- LLM client at `src/lib/ai/client.ts`
+- `tracked_item`, `completion_event`, and `raw_event` have schema but no UI
 
-### Why This Template
+`/dashboard/product` and `/dashboard/users` are the **upstream template's demo
+features**, retained deliberately as the reference implementation for the
+data-table and form patterns. They read mock data, not Postgres.
 
-Most dashboard templates are static demo boilerplates: screens that look finished but need rebuilding the moment you wire in real data. This starter takes the opposite approach:
+## Tech stack
 
-- **Everything actually works.** Data tables run end-to-end: server prefetch, client-side React Query cache, and URL-synced search, filtering, sorting, and pagination via nuqs. Forms are built from reusable, composable fields with Zod validation, including advanced patterns like multi-step and dialog/sheet forms, with real create/update mutations and cache invalidation on success.
-- **Industry-standard implementations.** The data layer follows the official TanStack Query SSR pattern (server prefetch + `HydrationBoundary` + `useSuspenseQuery`), typed end to end, organized in a feature-based structure with a clean API layer per feature. These are patterns you copy into production code as-is, not mockups you rebuild from scratch.
-- **Minimal by design.** Deliberately lean, with no bloated boilerplate, so you spend your time tweaking it to your use case, not deleting someone else's code.
+| Concern | Choice |
+| --- | --- |
+| Framework | [Next.js 16](https://nextjs.org) (App Router, Turbopack) |
+| Language | TypeScript 5.7 |
+| Package manager | **pnpm** (pinned via `packageManager`) |
+| Database | Postgres 18 + [Drizzle ORM](https://orm.drizzle.team) |
+| Auth | [Clerk](https://clerk.com) — authentication only |
+| Data fetching | [TanStack Query](https://tanstack.com/query) (SSR prefetch + hydration) |
+| URL state | [nuqs](https://nuqs.47ng.com/) |
+| Tables | [TanStack Table](https://tanstack.com/table) |
+| Forms | [TanStack Form](https://tanstack.com/form) + [Zod](https://zod.dev) |
+| UI | [shadcn/ui](https://ui.shadcn.com) on [Base UI](https://base-ui.com), Tailwind CSS v4 |
+| Command palette | [kbar](https://kbar.vercel.app/) |
+| Errors | [Sentry](https://sentry.io) |
+| Lint / format | [oxlint](https://oxc.rs) + [oxfmt](https://oxc.rs) — **not** ESLint/Prettier |
+| LLM access | [OpenRouter](https://openrouter.ai) |
+| Hosting | [Railway](https://railway.app) |
 
-### Tech Stack
+## Getting started
 
-- Framework - [Next.js 16](https://nextjs.org/16)
-- Language - [TypeScript](https://www.typescriptlang.org)
-- Auth - [Clerk](https://go.clerk.com/ILdYhn7)
-- Error tracking - [Sentry](https://sentry.io/for/nextjs/?utm_source=github&utm_medium=paid-community&utm_campaign=general-fy26q2-nextjs&utm_content=github-banner-project-tryfree)
-- Styling - [Tailwind CSS v4](https://tailwindcss.com)
-- Components - [shadcn/ui](https://ui.shadcn.com) on [Base UI](https://base-ui.com) primitives
-- Charts - [Recharts](https://recharts.org) • [Evil Charts](https://evilcharts.com/)
-- Schema validation - [Zod](https://zod.dev)
-- Data fetching - [TanStack React Query](https://tanstack.com/query)
-- Search param state - [Nuqs](https://nuqs.47ng.com/)
-- Tables - [TanStack Data Tables](https://ui.shadcn.com/docs/components/data-table) • [Dice Table](https://www.diceui.com/docs/components/data-table)
-- Forms - [TanStack Form](https://tanstack.com/form) + [Zod](https://zod.dev)
-- Command+K interface - [kbar](https://kbar.vercel.app/)
-- Linter / Formatter - [OxLint](https://oxc.rs/docs/guide/usage/linter) • [Oxfmt](https://oxc.rs/docs/guide/usage/formatter)
-- Pre-commit hooks - [Husky](https://typicode.github.io/husky/)
-- Themes - [tweakcn](https://tweakcn.com/)
+Requires Node 22+ and pnpm.
 
-_Looking for a TanStack Start version? Here's the [repo](https://git.new/tanstack-start-dashboard)._
+```bash
+pnpm install
+cp .env.example .env.local     # then fill in the values
+pnpm dev
+```
 
-## Features
+Runs at http://localhost:3000.
 
-- Pre-built dashboard layout with sidebar, header, and content area
-- Analytics overview page with cards and charts
-- Data tables with React Query prefetch, client-side cache, search, filter, and pagination
-- Authentication and user management through Clerk
-- Multi-tenant workspaces using Clerk Organizations (create, switch, manage teams)
-- Billing and subscriptions via Clerk Billing for B2B, with plan management and feature gating
-- Client-side RBAC navigation that filters menu items by organization, permissions, and roles
-- Infobar component for tips, status messages, or contextual notes on any page
-- shadcn/ui components on Base UI primitives, styled with Tailwind CSS
-- Six-plus themes with a theme switcher
-- Feature-based folder structure
-- A starting point for SaaS dashboards, internal tools, and client admin panels
+### Required environment variables
 
-## Use Cases
+Without the first two, every `/dashboard/*` route returns 500 with
+`@clerk/backend: Missing publishableKey`:
 
-A few things you can build with it:
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | **Required** |
+| `CLERK_SECRET_KEY` | **Required** |
+| `DATABASE_URL` | Required for People / Role Profiles |
 
-- SaaS admin dashboards
-- Internal tools and operations panels
-- Analytics dashboards
-- Client project admin panels
-- A boilerplate for new Next.js shadcn projects
+`.env.example` documents every variable the project uses, grouped by service.
+Env changes are **not** hot-reloaded — restart the dev server.
 
-## Pages
+> [!WARNING]
+> Do not use `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` / `AFTER_SIGN_UP_URL`. Those
+> names do not exist in `@clerk/nextjs` v7 and are silently ignored. Use the
+> `FALLBACK_REDIRECT_URL` names in `.env.example`.
 
-| Page                                                                                                                                                                  | Notes                                                                                                                                                                                |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Signup / Signin](https://go.clerk.com/ILdYhn7)                                                                                                                       | Auth handled by Clerk, with passwordless sign-in, social logins, and enterprise SSO. |
-| [Dashboard Overview](https://shadcn-dashboard.kiranism.dev/dashboard)                                                                                                 | Cards and Recharts graphs. Parallel routes give each section its own loading and error state.                                                                                       |
-| [Product List (Table)](https://shadcn-dashboard.kiranism.dev/dashboard/product)                                                                                       | TanStack Table plus React Query (server prefetch, client cache) with nuqs URL state for search, filter, and pagination. `shallow: true` keeps interactions on the client.           |
-| [Create Product Form](https://shadcn-dashboard.kiranism.dev/dashboard/product/new)                                                                                    | TanStack Form and Zod with `useMutation` for create and update. Cache is invalidated on success.                                                                                    |
-| [Users (Table)](https://shadcn-dashboard.kiranism.dev/dashboard/users)                                                                                                | Same setup as Products: React Query with nuqs, server prefetch, and client-side pagination and filtering.                                                                           |
-| [Profile](https://shadcn-dashboard.kiranism.dev/dashboard/profile)                                                                                                   | Clerk's account management UI for profile and security settings. |
-| [Not Found](https://shadcn-dashboard.kiranism.dev/dashboard/notfound)                                                                                                 | A root-level not-found page.                                                                                                                                                        |
-| [Global Error](https://sentry.io/for/nextjs/?utm_source=github&utm_medium=paid-community&utm_campaign=general-fy26q2-nextjs&utm_content=github-banner-project-tryfree) | A shared error page wired to Sentry for logging, reports, and session replay. |
+## Commands
 
-## Folder Structure
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Dev server |
+| `pnpm build` | Production build |
+| `pnpm start` | Serve the production build |
+| `pnpm lint` / `lint:fix` / `lint:strict` | oxlint |
+| `pnpm format` / `format:check` | oxfmt |
+| `pnpm db:generate` | Emit a migration from schema changes |
+| `pnpm db:migrate` | Apply pending migrations |
+| `pnpm db:studio` | Drizzle Studio |
+| `pnpm db:seed` | Seed role profiles, roster, recurring tasks (idempotent) |
+| `pnpm verify:notion` | Read-only Notion credential check |
+| `CI=1 pnpm build` | Build with Sentry source-map upload logs visible |
+
+`pnpm db:push` also exists but applies schema changes **without a migration
+file** — development only, never against production.
+
+## Database
+
+Two connection strings, deliberately:
+
+| Variable | Used by | Points at |
+| --- | --- | --- |
+| `DATABASE_URL` | the running app | `postgres.railway.internal` in Railway — keeps queries on the private network |
+| `DATABASE_PUBLIC_URL` | migrations | the public proxy host — `drizzle-kit` runs from a laptop or CI and cannot reach `*.railway.internal` |
+
+`drizzle.config.ts` falls back to `DATABASE_URL` when `DATABASE_PUBLIC_URL` is
+unset, so a local single-URL setup works unchanged.
+
+**Migrations are run manually**, not by a deploy hook:
+
+```bash
+pnpm db:generate    # review the SQL in drizzle/ first
+pnpm db:migrate
+```
+
+The tradeoff is real — schema and deployed code can drift if you forget. See
+[CLAUDE.md](./CLAUDE.md) for why that was chosen over a Railway pre-deploy hook.
+
+Six tables: `person`, `role_profile`, `tracked_item`, `recurring_task`,
+`completion_event`, `raw_event`. Names are snake_case and singular.
+
+> [!IMPORTANT]
+> **ClickUp is the system of record for tasks.** `tracked_item` holds a
+> `clickup_task_id` reference plus our own state. It must not duplicate ClickUp
+> task data — no title, assignee, status, or comments.
+
+## Project structure
 
 ```plaintext
 src/
-├── app/                           # Next.js App Router directory
-│   ├── auth/                      # Auth pages (sign-in, sign-up)
-│   ├── dashboard/                 # Dashboard route group
-│   │   ├── overview/              # Analytics with parallel routes
-│   │   ├── product/               # Product CRUD pages (React Query)
-│   │   ├── users/                 # Users table (React Query + nuqs)
-│   │   ├── workspaces/            # Org management & teams
-│   │   ├── billing/               # Billing & plans
-│   │   ├── profile/               # User profile
-│   │   └── exclusive/             # Plan-gated page
-│   └── api/                       # API routes
+├── app/
+│   ├── auth/                   # Clerk sign-in / sign-up
+│   ├── dashboard/
+│   │   ├── overview/           # Analytics (parallel routes)
+│   │   ├── people/             # People admin (Postgres)
+│   │   ├── role-profiles/      # Role Profiles admin (Postgres)
+│   │   ├── product/            # Template reference feature (mock data)
+│   │   ├── users/              # Template reference feature (mock data)
+│   │   └── profile/            # Clerk account management
+│   ├── api/                    # Route handlers (mock API + Sentry check)
+│   ├── robots.ts               # noindex — do not remove
+│   └── layout.tsx
 │
-├── components/                    # Shared components
-│   ├── ui/                        # UI primitives (buttons, inputs, dialogs, etc.)
-│   ├── layout/                    # Layout components (header, sidebar, etc.)
-│   ├── themes/                    # Theme system (selector, mode toggle, config)
-│   └── kbar/                      # Command+K interface
+├── db/                         # Drizzle
+│   ├── index.ts                # Lazy pool + client
+│   ├── schema/                 # One file per table + Zod validators
+│   └── seed.ts
 │
-├── features/                      # Feature-based modules
-│   ├── overview/                  # Dashboard analytics (charts, cards)
-│   ├── products/                  # Product listing, form, tables (React Query)
-│   ├── users/                     # User management table (React Query)
-│   ├── auth/                      # Auth components
-│   └── profile/                   # Profile form schemas
+├── features/                   # One folder per feature
+│   ├── people/                 # api/ components/ constants/ schemas/
+│   ├── role-profiles/
+│   ├── products/ users/        # reference implementations
+│   ├── overview/ auth/ profile/
 │
-├── lib/                           # Core utilities (query-client, searchparams, etc.)
-├── hooks/                         # Custom hooks
-├── config/                        # Navigation, infobar, data table config
-├── constants/                     # Mock data
-├── styles/                        # Global CSS & theme files
-│   └── themes/                    # Individual theme CSS files
-└── types/                         # TypeScript types
+├── components/                 # ui/ layout/ themes/ kbar/ icons.tsx
+├── config/  hooks/  lib/  styles/  types/
+└── proxy.ts                    # Next.js 16 middleware — Clerk route protection
+
+drizzle/                        # Generated SQL migrations
+scripts/                        # Standalone utilities (verify-notion.ts)
+docs/                           # Setup + access-status notes
 ```
 
-## Getting Started
+New features replicate the shape of `src/features/products/` — see
+[CLAUDE.md](./CLAUDE.md#architecture-invariants) for the anatomy and the
+TanStack Query SSR pattern.
 
-> [!NOTE]
-> This starter uses Next.js 16 (App Router) with React 19 and shadcn/ui. To run it locally:
+## Deployment
 
-Clone the repo:
+Deployed on Railway from the `Dockerfile` (Node 22 + pnpm via corepack,
+`output: 'standalone'`, non-root user).
 
-```
-git clone https://github.com/Kiranism/next-shadcn-dashboard-starter.git
-```
+`NEXT_PUBLIC_*` values are **inlined into the client bundle at build time**, so
+they must be passed as build args — setting them only as runtime variables has
+no effect. The Dockerfile declares the ones it needs as `ARG`.
 
-- `bun install`
-- Copy the example env file: `cp .env.example .env.local`
-- Fill in the required variables in `.env.local`
-- `bun run dev`
-
-##### Environment variables
-
-See `.env.example` for the variables you need. They cover authentication and error tracking.
-
-##### Clerk setup
-
-For setting up Clerk auth (including organizations, workspaces, and teams), see [clerk_setup.md](./docs/clerk_setup.md).
-
-The app should now be running at http://localhost:3000.
-
-> [!WARNING]
-> After cloning or forking, be careful when pulling the latest changes. Updates can cause merge conflicts.
-
----
-
-## Cleanup Script: Start Minimal in 60 Seconds
-
-This template has already been trimmed: Clerk Organizations, Clerk Billing, navigation RBAC, and the Kanban, Chat, Notifications, Forms-demo, React Query demo, and Icons pages have been removed. Clerk auth, the data-table stack, the TanStack Form system, kbar, and Sentry remain.
-
-
-## FAQ
-
-**Is it production ready?**
-Yes. Every feature is a complete, working implementation: authentication, CRUD flows, table search/filter/sort/pagination, and form validation with mutations all function end-to-end. It's a starting point for real applications, not a visual mockup.
-
-**Is it free for commercial use?**
-Yes. MIT-licensed and free for both personal and commercial projects: no paid tier, no license keys.
-
-**Can I use it without Clerk?**
-Yes. Clerk auth is wired through `src/proxy.ts` and `src/components/layout/providers.tsx` — swap those for your own provider. Organizations and Billing have already been removed.
-
-**How do I remove demo pages or features I don't need?**
-Edit the code directly — the cleanup script has been removed.
-
-**Does it support Next.js 16, React 19, and Tailwind CSS v4?**
-Yes. The template is built on Next.js 16 (App Router), React 19, and Tailwind CSS v4, with shadcn/ui on Base UI primitives, and is actively maintained to track new releases.
-
-**Can I use npm instead of Bun?**
-Yes. Bun is preferred, but npm works too, and the repo even ships both Node.js and Bun Dockerfiles for deployment.
-
-## Deploy
-
-The project includes a `Dockerfile` (Node.js + pnpm) that uses standalone output mode. For other options, see the [Next.js deployment docs](https://nextjs.org/docs/app/getting-started/deploying).
-
-### Docker
-
-Build the image:
+Build and run locally:
 
 ```bash
 docker build \
   --build-arg NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx \
-  -t shadcn-dashboard .
-```
+  -t command-center .
 
-Run the container:
-
-```bash
 docker run -d -p 3000:3000 \
   -e NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx \
   -e CLERK_SECRET_KEY=sk_live_xxxxx \
-  --restart unless-stopped \
-  --name shadcn-dashboard \
-  shadcn-dashboard
+  -e DATABASE_URL=postgresql://... \
+  --restart unless-stopped --name command-center \
+  command-center
 ```
 
-### Support
+## Documentation
 
-If this template saved you some time, a star is appreciated. You can also [buy me a coffee](https://buymeacoffee.com/kir4n) if you'd like.
+| File | Contents |
+| --- | --- |
+| **[CLAUDE.md](./CLAUDE.md)** | Invariants and gotchas — read this first |
+| [AGENTS.md](./AGENTS.md) | Deep reference: stack, structure, code style, theming, troubleshooting |
+| [docs/access-status.md](./docs/access-status.md) | Integration credential status |
+| [docs/clerk_setup.md](./docs/clerk_setup.md) | Clerk configuration |
+| [docs/forms.md](./docs/forms.md) | Form system |
+| [docs/themes.md](./docs/themes.md) | Theme system |
 
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat-square&logo=buymeacoffee)](https://buymeacoffee.com/kir4n)
+## Conventions
 
-<!--
+- **Icons** — import only from `@/components/icons`, never `@tabler/icons-react`
+- **Forms** — `useAppForm` + `useFormFields<T>()` from `@/components/ui/tanstack-form`
+- **Page headers** — use `PageContainer` props, never import `<Heading>`
+- **Zod** — schemas derive from the Drizzle table definitions; do not write parallel validators
+- **Formatting** — single quotes, no trailing comma, 2-space indent, enforced by oxfmt
 
-SEO keywords:
+## Notes
 
-open source admin dashboard, nextjs admin dashboard, nextjs dashboard template,
-
-shadcn ui dashboard, admin dashboard starter, next.js 16, typescript dashboard,
-
-dashboard ui template, nextjs shadcn admin panel, react admin dashboard,
-
-tailwind css admin dashboard, production ready admin dashboard template,
-
-free react admin dashboard, nextjs 16 dashboard starter, working crud dashboard
-
--->
-
+- New protected routes should do resource-based auth checks (`auth()` + `redirect()`)
+  rather than relying on `src/proxy.ts` — `createRouteMatcher` is deprecated by Clerk.
+- `/dashboard/overview` still has ~3s artificial delays from the template.
+- `src/app/api/sentry-check/route.ts` is a temporary public throw-route for
+  verifying Sentry. Delete it once verified.

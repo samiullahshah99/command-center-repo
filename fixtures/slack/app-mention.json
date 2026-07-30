@@ -1,0 +1,17 @@
+{
+  "token": "ZZZZZZWSxiZZZ2yIvs3peJ",
+  "team_id": "T061EG9R6",
+  "api_app_id": "A0MDYCDME",
+  "event": {
+    "type": "app_mention",
+    "user": "U061F7AUR",
+    "text": "<@U0LAN0Z89> what is still open for Diane?",
+    "ts": "1515449522.000016",
+    "channel": "C0BLLT9PT18",
+    "event_ts": "1515449522000016"
+  },
+  "type": "event_callback",
+  "event_id": "Ev0MDYGXTB",
+  "event_time": 1515449522,
+  "authorizations": [{ "user_id": "U0LAN0Z89", "is_bot": true }]
+}

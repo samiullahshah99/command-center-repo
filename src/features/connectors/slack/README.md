@@ -35,8 +35,12 @@ header = X-Slack-Signature
 
 Slack posts `{ type: 'url_verification', challenge: '...' }` the moment the
 Request URL is saved, and requires the raw `challenge` value echoed back **within
-3 seconds**. Handle this *before* signature verification runs its full path, and
-answer with `text/plain`.
+3 seconds**, as `text/plain`.
+
+**Verify the signature FIRST, then handle the handshake.** Slack signs the
+handshake too, so a wrong `SLACK_SIGNING_SECRET` fails loudly at registration.
+Handling the handshake first would let registration succeed with a wrong secret
+and then 401 every real event afterwards — a far worse thing to debug.
 
 Registering the URL before the handler is deployed fails with
 *"Your request URL didn't respond with the correct challenge value."* Deploy
@@ -51,8 +55,21 @@ message timestamp and is not unique across event types). Return it from
 Slack retries on any non-2xx **and** on a slow response, so duplicates are
 routine rather than exceptional.
 
-## Writes
+## Writes — persist BEFORE responding
 
-Always answer `200` quickly, even for a payload we cannot parse — a non-2xx
-triggers Slack's retry ladder and eventually disables the subscription. Persist
-via `ingestRawEvent` and do the parsing out of band.
+Slack retries only a **failed** delivery: non-2xx, a timeout over 3 seconds, or a
+connection error. Once a 200 is flushed it treats the event as delivered and
+discards it — **there is no retry after a 2xx.**
+
+So the write must happen before the response. Deferring it to `after()` and
+failing there loses the event permanently and silently. Persisting first means a
+failure returns 500, Slack retries (immediately, +1min, +5min), and the
+idempotency index suppresses the duplicate if an earlier attempt did land.
+
+The cost is small: one `INSERT … ON CONFLICT DO NOTHING`, measured at a ~295ms
+median over Railway's public proxy and faster over the private network — about
+10% of the 3-second budget.
+
+Nothing currently belongs in `after()`. Once parsing or LLM extraction exists,
+that work should go to a queue rather than `after()`, so a failure is retryable on
+our side rather than depending on Slack.

@@ -1,0 +1,18 @@
+{
+  "token": "z26uFbvR1xHJEdHE1OQiO6t8",
+  "team_id": "T061EG9R6",
+  "api_app_id": "A0MDYCDME",
+  "event": {
+    "type": "message",
+    "channel": "C0BLLT9PT18",
+    "user": "U061F7AUR",
+    "text": "Can you take the returns review today?",
+    "ts": "1355517523.000005",
+    "event_ts": "1355517523.000005",
+    "channel_type": "channel"
+  },
+  "type": "event_callback",
+  "authed_teams": ["T061EG9R6"],
+  "event_id": "Ev9UQ52YNA",
+  "event_time": 1355517523
+}

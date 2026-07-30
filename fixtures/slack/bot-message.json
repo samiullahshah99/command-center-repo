@@ -1,0 +1,19 @@
+{
+  "token": "z26uFbvR1xHJEdHE1OQiO6t8",
+  "team_id": "T061EG9R6",
+  "api_app_id": "A0MDYCDME",
+  "event": {
+    "type": "message",
+    "subtype": "bot_message",
+    "channel": "C0BLLT9PT18",
+    "bot_id": "B0MDYCDME",
+    "app_id": "A0MDYCDME",
+    "username": "Command Center",
+    "text": "Logged 3 open items for Diane.",
+    "ts": "1358877455.000010",
+    "event_ts": "1358877455.000010"
+  },
+  "type": "event_callback",
+  "event_id": "Ev0MDYBOTM",
+  "event_time": 1358877455
+}

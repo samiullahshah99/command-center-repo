@@ -1,0 +1,2 @@
+ALTER TABLE "raw_event" ADD COLUMN "external_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "raw_event_source_external_id_idx" ON "raw_event" USING btree ("source","external_id") WHERE "raw_event"."external_id" IS NOT NULL;

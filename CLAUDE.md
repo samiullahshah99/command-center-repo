@@ -295,6 +295,177 @@ where latency does not matter.
 
 ---
 
+## Week 1 learnings — read this before Week 2
+
+Everything below cost time to discover. Each one **masquerades as something
+else**, which is why the WHY matters more than the rule.
+
+### The pipeline: verify → persist → enqueue → normalise
+
+```
+webhook  →  verify HMAC        401 on failure, before anything else
+         →  persist raw_event  VERBATIM, before responding 2xx
+         →  enqueue parse job  in the SAME transaction as the insert
+         →  2xx
+worker   →  normalise          raw_event → unified_event, + resolve identity
+```
+
+**Handlers never parse.** They verify, store the payload untouched, enqueue, and
+answer. Every interpretation happens later, in a normaliser, against a row that
+is already safely on disk.
+
+> **Why:** a parser bug in the request path loses the event permanently — the
+> sender got its 2xx and will never resend. With the payload stored verbatim, a
+> parser bug is a re-run: fix the mapping, `pnpm renormalise --stale --commit`.
+
+Insert and enqueue share ONE transaction via pg-boss's `fromDrizzle(tx, sql)`
+adapter, so a job can never reference a row that was rolled back. **The enqueue
+is gated on `inserted`, not on success** — a duplicate delivery queues nothing,
+or every provider retry would redo the work.
+
+### Idempotency (already built — verify, do not rebuild)
+
+`raw_event_source_external_id_idx` is a **partial** UNIQUE index on
+`(source, external_id) WHERE external_id IS NOT NULL`, and `ingestRawEvent`
+inserts with `ON CONFLICT DO NOTHING`. That single statement — not a
+select-then-insert — is what makes concurrent duplicate deliveries safe.
+
+`unified_event` has the same protection on `(raw_event_id, source_seq)`, so
+re-normalising **upserts**. It must never delete-and-reinsert: Week 2's
+extraction pipeline will hold foreign keys to `unified_event.id`.
+
+> ⚠️ **The gap, by design:** events with a NULL `external_id` are NOT
+> deduplicated, because Postgres treats NULLs as distinct in a unique index.
+> That covers setup test pings (deliberate — a constant id would make the second
+> ping vanish), ClickUp `taskDeleted` (no `history_items`, so no id to key on),
+> and off-contract payloads. A retried `taskDeleted` therefore creates a second
+> row. Accepted: a duplicate is recoverable, a merged pair of distinct events is
+> not.
+
+### Fireflies: the docs are for a DEPRECATED webhook
+
+`docs.fireflies.ai/graphql-api/webhooks` documents v1. The live v2 payload is
+**snake_case** and differs on every field: `meeting_id` not `meetingId`, `event`
+not `eventType`, no `clientReferenceId`, plus an undocumented millisecond
+`timestamp`. Confirmed from `Fireflies-Webhook/2.0` deliveries.
+
+- Real event value observed: **`meeting.transcribed`** (lowercase, dotted).
+- **Real events ARE signed** with `x-hub-signature`. Their *setup test* pings are
+  unsigned and are correctly rejected 401. A temporary bypass for those has been
+  removed — do not reintroduce one; both its conditions were attacker-controlled
+  on a public endpoint.
+- Idempotency key is the composite **`event:meeting_id`**, not `meeting_id`
+  alone: one meeting emits several events and keying on the meeting alone makes
+  `ON CONFLICT DO NOTHING` swallow the second with no error anywhere.
+
+> ⚠️ **`audio_url` and `video_url` are the only paid-gated fields**, and GraphQL
+> fails the WHOLE operation for one unauthorised field. Requesting them returned
+> "You need to be subscribed to a paid plan" for every fetch, which reads exactly
+> like the whole API being unavailable. It is not. With those two removed,
+> `sentences`, `speakers`, `summary`, `participants`, `host_email` and
+> `transcript_url` all work on the current plan — **including other people's
+> meetings within the workspace** (verified on three meetings hosted by another
+> user). Do not add the media URLs back without re-checking the plan.
+
+### Slack needs `users:read.email` — we have `users:read`
+
+Slack events carry a user id and nothing else. Email is the only automatic
+cross-system join key, so **Slack identities cannot resolve automatically at
+all** until the scope is granted and the app **reinstalled** (new scopes do not
+apply to an existing installation).
+
+> ⚠️ **The missing scope is NOT an error.** `users.list` returns HTTP 200,
+> `ok: true`, and silently OMITS `profile.email` — 60 members, 30 humans, 0
+> emails. A backfill would report success and link nobody. Detected explicitly by
+> `requireEmailScope()`, and by reading `x-oauth-scopes` off any response.
+
+### Rate limits: what each provider actually exposes
+
+Measured, not assumed:
+
+| Provider | Headroom headers | Signal |
+| --- | --- | --- |
+| ClickUp | ✅ `x-ratelimit-limit` / `-remaining` / `-reset` on every response | 100/min on our plan; `-reset` is epoch **SECONDS** |
+| Slack | ❌ **none at all** | Only `Retry-After` on a 429 — i.e. after the fact. Per-METHOD tiers. Does return `x-oauth-scopes`. |
+| Fireflies | ❌ none | Limit is per **DAY**, so a 429 matters far more |
+
+`src/features/connectors/rate-limit.ts` logs ClickUp headroom per call and warns
+below 20% or 10 remaining. It cannot do the same for Slack — writing one shared
+"log the remaining quota" helper would silently log nothing for Slack while
+looking like it worked.
+
+### Permanent vs transient failures
+
+Do **not** retry a plan or auth failure six times. `classifyTranscriptFetchError`
+splits them, and a permanent one throws `PermanentJobError`, which the worker
+turns into pg-boss's `deadletter` status on the **first** attempt.
+
+| Permanent | Transient |
+| --- | --- |
+| plan / subscription (`paid_required`) | 429 rate limit |
+| auth failure, 401/403 | 5xx |
+| response shape changed | network error |
+| non-429 4xx | "not found" **within** 30 min of the webhook |
+
+> ⚠️ **"Transcript not found" is ambiguous** and is resolved by AGE, not by the
+> message: Fireflies can announce a meeting before the transcript is queryable.
+> Inside `FIREFLIES_NOT_FOUND_GRACE_MINUTES` (30) it is transient; older, it is
+> permanent. 30 minutes clears the ~7-minute retry ladder while making a backfill
+> of old rows fail fast instead of burning a per-day budget.
+
+### Identity resolution order
+
+1. **EXACT** — an existing `person_identity` row for `(source, external_id)`
+2. **EMAIL** — case-insensitive match on `person.email`; creates the link so
+   later events short-circuit at step 1
+3. **UNRESOLVED** — persisted with a null `person_id`, never dropped
+
+> ⚠️ **THREE SEPARATE CLERK INSTANCES** — Vision, UGC and Command Centre. Ids are
+> not comparable between them and may collide. Identity is always the PAIR
+> `(source, external_id)`.
+
+> ⚠️ **Name matching is NEVER auto-applied**, at any confidence level. There is
+> deliberately no `'name'` confidence tier. Two people can share a display name
+> and a wrong auto-link silently attributes one person's work to another —
+> nobody goes looking for that. Names may appear as an *unverified suggestion* in
+> the admin UI requiring explicit confirmation, which lands as `'manual'`.
+
+Vision's `editor_name` is display-only and mutable. `unified_event` stores
+`person_identity_id`, so linking an identity later back-fills its whole history
+in one UPDATE rather than a re-normalisation.
+
+### Queue: pg-boss in the same Postgres
+
+- Dedicated **`pgboss` schema**; drizzle-kit is scoped to `public` via
+  `schemaFilter`, so it never touches those tables.
+- pg-boss's own columns are **snake_case** (`created_on`, `retry_count`,
+  `completed_on`) — unlike our camelCase Drizzle models. Raw SQL against
+  `pgboss.job` must use them.
+- Queue names use a **dot** separator (`parse.slack`); v12 rejects `:`.
+- Workers run **in-process**, booted from `src/instrumentation.ts`, which Next
+  runs once per process at boot, `nodejs` runtime only.
+- `batchSize: 2` means `work()` receives an ARRAY, and by default one throw fails
+  the whole batch. `perJobResults: true` plus a per-job try/catch keeps a poison
+  event from taking its neighbour down.
+- `getBoss()` must not cache a rejected promise — a single startup failure would
+  otherwise 500 every enqueue for the life of the process.
+
+### Fixtures: `api-*.json` are LIVE CAPTURES
+
+Anything under `fixtures/*/api-*.json` came off a real API and **has contained
+real names and work email addresses**. This repo is public. Scrub before
+committing — a captured ClickUp response leaked a real work email once already.
+`pnpm fireflies:fixture` scrubs, replaces AI summary prose with synthetic text,
+and refuses to write a file that still contains a real name.
+
+### ClickUp is transitional
+
+Read `TASK_SOURCE_OF_RECORD` only via `src/config/env.ts`, never `process.env`
+inline. ClickUp is the only source that carries the actor email inline
+(`history_items[].user.email`), so it resolves automatically from events with no
+backfill call. Its `user.id` is a JSON **number**; `external_id` is text
+everywhere else.
+
 ## Connectors and webhooks
 
 ### Webhook handler pattern — mandatory for every new connector
@@ -315,7 +486,7 @@ different problem.
    partial unique index and `ON CONFLICT DO NOTHING`.
 4. **`timingSafeEqual` behind a length guard** — it throws on length mismatch.
 
-### The four inbound signature schemes
+### The FIVE inbound signature schemes
 
 Full reference: [docs/webhook-contract.md](./docs/webhook-contract.md).
 
@@ -325,6 +496,7 @@ Full reference: [docs/webhook-contract.md](./docs/webhook-contract.md).
 | UGC | `X-LuckyFours-Signature` | `sha256=` | `{ts}.{body}` | ✅ ±300s |
 | Vision | `X-Vision-Signature` | `sha256=` | `{body}` | ❌ none |
 | ClickUp | `X-Signature` | *(none)* | `{body}` | ❌ none |
+| Fireflies | `X-Hub-Signature` | `sha256=` | `{body}` | ❌ none |
 
 `src/features/connectors/verify-hmac.ts` exposes **two** functions —
 `verifyWithTimestamp()` and `verifyBodyOnly()` — rather than one with an optional
@@ -340,10 +512,22 @@ field; two functions make the absence visible at the call site.
 > prefers. Their envelopes differ elsewhere too (`actor.id` vs `actor.user_id`,
 > `entity` vs `subject`); see docs/webhook-contract.md.
 
-> ⚠️⚠️ **Vision and ClickUp have NO replay protection.** Neither sends a
-> timestamp, so a captured request stays valid forever and can be replayed
-> verbatim. **Idempotency is the sole defence on those two.** Do not add side
-> effects to those paths that are unsafe to repeat.
+> ⚠️ **Fireflies is `x-hub-signature` with NO `-256` suffix.** GitHub's
+> convention is `x-hub-signature-256` and most examples online show that form.
+> Reading the wrong header means every request 401s as "missing signature
+> header" — which looks like the sender not signing at all, rather than us
+> reading the wrong key.
+
+> ⚠️⚠️ **Vision, ClickUp and Fireflies have NO replay protection.** None of the
+> three sends a timestamp, so a captured request stays valid forever and can be
+> replayed verbatim. **Idempotency is the sole defence on those three.** Do not
+> add side effects to those paths that are unsafe to repeat.
+>
+> Fireflies' v2 body *does* carry a millisecond `timestamp`, and because the
+> signature covers the body an attacker cannot alter it — so it could bound
+> replay. It deliberately does not: the payoff of a replay is an idempotent
+> re-fetch, while a wrong window permanently drops a delayed retry from a sender
+> whose retry behaviour is undocumented.
 
 ### Setup test events use constant ids
 
@@ -382,12 +566,33 @@ shape change fails loudly instead of looking healthy.
   `ON CONFLICT DO NOTHING` swallows it with no error anywhere. Both halves come
   from the body, so a `raw_event` replay can reconstruct the key — the
   `x-webhook-delivery-id` header cannot.
-- **Test deliveries arrive UNSIGNED** — no `x-hub-signature` at all, among ~20
-  headers, carrying `x-webhook-delivery-id: test-…`. Whether *real* events are
-  signed is still unconfirmed. There is a temporary, deliberately narrow
-  exception in `src/features/connectors/fireflies/index.ts`; it requires the
-  total *absence* of a signature, never a present-but-invalid one. **Remove it
-  before Day 5** — until then anyone who knows the URL can write to `raw_event`.
+- **Test deliveries arrive UNSIGNED, but real events ARE signed** with
+  `x-hub-signature` — confirmed by a live delivery that passed verification. The
+  unsigned setup pings are rejected 401 like anything else unsigned. A temporary
+  bypass that accepted them has been removed; **do not reintroduce it** — both of
+  its conditions were attacker-controlled on a public endpoint.
+- **Real event value is `meeting.transcribed`** — lowercase, dot-separated, not
+  the title-case guess the fixtures originally carried.
+- **Errors from the transcript fetch are classified permanent vs transient**
+  (`classifyTranscriptFetchError`). Permanent ones — a paid-plan or auth failure,
+  a changed response shape, a non-429 4xx — throw `PermanentJobError`, which the
+  worker loop turns into pg-boss's `status: 'deadletter'` so the job skips its
+  remaining retries. That matters because the API allows **500 requests per DAY**
+  and the ladder spends four per meeting.
+  > ⚠️ **`audio_url` and `video_url` are the ONLY paid-gated fields** — and
+  > because GraphQL fails the whole operation for one unauthorised field,
+  > requesting them made every fetch return "You need to be subscribed to a paid
+  > plan", which reads exactly like the entire API being unavailable. It is not.
+  > Probed field by field, `sentences`, `speakers`, `summary`, `participants`,
+  > `host_email` and `transcript_url` all work on the current plan. Both media
+  > URLs are excluded from `TRANSCRIPT_FIELDS`; **do not add them back** without
+  > re-checking the plan.
+- **"Transcript not found" is ambiguous** and is resolved by age, not by the
+  message: within `FIREFLIES_NOT_FOUND_GRACE_MINUTES` (default 30) of the webhook
+  it is transient (Fireflies can announce a meeting before the transcript is
+  queryable); older than that it is permanent. 30 minutes sits clear of the ~7
+  minute retry ladder so it cannot cut a live wait short, while making a backfill
+  of old rows fail fast instead of burning quota.
 - **The test `meeting_id` is the constant `test_00000000`**, so it is stored with
   a null `external_id` and the worker short-circuits it — same treatment as UGC
   and Vision. Fetching it would burn 4 calls from a 500-per-DAY budget and

@@ -5,9 +5,9 @@
  * behind this so moving them to a separate Railway service later is a change to
  * the entrypoint, not to any handler.
  *
- * ⚠️ No parsing logic lives here or in any handler yet. `raw_event` is a landing
- * zone and parsing is a deliberately separate, later stage — these are stubs that
- * prove the pipeline end to end without inventing a domain model.
+ * Every handler now normalises: raw_event -> unified_event via
+ * src/features/normalise. `raw_event` remains the landing zone and the source of
+ * truth; unified_event is derived and can be rebuilt at any time.
  */
 
 import { eq } from 'drizzle-orm';
@@ -48,23 +48,18 @@ export async function loadRawEvent(rawEventId: string) {
 }
 
 /**
- * Placeholder handler shared by every source. No parsing — that is Day 5.
+ * The real handler for every source that has no extra work beyond normalising.
  *
- * ⚠️ `processed` means "a worker has handled this row", NOT "a parser extracted
- * meaning from it". Those were the same thing while the only real handler was
- * Fireflies; they are not the same now that stubs set the flag.
- *
- * The trade was made deliberately: leaving it false makes a working pipeline
- * indistinguishable from a broken one, because the flag is the only end-to-end
- * evidence that a job ran. The cost is that Day 5 must reset `processed = false`
- * for the sources it implements before the real parser can pick those rows up —
- * `scripts/backfill-queue.ts --force` re-queues regardless of the flag.
+ * Replaces the Day-4 stubs. `processed` now means what it always should have:
+ * this row has been mapped into unified_event. normaliseRawEvent sets it, and
+ * only when at least one unified row was actually written — an unmappable
+ * payload stays false so it remains visible rather than being quietly consumed.
  *
  * Errors are NOT caught here. start-workers.ts wraps every handler call and
- * converts a throw into a failed job with the retry ladder applied, so throwing
- * is the correct way to signal failure and cannot take the process down.
+ * turns a throw into a failed job with the retry ladder applied, so throwing is
+ * the correct way to signal failure and cannot take the process down.
  */
-function makeStubHandler(source: RawEventSource): ParseHandler {
+function makeNormaliseHandler(source: RawEventSource): ParseHandler {
   return async (data, ctx) => {
     const row = await loadRawEvent(data.rawEventId);
 
@@ -77,28 +72,40 @@ function makeStubHandler(source: RawEventSource): ParseHandler {
       return;
     }
 
-    await db.update(rawEvent).set({ processed: true }).where(eq(rawEvent.id, row.id));
+    const { normaliseRawEvent } = await import('@/features/normalise');
+    const result = await normaliseRawEvent(row.id);
+
+    if (result.unmappable) {
+      // Left processed=false on purpose: it shows up in the unprocessed queue
+      // and can be replayed after the mapping is fixed. Not an error — a payload
+      // we do not yet understand is a normal thing to encounter.
+      console.warn(
+        `[queue:${source}] job=${ctx.jobId} attempt=${ctx.attempt} raw_event=${row.id} carried nothing mappable ` +
+          `— left unprocessed for re-normalisation`
+      );
+      return;
+    }
 
     console.warn(
-      `[queue:${source}] job=${ctx.jobId} attempt=${ctx.attempt} handled raw_event=${row.id} ` +
-        `externalId=${row.externalId ?? 'null'} — stub, no parsing; processed=true`
+      `[queue:${source}] job=${ctx.jobId} attempt=${ctx.attempt} normalised raw_event=${row.id} ` +
+        `-> ${result.written} unified_event row(s), ${result.attributed} attributed`
     );
   };
 }
 
 /**
- * source -> handler. Replace a stub here when that source's parser is written;
- * nothing else changes.
+ * source -> handler. Four normalise straight through; Fireflies additionally
+ * pulls the transcript over GraphQL, so it has its own.
  */
 export const HANDLERS: Record<RawEventSource, ParseHandler> = {
-  slack: makeStubHandler('slack'),
-  clickup: makeStubHandler('clickup'),
+  slack: makeNormaliseHandler('slack'),
+  clickup: makeNormaliseHandler('clickup'),
   // The first REAL handler. Imported lazily so the registry does not pull the
   // Fireflies client (and its Zod schemas) into every module that imports this.
   fireflies: async (data, ctx) => {
     const { handleFirefliesJob } = await import('@/features/connectors/fireflies/worker');
     return handleFirefliesJob(data, ctx);
   },
-  ugc: makeStubHandler('ugc'),
-  vision: makeStubHandler('vision')
+  ugc: makeNormaliseHandler('ugc'),
+  vision: makeNormaliseHandler('vision')
 };

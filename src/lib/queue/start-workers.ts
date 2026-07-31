@@ -15,7 +15,7 @@ import { RAW_EVENT_SOURCES, type RawEventSource } from '@/db/schema';
 import { getBoss, RETRY_LIMIT } from './index';
 import { HANDLERS } from './registry';
 import { registerShutdownHandlers } from './shutdown';
-import { isParseJobData, queueNameFor, type ParseJobData } from './types';
+import { isParseJobData, isPermanentJobError, queueNameFor, type ParseJobData } from './types';
 
 /** Jobs fetched per poll, per queue. Modest: this shares the web container. */
 const BATCH_SIZE = Number(process.env.QUEUE_BATCH_SIZE ?? 2);
@@ -114,6 +114,23 @@ async function runOne(
     return { id: job.id, status: 'completed' };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+
+    // PERMANENT: the handler has already determined this cannot succeed — a
+    // revoked key, a plan that does not include the endpoint, a resource that is
+    // genuinely gone. Retrying spends real API quota to relearn the same answer
+    // and buries the one useful log line under five identical ones.
+    if (isPermanentJobError(err)) {
+      console.error(
+        `[queue:${source}] job=${job.id} attempt=${label} PERMANENT failure after ${Date.now() - startedAt}ms — ` +
+          `dead-lettering immediately, no retry: ${message}`
+      );
+      return {
+        id: job.id,
+        status: 'deadletter',
+        output: { message, attempt, permanent: true }
+      };
+    }
+
     const willRetry = attempt < RETRY_LIMIT;
 
     console.error(

@@ -29,13 +29,18 @@
     "clickup:delete": "tsx scripts/clickup/delete-webhook.ts",
     "verify:clickup": "tsx scripts/clickup/verify-clickup.ts",
     "queue:backfill": "tsx scripts/backfill-queue.ts",
+    "renormalise": "tsx scripts/renormalise.ts",
+    "verify:exit": "tsx scripts/verify-exit-criteria.ts",
+    "fireflies:fixture": "tsx scripts/fetch-fireflies-fixture.ts",
+    "identities:backfill": "tsx scripts/backfill-identities.ts",
+    "people:email": "tsx scripts/set-person-email.ts",
     "webhook:send": "tsx scripts/send-test-webhook.ts",
     "webhook:ugc": "tsx scripts/send-test-webhook.ts ugc",
     "webhook:vision": "tsx scripts/send-test-webhook.ts vision",
     "webhook:slack": "tsx scripts/send-test-webhook.ts slack",
     "webhook:clickup": "tsx scripts/send-test-webhook.ts clickup",
     "test:queue": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue",
-    "test:db": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue src/features/connectors/ingest.test.ts src/features/connectors/ingest-rollback.test.ts"
+    "test:db": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue src/features/connectors/ingest.test.ts src/features/connectors/ingest-rollback.test.ts src/features/identity src/features/normalise"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -35,6 +35,8 @@ const SORTABLE = {
 const SELECTION = {
   id: person.id,
   name: person.name,
+  // The resolver's only automatic cross-system join key — see person.email.
+  email: person.email,
   roleProfileId: person.roleProfileId,
   slackId: person.slackId,
   clickupId: person.clickupId,

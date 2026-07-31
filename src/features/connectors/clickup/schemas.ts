@@ -101,10 +101,24 @@ export const clickUpSpacesResponseSchema = z.object({
   spaces: z.array(clickUpSpaceSchema)
 });
 
+/**
+ * A workspace member. Verified against a live `/team` response, where each entry
+ * is `{ user: { id, username, email, ... } }` — the user object is nested, not
+ * inline.
+ *
+ * ⚠️ `email` is what makes ClickUp the ONE source that resolves automatically:
+ * it appears both here AND inline on webhook payloads
+ * (`history_items[].user.email`), so ClickUp identities need no backfill call at
+ * all — events alone are enough.
+ */
+export const clickUpTeamMemberSchema = z.object({
+  user: clickUpUserSchema
+});
+
 export const clickUpTeamSchema = z.object({
   id: stringOrNumberId,
   name: z.string(),
-  members: z.array(z.unknown()).default([])
+  members: z.array(clickUpTeamMemberSchema).default([])
 });
 
 export const clickUpTeamsResponseSchema = z.object({

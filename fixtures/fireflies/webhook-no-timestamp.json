@@ -1,4 +1,4 @@
 {
-  "event": "Meeting Transcribed",
+  "event": "meeting.transcribed",
   "meeting_id": "01JQFF3TESTMEETING000003"
 }

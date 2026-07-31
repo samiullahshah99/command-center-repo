@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { roleProfile } from './role-profile';
@@ -6,27 +7,70 @@ import { roleProfile } from './role-profile';
 // A person in the company. External ids are nullable because not everyone has
 // an account in every system, and someone may be onboarded here before their
 // Slack/ClickUp/portal accounts exist.
-export const person = pgTable('person', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const person = pgTable(
+  'person',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
 
-  name: text('name').notNull(),
+    name: text('name').notNull(),
 
-  // Nullable: a person can exist before a role profile has been assigned.
-  // onDelete: 'set null' — deleting a profile must not delete people.
-  roleProfileId: uuid('role_profile_id').references(() => roleProfile.id, {
-    onDelete: 'set null'
-  }),
+    /**
+     * ⚠️ THE ONLY AUTOMATIC CROSS-SYSTEM JOIN KEY.
+     *
+     * Vision, UGC and Command Centre run THREE SEPARATE Clerk instances, so no
+     * external id is comparable between them. Names are display-only and are
+     * never an auto-match signal. That leaves email as the single field that can
+     * link an identity in one system to a person here without a human.
+     *
+     * Nullable, because a person can be onboarded before their address is known
+     * — but an empty one means every identity for them arrives UNRESOLVED.
+     */
+    email: text('email'),
 
-  slackId: text('slack_id'),
-  clickupId: text('clickup_id'),
-  portalId: text('portal_id'),
+    // Nullable: a person can exist before a role profile has been assigned.
+    // onDelete: 'set null' — deleting a profile must not delete people.
+    roleProfileId: uuid('role_profile_id').references(() => roleProfile.id, {
+      onDelete: 'set null'
+    }),
 
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date())
-});
+    /**
+     * @deprecated Superseded by `person_identity`, which is authoritative.
+     *
+     * Kept only so the People admin form keeps compiling; all three are NULL for
+     * every row today. They cannot express the three-Clerk-instances reality —
+     * one column per system with no `source` discriminator is exactly the shape
+     * that invites comparing ids across systems. Remove in Phase 3, when the
+     * admin UI that reads them is being rewritten anyway.
+     */
+    slackId: text('slack_id'),
+    /** @deprecated see slackId */
+    clickupId: text('clickup_id'),
+    /** @deprecated see slackId — replaced by person_identity(source='portal') */
+    portalId: text('portal_id'),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+  },
+  (table) => [
+    /**
+     * Case-insensitive uniqueness on a FUNCTIONAL index, rather than the citext
+     * extension: citext would need CREATE EXTENSION on Railway and changes the
+     * column's comparison semantics everywhere. This keeps the stored value
+     * exactly as entered (it is shown in the UI) while making `lower(email)` the
+     * thing that must be unique — which is also the expression the resolver
+     * matches on, so the lookup uses this index.
+     *
+     * PARTIAL, because NULLs are distinct in Postgres unique indexes anyway and
+     * the predicate makes "many people may have no email" explicit.
+     */
+    uniqueIndex('person_email_lower_idx')
+      .on(sql`lower(${table.email})`)
+      .where(sql`${table.email} IS NOT NULL`)
+  ]
+);
 
 export type Person = typeof person.$inferSelect;
 export type NewPerson = typeof person.$inferInsert;

@@ -49,7 +49,10 @@ export * from './client';
  * either a custom 16–32 character string or one generated there. Unlike ClickUp,
  * it is not handed to us after registration.
  *
- * ⚠️ Their TEST deliveries arrive entirely UNSIGNED — see isUnsignedTestDelivery().
+ * ⚠️ Their SETUP TEST deliveries arrive entirely UNSIGNED, and are therefore
+ * rejected with 401 like anything else unsigned. REAL events are signed — that
+ * is confirmed by a live delivery that passed verification — so no exception is
+ * made for the test pings and none should be added.
  */
 export const FIREFLIES_SIGNATURE_HEADER = 'x-hub-signature';
 export const FIREFLIES_SIGNATURE_PREFIX = 'sha256=';
@@ -67,38 +70,29 @@ export function verifyFirefliesRequest(input: {
   });
 }
 
-/** Per-delivery id Fireflies sends on the new (Integrations page) webhook. */
+/**
+ * Per-delivery id Fireflies sends on the v2 (Integrations page) webhook.
+ *
+ * Diagnostic only — NOT the idempotency key. See externalIdOf() for why the key
+ * comes from the body instead.
+ */
 export const FIREFLIES_DELIVERY_ID_HEADER = 'x-webhook-delivery-id';
-export const FIREFLIES_TEST_DELIVERY_PREFIX = 'test-';
 
 /**
- * TODO(REMOVE ONCE REAL EVENTS ARE CONFIRMED SIGNED)
+ * ── Removed: the unsigned-test-delivery exception ───────────────────────────
+ * There was a temporary bypass here that accepted deliveries carrying
+ * `x-webhook-delivery-id: test-…` with no signature at all, because every test
+ * ping we had seen arrived unsigned and we could not otherwise inspect the
+ * payload.
  *
- * Fireflies' *test* deliveries arrive with NO signature header at all — two
- * confirmed, both carrying `x-webhook-delivery-id: test-…` among 20 headers and
- * nothing resembling a signature. Either they sign only real events, or their
- * config never persisted our secret. Until we have seen a real delivery we
- * cannot tell which, and we cannot see the payload shape without accepting one.
+ * It is gone. A live REAL delivery has now been confirmed signed with
+ * `x-hub-signature`, which answers the question the bypass existed to ask. It
+ * was also a genuine hole: both of its conditions were attacker-controlled on a
+ * public endpoint, so anyone who knew the URL could write to raw_event.
  *
- * ⚠️ SECURITY: BOTH conditions below are attacker-controlled, and this endpoint
- * is public and unauthenticated by design. Anyone who knows the URL can send
- * `x-webhook-delivery-id: test-x` with no signature and have arbitrary JSON
- * written to raw_event. Nothing parses raw_event yet and these rows are stored
- * with a null external_id so they are trivially identifiable and purgeable, but
- * this is a real hole and the reason to close the window quickly.
- *
- * The exception is deliberately narrow in one important way: a signature that is
- * PRESENT but INVALID never qualifies. Only total absence does. Otherwise an
- * attacker could send a `test-` id plus any garbage signature and be waved
- * through, and a genuinely misconfigured secret would look like a test ping.
+ * Every delivery now requires a valid signature, with no exception for any
+ * delivery-id prefix. Do not reintroduce one.
  */
-export function isUnsignedTestDelivery(headers: Headers): boolean {
-  const deliveryId = headers.get(FIREFLIES_DELIVERY_ID_HEADER);
-  if (!deliveryId?.startsWith(FIREFLIES_TEST_DELIVERY_PREFIX)) return false;
-
-  // Absence only — never a present-but-wrong signature.
-  return headers.get(FIREFLIES_SIGNATURE_HEADER) === null;
-}
 
 /** Test/util helper: sign the way Fireflies does. */
 export function signFirefliesRequest(input: { rawBody: string; secret: string }): string {

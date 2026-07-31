@@ -2,7 +2,7 @@
  * Send a correctly-signed dummy webhook to our own endpoints, so delivery can be
  * verified without waiting on the sender.
  *
- *   pnpm tsx scripts/send-test-webhook.ts <ugc|vision|slack|clickup> [flags]
+ *   pnpm tsx scripts/send-test-webhook.ts <ugc|vision|slack|clickup|fireflies> [flags]
  *
  * Flags
  *   --local          POST to http://localhost:3000   (DEFAULT — never prod by accident)
@@ -10,6 +10,11 @@
  *   --duplicate      reuse the previous run's id, to prove dedupe suppresses it
  *   --tamper         sign correctly, then alter one byte — must be rejected 401
  *   --fixture=NAME   use fixtures/<source>/NAME instead of the source's default
+ *
+ * fireflies only
+ *   --meeting-id=ID          send a REAL meeting id, used verbatim (not randomised)
+ *   --event=NAME             override the `event` value
+ *   --signature-header=NAME  sign under a different header, to probe which one v2 uses
  *
  * ── Why it imports the handlers' own signing helpers ────────────────────────
  * Each source signs differently, and a local reimplementation would drift the
@@ -44,6 +49,12 @@ import {
   signClickUpRequest
 } from '../src/features/connectors/clickup/verify';
 import {
+  FIREFLIES_DELIVERY_ID_HEADER,
+  FIREFLIES_SIGNATURE_HEADER,
+  isFirefliesTestEvent,
+  signFirefliesRequest
+} from '../src/features/connectors/fireflies';
+import {
   isTestEvent,
   UGC_EVENT_HEADER,
   UGC_EVENT_ID_HEADER,
@@ -64,10 +75,17 @@ loadEnvLocal();
 const LOCAL_BASE = 'http://localhost:3000';
 const PROD_BASE = 'https://command-center-repo-production.up.railway.app';
 
-type Source = 'ugc' | 'vision' | 'slack' | 'clickup';
-const SOURCES: Source[] = ['ugc', 'vision', 'slack', 'clickup'];
+type Source = 'ugc' | 'vision' | 'slack' | 'clickup' | 'fireflies';
+const SOURCES: Source[] = ['ugc', 'vision', 'slack', 'clickup', 'fireflies'];
 
 type Payload = Record<string, unknown>;
+
+/**
+ * Set from --signature-header=. Exists to probe WHICH header Fireflies v2 really
+ * uses: the handler currently reads the v1 name and the v2 name has never been
+ * observed, because every delivery so far arrived unsigned.
+ */
+let SIGNATURE_HEADER_OVERRIDE: string | null = null;
 
 type SourceConfig = {
   /** Default fixture under fixtures/<source>/. */
@@ -77,6 +95,12 @@ type SourceConfig = {
   setExternalId: (payload: Payload, id: string) => void;
   /** Headers computed over the EXACT bytes being sent. */
   headers: (input: { rawBody: string; secret: string; payload: Payload }) => Record<string, string>;
+  /**
+   * The value the handler will store as `external_id`, when it is not simply the
+   * id written by setExternalId. Fireflies keys on the COMPOSITE
+   * `event:meeting_id`, so the row cannot be found by meeting id alone.
+   */
+  lookupIdFor?: (payload: Payload) => string;
   /**
    * UGC and Vision only. Their handlers store test pings with a NULL
    * external_id on purpose, so that repeated pings during setup all land as
@@ -172,6 +196,41 @@ const CONFIG: Record<Source, SourceConfig> = {
       // No prefix, no timestamp.
       [CLICKUP_SIGNATURE_HEADER]: signClickUpRequest({ rawBody, webhookSecret: secret })
     })
+  },
+
+  fireflies: {
+    fixture: 'webhook-transcription-completed.json',
+    secretEnvVar: 'FIREFLIES_WEBHOOK_SECRET',
+    // v2 is snake_case. --meeting-id overrides this before we get here; the
+    // generated id is only the fallback for a throwaway run.
+    setExternalId: (p, id) => {
+      p.meeting_id = id;
+    },
+    // ⚠️ The handler keys on the COMPOSITE event:meeting_id, not meeting_id
+    // alone, so the post-send row lookup has to build the same string or it
+    // would report "accepted but not persisted" for a row that is right there.
+    lookupIdFor: (p) => `${String(p.event)}:${String(p.meeting_id)}`,
+    headers: ({ rawBody, secret, payload }) => ({
+      'Content-Type': 'application/json',
+      // ⚠️ SIGNED WITH THE HEADER THE HANDLER ACTUALLY READS, which today is the
+      // v1 name `x-hub-signature`. Override with --signature-header=<name> to
+      // probe the v2 hypothesis (x-webhook-signature) — the handler will 401 it
+      // until FIREFLIES_SIGNATURE_HEADER changes to match. See the note in
+      // features/connectors/fireflies/index.ts.
+      [SIGNATURE_HEADER_OVERRIDE ?? FIREFLIES_SIGNATURE_HEADER]: signFirefliesRequest({
+        rawBody,
+        secret
+      }),
+      // Sent for realism: this is the one v2 header we have actually observed.
+      // Deliberately NOT `test-` prefixed — that would trip the unsigned-test
+      // exception and skip the transcript fetch entirely.
+      [FIREFLIES_DELIVERY_ID_HEADER]: `dlv-${randomUUID()}`,
+      'User-Agent': 'Fireflies-Webhook/2.0'
+    }),
+    isTestPayload: (p) =>
+      typeof p.event === 'string' &&
+      typeof p.meeting_id === 'string' &&
+      isFirefliesTestEvent({ event: p.event, meeting_id: p.meeting_id })
   }
 };
 
@@ -180,7 +239,18 @@ const CONFIG: Record<Source, SourceConfig> = {
 // same row must come back, proving nothing new was inserted.
 
 const STATE_FILE = join(tmpdir(), 'command-center-last-test-webhook.json');
-type LastRun = { externalId: string; rawEventId?: string | null };
+type LastRun = {
+  /** The key the handler stores — a composite for Fireflies. Used for the lookup. */
+  externalId: string;
+  /**
+   * The id actually written INTO the body. Same as externalId for every source
+   * except Fireflies, whose stored key is `event:meeting_id` while the body
+   * field holds meeting_id alone. --duplicate must replay the body value, not
+   * the composite, or it would write "Meeting Transcribed:abc" into meeting_id.
+   */
+  bodyId?: string;
+  rawEventId?: string | null;
+};
 
 function readState(): Record<string, LastRun> {
   if (!existsSync(STATE_FILE)) return {};
@@ -209,11 +279,17 @@ function usage(message?: string): never {
     --duplicate      reuse the previous id, to prove dedupe suppresses it
     --tamper         sign correctly then alter one byte — expect 401
     --fixture=NAME   use fixtures/<source>/NAME
+
+  fireflies only:
+    --meeting-id=ID          real meeting id, used verbatim
+    --event=NAME             override the event value
+    --signature-header=NAME  probe a different signature header
 `);
   process.exit(1);
 }
 
 const KNOWN_FLAGS = ['--local', '--prod', '--duplicate', '--tamper'];
+const VALUE_FLAGS = ['--fixture=', '--meeting-id=', '--event=', '--signature-header='];
 
 async function main(): Promise<number> {
   const args = process.argv.slice(2);
@@ -225,14 +301,27 @@ async function main(): Promise<number> {
   if (positional.length > 1) usage(`Unexpected argument "${positional[1]}".`);
 
   const unknown = args.filter(
-    (a) => a.startsWith('--') && !KNOWN_FLAGS.includes(a) && !a.startsWith('--fixture=')
+    (a) =>
+      a.startsWith('--') &&
+      !KNOWN_FLAGS.includes(a) &&
+      !VALUE_FLAGS.some((f) => a.startsWith(f))
   );
   if (unknown.length > 0) usage(`Unknown flag "${unknown[0]}".`);
 
   const isProd = args.includes('--prod');
   const duplicate = args.includes('--duplicate');
   const tamper = args.includes('--tamper');
-  const fixtureArg = args.find((a) => a.startsWith('--fixture='))?.slice('--fixture='.length);
+  const valueOf = (flag: string) =>
+    args.find((a) => a.startsWith(flag))?.slice(flag.length) || undefined;
+
+  const fixtureArg = valueOf('--fixture=');
+  const meetingIdArg = valueOf('--meeting-id=');
+  const eventArg = valueOf('--event=');
+  SIGNATURE_HEADER_OVERRIDE = valueOf('--signature-header=')?.toLowerCase() ?? null;
+
+  if ((meetingIdArg || eventArg || SIGNATURE_HEADER_OVERRIDE) && source !== 'fireflies') {
+    usage('--meeting-id, --event and --signature-header apply to `fireflies` only.');
+  }
 
   const cfg = CONFIG[source];
   const url = `${isProd ? PROD_BASE : LOCAL_BASE}/api/webhooks/${source}`;
@@ -265,10 +354,20 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  // A fresh id per run, or dedupe suppresses every repeat and the script looks
-  // broken when it is in fact working.
-  const externalId = duplicate ? previous.externalId : `test-${randomUUID()}`;
-  cfg.setExternalId(payload, externalId);
+  // ⚠️ --meeting-id is used VERBATIM, never randomised. The whole point of
+  // passing a real meeting is that the worker fetches THAT transcript; a fresh
+  // uuid would make the GraphQL query 404. The cost is that dedupe now applies
+  // normally, so a second identical run is suppressed — vary --event, or delete
+  // the row, to send it again.
+  if (eventArg !== undefined) payload.event = eventArg;
+
+  const bodyId =
+    meetingIdArg ?? (duplicate ? (previous.bodyId ?? previous.externalId) : `test-${randomUUID()}`);
+  cfg.setExternalId(payload, bodyId);
+
+  // The key the HANDLER will store, which for Fireflies is a composite and so
+  // differs from what setExternalId just wrote into the body.
+  const externalId = cfg.lookupIdFor ? cfg.lookupIdFor(payload) : bodyId;
 
   // ⚠️ SERIALISE ONCE. These exact bytes are what gets signed AND what gets sent.
   // Re-serialising after signing changes the bytes, the HMAC stops matching, and
@@ -279,10 +378,15 @@ async function main(): Promise<number> {
   // --tamper mutates the body AFTER signing, leaving a signature valid for the
   // original bytes. Flipping a character of the id keeps the JSON parseable, so
   // a 200 here would mean verification was skipped — not that parsing failed.
+  //
+  // ⚠️ Flip a character of bodyId, NOT externalId. They are the same string for
+  // every source except Fireflies, whose externalId is the composite
+  // `event:meeting_id` and appears nowhere in the body — replace() would match
+  // nothing and the "tampered" request would be byte-identical to the signed one.
   let bodyToSend = rawBody;
   if (tamper) {
-    const flipped = externalId.slice(0, -1) + (externalId.endsWith('a') ? 'b' : 'a');
-    bodyToSend = rawBody.replace(externalId, flipped);
+    const flipped = bodyId.slice(0, -1) + (bodyId.endsWith('a') ? 'b' : 'a');
+    bodyToSend = rawBody.replace(bodyId, flipped);
     if (bodyToSend === rawBody) {
       console.error('  ❌ could not alter the body — refusing to send a validly signed request');
       return 1;
@@ -292,7 +396,8 @@ async function main(): Promise<number> {
   console.log(`\n  source     ${source}`);
   console.log(`  target     ${url}${isProd ? '   ⚠️  PRODUCTION' : ''}`);
   console.log(`  fixture    fixtures/${source}/${fixtureName}`);
-  console.log(`  id         ${externalId}${duplicate ? '   (reused — expecting dedupe)' : ''}`);
+  console.log(`  id         ${bodyId}${duplicate ? '   (reused — expecting dedupe)' : ''}`);
+  if (externalId !== bodyId) console.log(`  stored key ${externalId}   (composite)`);
   console.log(`  secret     ${cfg.secretEnvVar}  (set, ${secret.length} chars, not printed)`);
   console.log(`  headers    ${Object.keys(headers).join(', ')}`);
   if (tamper) console.log('  mode       ⚠️  TAMPERED after signing — expecting 401');
@@ -336,7 +441,7 @@ async function main(): Promise<number> {
   }
 
   if (!tamper && res.status === 200 && !duplicate) {
-    writeState(source, { externalId, rawEventId });
+    writeState(source, { externalId, bodyId, rawEventId });
   }
 
   return statusOk ? 0 : 1;

@@ -14,6 +14,7 @@
  */
 
 import * as z from 'zod';
+import { noteClickUpResponse } from '../rate-limit';
 import { CLICKUP_BASE_URL, clickUpAuthHeaders } from './index';
 import {
   clickUpListsResponseSchema,
@@ -125,6 +126,11 @@ async function request<T>(
       headers: { ...clickUpAuthHeaders(), ...init.headers }
     });
     lastRes = res;
+
+    // Headroom logging BEFORE the status branches, so a 429 is still recorded
+    // with whatever the headers say. ClickUp returns x-ratelimit-* on every
+    // response; see src/features/connectors/rate-limit.ts.
+    noteClickUpResponse(res, `${init.method ?? 'GET'} ${path}`);
 
     if (res.status === 429) {
       if (attempt === MAX_RETRIES) {

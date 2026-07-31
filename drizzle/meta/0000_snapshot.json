@@ -60,12 +60,8 @@
           "name": "completion_event_recurring_task_id_recurring_task_id_fk",
           "tableFrom": "completion_event",
           "tableTo": "recurring_task",
-          "columnsFrom": [
-            "recurring_task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["recurring_task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -199,12 +195,8 @@
           "name": "person_role_profile_id_role_profile_id_fk",
           "tableFrom": "person",
           "tableTo": "role_profile",
-          "columnsFrom": [
-            "role_profile_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["role_profile_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -298,12 +290,8 @@
           "name": "tracked_item_owner_person_id_person_id_fk",
           "tableFrom": "tracked_item",
           "tableTo": "person",
-          "columnsFrom": [
-            "owner_person_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_person_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -372,12 +360,8 @@
           "name": "recurring_task_owner_person_id_person_id_fk",
           "tableFrom": "recurring_task",
           "tableTo": "person",
-          "columnsFrom": [
-            "owner_person_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_person_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -475,12 +459,7 @@
     "public.source_type": {
       "name": "source_type",
       "schema": "public",
-      "values": [
-        "meeting",
-        "slack",
-        "manual",
-        "system"
-      ]
+      "values": ["meeting", "slack", "manual", "system"]
     }
   },
   "schemas": {},

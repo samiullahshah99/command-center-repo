@@ -12,6 +12,8 @@ export const searchParams = {
   gender: parseAsString,
   category: parseAsString,
   role: parseAsString,
+  // Identities page: comma-separated connector sources for the multiSelect filter.
+  source: parseAsString,
   sort: parseAsString
   // advanced filter
   // filters: getFiltersStateParser().withDefault([]),

@@ -17,7 +17,8 @@ const w = vi.hoisted(() => ({
   rawEvent: null as unknown,
   transcriptFetch: { impl: null as null | (() => Promise<unknown>) },
   inserted: [] as unknown[],
-  processedIds: [] as string[]
+  processedIds: [] as string[],
+  normalised: 0
 }));
 
 vi.mock('@/lib/queue/registry', async (orig) => {
@@ -35,6 +36,18 @@ vi.mock('./client', async (orig) => {
     }
   };
 });
+
+/**
+ * The worker normalises before fetching (so an event survives a failed
+ * transcript fetch). Stubbed here: these tests are about the FETCH, and
+ * normalisation is covered by src/features/normalise.
+ */
+vi.mock('@/features/normalise', () => ({
+  normaliseRawEvent: async () => {
+    w.normalised += 1;
+    return { written: 1, attributed: 0, unmappable: false };
+  }
+}));
 
 vi.mock('@/db', () => ({
   db: {
@@ -57,6 +70,7 @@ vi.mock('@/db', () => ({
 
 const { handleFirefliesJob } = await import('./worker');
 const { FirefliesGraphQLError: GqlErr } = await import('./client');
+const { isPermanentJobError } = await import('@/lib/queue/types');
 
 describe('fireflies worker', () => {
   const ctx = { jobId: 'job-1', attempt: 0, source: 'fireflies' as const };
@@ -64,6 +78,7 @@ describe('fireflies worker', () => {
   beforeEach(() => {
     w.inserted.length = 0;
     w.processedIds.length = 0;
+    w.normalised = 0;
     w.rawEvent = {
       id: 'raw-1',
       source: 'fireflies',
@@ -113,6 +128,87 @@ describe('fireflies worker', () => {
     await expect(handleFirefliesJob({ rawEventId: 'raw-1' }, ctx)).rejects.toThrow(
       /network exploded/
     );
+  });
+
+  it('⚠️ normalises BEFORE fetching, so a failed fetch still records the event', async () => {
+    // The fetch currently fails for every real meeting (free plan). If
+    // normalisation ran after it, the Fireflies feed would look empty rather
+    // than "transcribed, transcript unavailable".
+    w.transcriptFetch.impl = async () => {
+      throw new GqlErr(
+        [{ message: 'paid plan required', extensions: { code: 'paid_required' } }],
+        'transcript'
+      );
+    };
+
+    await handleFirefliesJob({ rawEventId: 'raw-1' }, ctx).catch(() => {});
+    expect(w.normalised).toBe(1);
+  });
+
+  // ── Permanent vs transient ─────────────────────────────────────────────────
+
+  it('⚠️ a paid-plan error throws PermanentJobError — dead-letter, do not retry', async () => {
+    // Six attempts against a 500-per-DAY budget cannot change a billing tier.
+    w.transcriptFetch.impl = async () => {
+      throw new GqlErr(
+        [
+          {
+            message: 'You need to be subscribed to a paid plan to perform this action',
+            extensions: { code: 'paid_required', status: 403 }
+          }
+        ],
+        'transcript'
+      );
+    };
+
+    const err = await handleFirefliesJob({ rawEventId: 'raw-1' }, ctx).catch((e) => e);
+
+    expect(isPermanentJobError(err)).toBe(true);
+    expect(err.message).toContain('paid_plan_required');
+    // Nothing stored, nothing marked processed.
+    expect(w.inserted).toHaveLength(0);
+    expect(w.processedIds).toHaveLength(0);
+  });
+
+  it('an auth failure is permanent too', async () => {
+    w.transcriptFetch.impl = async () => {
+      throw new GqlErr(
+        [{ message: 'Unauthorized', extensions: { code: 'unauthorized' } }],
+        'transcript'
+      );
+    };
+    const err = await handleFirefliesJob({ rawEventId: 'raw-1' }, ctx).catch((e) => e);
+    expect(isPermanentJobError(err)).toBe(true);
+    expect(err.message).toContain('auth_failed');
+  });
+
+  it('⚠️ a transient failure is NOT marked permanent, so backoff still applies', async () => {
+    w.transcriptFetch.impl = async () => {
+      throw new GqlErr([{ message: 'Transcript not found' }], 'transcript');
+    };
+    // receivedAt is seconds old (set in beforeEach), so "not found" reads as
+    // not-ready-yet rather than gone.
+    const err = await handleFirefliesJob({ rawEventId: 'raw-1' }, ctx).catch((e) => e);
+    expect(isPermanentJobError(err)).toBe(false);
+  });
+
+  it('⚠️ the SAME "not found" becomes permanent once the row is old', async () => {
+    // The backfill case: re-enqueuing rows from yesterday must fail fast rather
+    // than spending four API calls each.
+    w.rawEvent = {
+      id: 'raw-old',
+      payload: json('webhook-transcription-completed.json'),
+      externalId: 'meeting.transcribed:01JQFF1TESTMEETING000001',
+      processed: false,
+      receivedAt: new Date(Date.now() - 25 * 60 * 60 * 1000)
+    };
+    w.transcriptFetch.impl = async () => {
+      throw new GqlErr([{ message: 'Transcript not found' }], 'transcript');
+    };
+
+    const err = await handleFirefliesJob({ rawEventId: 'raw-old' }, ctx).catch((e) => e);
+    expect(isPermanentJobError(err)).toBe(true);
+    expect(err.message).toContain('not_found_after');
   });
 
   it('does NOT retry a missing raw_event — it will still be missing', async () => {
@@ -191,7 +287,7 @@ describe('fireflies worker', () => {
     };
     w.rawEvent = {
       id: 'raw-test2',
-      payload: { event: 'Meeting Transcribed', meeting_id: 'test_00000000', timestamp: 1 },
+      payload: { event: 'meeting.transcribed', meeting_id: 'test_00000000', timestamp: 1 },
       externalId: null,
       processed: false
     };

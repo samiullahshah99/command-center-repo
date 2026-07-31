@@ -44,6 +44,34 @@ export type ParseJobData = {
   rawEventId: string;
 };
 
+/**
+ * Thrown by a handler to mean "this will NEVER succeed — do not retry me".
+ *
+ * The worker loop turns it into pg-boss's `status: 'deadletter'`, which per the
+ * v12 docs "fails the job terminally and routes it straight to the queue's
+ * configured dead letter queue, bypassing any remaining retries". That is the
+ * supported mechanism; there is no separate no-retry API.
+ *
+ * ⚠️ Detected by a PROPERTY, not `instanceof`. A handler is loaded through a
+ * dynamic import and could in principle come from a second copy of this module,
+ * in which case `instanceof` silently returns false and the job would quietly go
+ * back to being retried six times — the exact bug this class exists to prevent.
+ */
+export class PermanentJobError extends Error {
+  readonly permanent = true as const;
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'PermanentJobError';
+  }
+}
+
+export function isPermanentJobError(err: unknown): boolean {
+  return (
+    typeof err === 'object' && err !== null && (err as { permanent?: unknown }).permanent === true
+  );
+}
+
 export function isParseJobData(v: unknown): v is ParseJobData {
   return (
     typeof v === 'object' &&

@@ -1,5 +1,5 @@
 {
-  "event": "Meeting Summarized",
+  "event": "meeting.summarized",
   "timestamp": 1785511060000,
   "meeting_id": "01JQFF1TESTMEETING000001"
 }

@@ -9,6 +9,7 @@ import {
   verifyFirefliesRequest
 } from './index';
 import {
+  classifyTranscriptFetchError,
   FirefliesApiError,
   FirefliesGraphQLError,
   FirefliesSchemaError,
@@ -124,7 +125,7 @@ describe('fireflies webhook verification', () => {
 describe('externalIdOf', () => {
   it('is a composite of event and meeting_id', () => {
     expect(externalIdOf(json('webhook-transcription-completed.json'))).toBe(
-      'Meeting Transcribed:01JQFF1TESTMEETING000001'
+      'meeting.transcribed:01JQFF1TESTMEETING000001'
     );
   });
 
@@ -140,7 +141,7 @@ describe('externalIdOf', () => {
     const first = externalIdOf(json('webhook-transcription-completed.json'));
     const second = externalIdOf(json('webhook-second-event-same-meeting.json'));
 
-    expect(second).toBe('Meeting Summarized:01JQFF1TESTMEETING000001');
+    expect(second).toBe('meeting.summarized:01JQFF1TESTMEETING000001');
     expect(second).not.toBe(first);
   });
 
@@ -152,7 +153,7 @@ describe('externalIdOf', () => {
 
   it('tolerates a missing timestamp — it is undocumented, so not required', () => {
     expect(externalIdOf(json('webhook-no-timestamp.json'))).toBe(
-      'Meeting Transcribed:01JQFF3TESTMEETING000003'
+      'meeting.transcribed:01JQFF3TESTMEETING000003'
     );
   });
 
@@ -171,6 +172,126 @@ describe('externalIdOf', () => {
 
   it('returns null for an off-contract payload rather than throwing', () => {
     expect(externalIdOf(json('webhook-off-contract.json'))).toBeNull();
+  });
+});
+
+// ── Retry classification ────────────────────────────────────────────────────
+
+/** Builds the GraphQL error shape Fireflies actually returns. */
+const gql = (message: string, extensions?: Record<string, unknown>) =>
+  new FirefliesGraphQLError([{ message, extensions }], 'transcript');
+
+describe('classifyTranscriptFetchError', () => {
+  const now = new Date('2026-08-01T12:00:00Z');
+  const minutesAgo = (m: number) => new Date(now.getTime() - m * 60_000);
+  const justNow = minutesAgo(1);
+
+  it('⚠️ a paid-plan error is PERMANENT — no billing tier changes on retry', () => {
+    // Captured verbatim from a live free-tier account.
+    const err = gql('You need to be subscribed to a paid plan to perform this action', {
+      code: 'paid_required',
+      status: 403,
+      metadata: { tier: 'pro_or_higher' }
+    });
+
+    expect(err.isPlanError).toBe(true);
+    expect(classifyTranscriptFetchError(err, justNow, now)).toEqual({
+      class: 'permanent',
+      reason: 'paid_plan_required'
+    });
+  });
+
+  it('recognises a plan error from the message even without extensions', () => {
+    // Defence in depth: the code is preferred, but older responses may omit it.
+    const err = gql('You need to be subscribed to a paid plan to perform this action');
+    expect(classifyTranscriptFetchError(err, justNow, now).class).toBe('permanent');
+  });
+
+  it('an auth failure is PERMANENT — the same key would be resent', () => {
+    const err = gql('Unauthorized', { code: 'unauthorized', status: 401 });
+    expect(err.isAuthError).toBe(true);
+    expect(classifyTranscriptFetchError(err, justNow, now)).toEqual({
+      class: 'permanent',
+      reason: 'auth_failed'
+    });
+  });
+
+  it('a changed response shape is PERMANENT — a human has to look', () => {
+    const err = new FirefliesSchemaError([], 'transcript');
+    expect(classifyTranscriptFetchError(err, justNow, now)).toEqual({
+      class: 'permanent',
+      reason: 'response_shape_changed'
+    });
+  });
+
+  it('a rate limit is TRANSIENT', () => {
+    const err = new FirefliesApiError('Rate limited', 429);
+    expect(classifyTranscriptFetchError(err, justNow, now).class).toBe('transient');
+  });
+
+  it('a 5xx is TRANSIENT — the server’s problem, not the request’s', () => {
+    expect(classifyTranscriptFetchError(new FirefliesApiError('boom', 503), justNow, now)).toEqual({
+      class: 'transient',
+      reason: 'http_503'
+    });
+  });
+
+  it('a non-429 4xx is PERMANENT', () => {
+    expect(classifyTranscriptFetchError(new FirefliesApiError('nope', 400), justNow, now)).toEqual({
+      class: 'permanent',
+      reason: 'http_400'
+    });
+  });
+
+  it('a bare network error is TRANSIENT', () => {
+    expect(classifyTranscriptFetchError(new Error('ECONNRESET'), justNow, now).class).toBe(
+      'transient'
+    );
+  });
+
+  // ── The ambiguous one ─────────────────────────────────────────────────────
+
+  it('⚠️ "not found" SOON after the webhook is TRANSIENT — it may still be producing', () => {
+    const err = gql('transcript abc not found');
+    const v = classifyTranscriptFetchError(err, minutesAgo(2), now);
+    expect(v.class).toBe('transient');
+    expect(v.reason).toContain('not_ready_yet');
+  });
+
+  it('⚠️ "not found" LONG after the webhook is PERMANENT — it is never appearing', () => {
+    // The backfill case: re-enqueuing rows from hours ago would otherwise spend
+    // 4 calls each, from a 500-per-DAY budget, on events that cannot resolve.
+    const err = gql('transcript abc not found');
+    const v = classifyTranscriptFetchError(err, minutesAgo(24 * 60), now);
+    expect(v.class).toBe('permanent');
+    expect(v.reason).toContain('not_found_after');
+  });
+
+  it('the threshold sits clear of the retry ladder (~7 min) so it cannot cut a live wait short', () => {
+    const err = gql('transcript abc not found');
+    // Anywhere inside the ladder must still be transient.
+    for (const m of [0, 1, 5, 7, 10, 29]) {
+      expect(classifyTranscriptFetchError(err, minutesAgo(m), now).class, `${m} min`).toBe(
+        'transient'
+      );
+    }
+    expect(classifyTranscriptFetchError(err, minutesAgo(31), now).class).toBe('permanent');
+  });
+
+  it('a plan error stays PERMANENT even when it arrives seconds after the webhook', () => {
+    // Age must not rescue an unambiguous failure.
+    const err = gql('paid plan required', { code: 'paid_required', status: 403 });
+    expect(classifyTranscriptFetchError(err, new Date(now.getTime() - 1000), now).class).toBe(
+      'permanent'
+    );
+  });
+
+  it('an unrecognised GraphQL error is PERMANENT rather than retried blindly', () => {
+    const err = gql('Cannot query field "nonsense" on type "Transcript"');
+    expect(classifyTranscriptFetchError(err, justNow, now)).toEqual({
+      class: 'permanent',
+      reason: 'unrecognised_graphql_error'
+    });
   });
 });
 

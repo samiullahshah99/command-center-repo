@@ -15,7 +15,8 @@ import { transcript } from '@/db/schema';
 import type { ParseContext } from '@/lib/queue/registry';
 import { loadRawEvent } from '@/lib/queue/registry';
 import type { ParseJobData } from '@/lib/queue/types';
-import { getTranscript, FirefliesGraphQLError } from './client';
+import { classifyTranscriptFetchError, getTranscript } from './client';
+import { PermanentJobError } from '@/lib/queue/types';
 import { firefliesWebhookSchema, isFirefliesTestEvent, type FirefliesTranscript } from './schemas';
 
 /** Fireflies sends epoch millis on `date`, or an ISO string. Neither is guaranteed. */
@@ -55,14 +56,32 @@ export async function handleFirefliesJob(data: ParseJobData, ctx: ParseContext):
 
   const { event, meeting_id: meetingId } = envelope.data;
 
+  // ⚠️ NORMALISE FIRST, FETCH SECOND.
+  //
+  // The transcript fetch currently fails for every real meeting — the account is
+  // on a free plan and transcript(id:) needs Pro — and it throws
+  // PermanentJobError. If normalisation ran after it, the event would never
+  // reach unified_event at all and the Fireflies feed would look empty rather
+  // than "transcribed, transcript unavailable". The two are independent: the
+  // webhook told us a meeting happened, which is worth recording whether or not
+  // we can also retrieve its contents.
+  //
+  // normaliseRawEvent sets raw_event.processed itself.
+  const { normaliseRawEvent } = await import('@/features/normalise');
+  const normalised = await normaliseRawEvent(row.id);
+  console.warn(
+    `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} normalised raw_event=${row.id} ` +
+      `-> ${normalised.written} unified_event row(s)`
+  );
+
   // Setup test deliveries carry meeting_id "test_00000000", which is not a real
   // meeting. Fetching it would fail and be retried 3× against an API capped at
   // 500 requests per DAY, then dead-letter — spending quota and raising a false
-  // alarm. Mark processed and stop: the ping did its job by arriving.
+  // alarm. The event is already normalised above; stop here.
   if (isFirefliesTestEvent(envelope.data)) {
     console.warn(
       `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} raw_event ${row.id} is a TEST delivery ` +
-        `(event=${event} meeting_id=${meetingId}) — no transcript to fetch, marking processed`
+        `(event=${event} meeting_id=${meetingId}) — no transcript to fetch`
     );
     await markProcessed(row.id);
     return;
@@ -72,19 +91,32 @@ export async function handleFirefliesJob(data: ParseJobData, ctx: ParseContext):
   try {
     fetched = await getTranscript(meetingId);
   } catch (err) {
-    if (err instanceof FirefliesGraphQLError && err.isNotReady) {
-      // EXPECTED, not exceptional: the webhook outran the transcript. Rethrow so
-      // pg-boss applies the backoff (60s → ~2m → ~4m) and tries again.
-      console.warn(
-        `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} transcript ${meetingId} not ready yet — retrying with backoff`
+    const message = err instanceof Error ? err.message : String(err);
+
+    // ⚠️ Not every failure is worth another API call. The budget is 500 requests
+    // per DAY, and the retry ladder spends four of them per meeting. Classify
+    // first: elapsed time since the WEBHOOK arrived is what separates "the
+    // transcript is still being produced" from "this id will never resolve".
+    const verdict = classifyTranscriptFetchError(err, row.receivedAt);
+
+    if (verdict.class === 'permanent') {
+      // PermanentJobError is what the worker loop turns into pg-boss's
+      // 'deadletter' status, which skips the remaining retries entirely.
+      console.error(
+        `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} PERMANENT failure for ${meetingId} ` +
+          `(${verdict.reason}) — dead-lettering without retry: ${message}`
       );
-      throw err;
+      throw new PermanentJobError(
+        `Fireflies fetch for ${meetingId} cannot succeed (${verdict.reason}): ${message}`,
+        { cause: err }
+      );
     }
-    // Anything else is also rethrown: a rate limit or a transient network error
-    // is worth another attempt, and a genuine bug should reach the dead-letter
-    // queue rather than being silently swallowed.
-    console.error(
-      `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} fetch failed for ${meetingId}: ${err instanceof Error ? err.message : err}`
+
+    // TRANSIENT: rethrow unchanged so pg-boss applies the backoff
+    // (60s → ~2m → ~4m) and dead-letters on its own once retries run out.
+    console.warn(
+      `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} transient failure for ${meetingId} ` +
+        `(${verdict.reason}) — retrying with backoff: ${message}`
     );
     throw err;
   }

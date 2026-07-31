@@ -49,6 +49,15 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Identities',
+        url: '/dashboard/identities',
+        // Existing registry key — no new @tabler import needed.
+        icon: 'userPen',
+        shortcut: ['i', 'i'],
+        isActive: false,
+        items: []
+      },
+      {
         title: 'Role Profiles',
         url: '/dashboard/role-profiles',
         icon: 'badgeCheck',

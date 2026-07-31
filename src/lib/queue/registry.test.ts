@@ -37,10 +37,53 @@ describeDb('HANDLERS', () => {
     await pool.end();
   }, 30_000);
 
+  /**
+   * ⚠️ Real payload SHAPES, not `{probe:true}`.
+   *
+   * The handlers no longer stub — they normalise. A placeholder payload is
+   * unmappable, so it correctly leaves processed=false and these tests would be
+   * asserting the failure path while looking like they assert the happy one.
+   * PII scrubbed.
+   */
+  const PAYLOADS: Record<'slack' | 'clickup' | 'ugc' | 'vision', unknown> = {
+    slack: {
+      type: 'event_callback',
+      event_id: 'Ev0TESTREGISTRY',
+      team_id: 'T0TEST',
+      event: {
+        type: 'message',
+        user: 'U0TESTREGISTRY',
+        channel: 'C0TEST',
+        ts: '1785508463.300799'
+      }
+    },
+    clickup: {
+      event: 'taskUpdated',
+      task_id: 't-reg',
+      team_id: '9',
+      webhook_id: 'w',
+      history_items: [{ id: 'h-reg', date: '1785489973755', field: 'status', user: { id: 42 } }]
+    },
+    ugc: {
+      id: 'evt-reg',
+      type: 'creator.approved',
+      occurred_at: '2026-07-31T13:06:10.892563Z',
+      actor: { id: 'user_2TESTREGISTRY', name: 'Test', email: null },
+      entity: { type: 'creator', id: 'c-reg' }
+    },
+    vision: {
+      id: 'vis-reg',
+      event: 'brief.submitted',
+      occurred_at: '2026-07-31T15:01:12.413115Z',
+      actor: { user_id: 'user_3FTESTREGISTRY', name: 'Test', email: null, editor_name: null },
+      subject: { id: 'b-reg', type: 'brief', label: 'Reg' }
+    }
+  };
+
   async function seed(source: 'slack' | 'clickup' | 'ugc' | 'vision', suffix: string) {
     const [row] = await db
       .insert(rawEvent)
-      .values({ source, payload: { probe: true }, externalId: `${RUN}-${suffix}` })
+      .values({ source, payload: PAYLOADS[source], externalId: `${RUN}-${suffix}` })
       .returning({ id: rawEvent.id, processed: rawEvent.processed });
     return row;
   }
@@ -54,7 +97,7 @@ describeDb('HANDLERS', () => {
   }
 
   it.each(['slack', 'clickup', 'ugc', 'vision'] as const)(
-    'the %s stub marks its row processed',
+    'the %s handler normalises its row and marks it processed',
     async (source) => {
       const row = await seed(source, source);
       expect(row.processed).toBe(false);
@@ -62,8 +105,33 @@ describeDb('HANDLERS', () => {
       await HANDLERS[source]({ rawEventId: row.id }, { jobId: 'test-job', attempt: 0, source });
 
       await expect(processedOf(row.id)).resolves.toBe(true);
+
+      // processed=true must mean a unified_event actually exists, not just that
+      // a handler ran.
+      const u = await db.execute<{ n: number }>(
+        sql`select count(*)::int as n from unified_event where raw_event_id = ${row.id}`
+      );
+      expect(u.rows[0].n).toBeGreaterThanOrEqual(1);
     }
   );
+
+  it('⚠️ an UNMAPPABLE payload leaves processed=false, so it stays visible', async () => {
+    const [row] = await db
+      .insert(rawEvent)
+      .values({
+        source: 'vision',
+        payload: { nothing: 'mappable' },
+        externalId: `${RUN}-unmappable`
+      })
+      .returning({ id: rawEvent.id });
+
+    await HANDLERS.vision(
+      { rawEventId: row.id },
+      { jobId: 'test-job', attempt: 0, source: 'vision' }
+    );
+
+    await expect(processedOf(row.id)).resolves.toBe(false);
+  });
 
   it('is a no-op, not a throw, when the row is gone', async () => {
     // A missing row will still be missing next attempt, so throwing would burn

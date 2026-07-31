@@ -16,7 +16,7 @@ import type { ParseContext } from '@/lib/queue/registry';
 import { loadRawEvent } from '@/lib/queue/registry';
 import type { ParseJobData } from '@/lib/queue/types';
 import { getTranscript, FirefliesGraphQLError } from './client';
-import { firefliesWebhookSchema, type FirefliesTranscript } from './schemas';
+import { firefliesWebhookSchema, isFirefliesTestEvent, type FirefliesTranscript } from './schemas';
 
 /** Fireflies sends epoch millis on `date`, or an ISO string. Neither is guaranteed. */
 function toDate(value: unknown): Date | null {
@@ -40,16 +40,33 @@ export async function handleFirefliesJob(data: ParseJobData, ctx: ParseContext):
     return;
   }
 
+  // ⚠️ v2 envelope: { event, meeting_id, timestamp }. The v1 shape the public
+  // docs describe ({ meetingId, eventType, clientReferenceId }) will NOT parse
+  // here, by design — we have never received one, and silently accepting both
+  // would hide a regression if Fireflies changed the shape again.
   const envelope = firefliesWebhookSchema.safeParse(row.payload);
   if (!envelope.success) {
     // Off-contract payload. Also not retryable.
     console.warn(
-      `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} raw_event ${row.id} is not a Fireflies webhook envelope — skipping`
+      `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} raw_event ${row.id} is not a Fireflies v2 webhook envelope — skipping`
     );
     return;
   }
 
-  const { meetingId } = envelope.data;
+  const { event, meeting_id: meetingId } = envelope.data;
+
+  // Setup test deliveries carry meeting_id "test_00000000", which is not a real
+  // meeting. Fetching it would fail and be retried 3× against an API capped at
+  // 500 requests per DAY, then dead-letter — spending quota and raising a false
+  // alarm. Mark processed and stop: the ping did its job by arriving.
+  if (isFirefliesTestEvent(envelope.data)) {
+    console.warn(
+      `[fireflies:worker] job=${ctx.jobId} attempt=${ctx.attempt} raw_event ${row.id} is a TEST delivery ` +
+        `(event=${event} meeting_id=${meetingId}) — no transcript to fetch, marking processed`
+    );
+    await markProcessed(row.id);
+    return;
+  }
 
   let fetched: FirefliesTranscript;
   try {
@@ -96,8 +113,11 @@ export async function handleFirefliesJob(data: ParseJobData, ctx: ParseContext):
   );
 
   // raw_event.processed marks "a parser extracted meaning from this". Fetching
-  // the transcript IS that step for Fireflies, so it is set here — unlike the
-  // stub handlers, which deliberately leave it false.
+  // the transcript IS that step for Fireflies.
+  await markProcessed(row.id);
+}
+
+async function markProcessed(rawEventId: string): Promise<void> {
   const { rawEvent } = await import('@/db/schema');
-  await db.update(rawEvent).set({ processed: true }).where(eq(rawEvent.id, row.id));
+  await db.update(rawEvent).set({ processed: true }).where(eq(rawEvent.id, rawEventId));
 }

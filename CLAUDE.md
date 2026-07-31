@@ -352,6 +352,52 @@ an all-zero id. Deduplicating on a constant id would make the *second* ping
 vanish — during setup that looks exactly like a broken handler. Both are stored
 with a **null** `external_id` so every ping lands, and logged as `TEST EVENT`.
 
+### Fireflies: the published docs describe a DEPRECATED webhook
+
+**`https://docs.fireflies.ai/graphql-api/webhooks` is not to be trusted.** It
+documents the v1 (Developer Settings) webhook. Fireflies has replaced it with a
+v2 system configured on the **Integrations page**, and the v2 payload differs on
+*every* field. Confirmed from live deliveries sent by `Fireflies-Webhook/2.0`:
+
+```json
+{ "event": "test", "timestamp": 1785510895435, "meeting_id": "test_00000000" }
+```
+
+| v1 — docs, deprecated | v2 — actual |
+| --- | --- |
+| `meetingId` | `meeting_id` — **snake_case** |
+| `eventType` | `event` |
+| `clientReferenceId` | *does not exist* |
+| *not mentioned* | `timestamp` — epoch **milliseconds** |
+
+The handler was built against v1 and silently mis-parsed everything: three
+stored rows all had a null `external_id` and `processed=false`, because
+`externalIdOf` read `meetingId` and the worker rejected the envelope. The schema
+now targets v2 only — the v1 shape is deliberately **not** accepted, so a future
+shape change fails loudly instead of looking healthy.
+
+- **Idempotency key is the composite `event:meeting_id`**, not `meeting_id`
+  alone. One meeting can emit several events (transcribed, then summarized);
+  keying on the meeting alone files the second under the first's key and
+  `ON CONFLICT DO NOTHING` swallows it with no error anywhere. Both halves come
+  from the body, so a `raw_event` replay can reconstruct the key — the
+  `x-webhook-delivery-id` header cannot.
+- **Test deliveries arrive UNSIGNED** — no `x-hub-signature` at all, among ~20
+  headers, carrying `x-webhook-delivery-id: test-…`. Whether *real* events are
+  signed is still unconfirmed. There is a temporary, deliberately narrow
+  exception in `src/features/connectors/fireflies/index.ts`; it requires the
+  total *absence* of a signature, never a present-but-invalid one. **Remove it
+  before Day 5** — until then anyone who knows the URL can write to `raw_event`.
+- **The test `meeting_id` is the constant `test_00000000`**, so it is stored with
+  a null `external_id` and the worker short-circuits it — same treatment as UGC
+  and Vision. Fetching it would burn 4 calls from a 500-per-DAY budget and
+  dead-letter.
+- **There is no timestamp HEADER**, so nothing enters the signature basestring
+  and `verifyBodyOnly` is correct. The *body* timestamp could bound replay, and
+  deliberately is not used to: a successful replay only re-triggers an
+  idempotent transcript fetch, whereas a wrong window permanently drops a
+  delayed retry from a sender whose retry behaviour is undocumented.
+
 ### Data flow
 
 - **`raw_event` is a landing zone.** Connectors store; they do **not** parse.

@@ -1,5 +1,5 @@
 {
-  "meetingId": "01JQFF1TESTMEETING000001",
-  "eventType": "Transcription completed",
-  "clientReferenceId": "cc-ref-0001"
+  "event": "Meeting Transcribed",
+  "timestamp": 1785511000000,
+  "meeting_id": "01JQFF1TESTMEETING000001"
 }

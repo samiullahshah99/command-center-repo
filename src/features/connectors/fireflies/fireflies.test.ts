@@ -88,7 +88,7 @@ describe('fireflies webhook verification', () => {
   it('rejects a tampered body', () => {
     const raw = fixture('webhook-transcription-completed.json');
     const headers = headersFor(raw);
-    const tampered = raw.replace('"meetingId"', '"TAMPERED"');
+    const tampered = raw.replace('"meeting_id"', '"TAMPERED"');
     expect(tampered).not.toBe(raw);
     expect(verifyFirefliesRequest({ rawBody: tampered, headers }).ok).toBe(false);
   });
@@ -122,20 +122,51 @@ describe('fireflies webhook verification', () => {
 // ── Idempotency key ─────────────────────────────────────────────────────────
 
 describe('externalIdOf', () => {
-  it('uses meetingId', () => {
+  it('is a composite of event and meeting_id', () => {
     expect(externalIdOf(json('webhook-transcription-completed.json'))).toBe(
-      '01JQFF1TESTMEETING000001'
+      'Meeting Transcribed:01JQFF1TESTMEETING000001'
     );
   });
 
-  it('the retry fixture shares the same meetingId', () => {
+  it('a redelivery of the same event produces the same key', () => {
     expect(externalIdOf(json('webhook-retry-duplicate.json'))).toBe(
       externalIdOf(json('webhook-transcription-completed.json'))
     );
   });
 
-  it('works for an unknown eventType — types are additive', () => {
-    expect(externalIdOf(json('webhook-unknown-event.json'))).toBe('01JQFF2TESTMEETING000002');
+  it('⚠️ a DIFFERENT event on the SAME meeting produces a DIFFERENT key', () => {
+    // The reason the key is composite. meeting_id alone would file this under
+    // the first event's key and ON CONFLICT DO NOTHING would silently drop it.
+    const first = externalIdOf(json('webhook-transcription-completed.json'));
+    const second = externalIdOf(json('webhook-second-event-same-meeting.json'));
+
+    expect(second).toBe('Meeting Summarized:01JQFF1TESTMEETING000001');
+    expect(second).not.toBe(first);
+  });
+
+  it('works for an unknown event value — the catalog is additive', () => {
+    expect(externalIdOf(json('webhook-unknown-event.json'))).toBe(
+      'Some.Future.Event:01JQFF2TESTMEETING000002'
+    );
+  });
+
+  it('tolerates a missing timestamp — it is undocumented, so not required', () => {
+    expect(externalIdOf(json('webhook-no-timestamp.json'))).toBe(
+      'Meeting Transcribed:01JQFF3TESTMEETING000003'
+    );
+  });
+
+  it('⚠️ returns NULL for a test event, so repeat setup pings each land', () => {
+    // meeting_id is the constant "test_00000000" on every ping. Keying on it
+    // would make the second vanish — the UGC/Vision hazard.
+    expect(externalIdOf(json('webhook-test-event.json'))).toBeNull();
+    expect(externalIdOf(json('webhook-test-event-repeat.json'))).toBeNull();
+  });
+
+  it('⚠️ returns null for the DEPRECATED v1 shape — it is no longer accepted', () => {
+    // { meetingId, eventType, clientReferenceId } is what docs.fireflies.ai
+    // describes. Accepting it would let a wrong-contract payload look healthy.
+    expect(externalIdOf(json('webhook-v1-legacy-shape.json'))).toBeNull();
   });
 
   it('returns null for an off-contract payload rather than throwing', () => {

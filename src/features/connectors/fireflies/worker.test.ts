@@ -132,6 +132,75 @@ describe('fireflies worker', () => {
     expect(w.inserted).toHaveLength(0);
   });
 
+  it('⚠️ rejects the DEPRECATED v1 envelope rather than silently accepting it', async () => {
+    // { meetingId, eventType, clientReferenceId } is the shape docs.fireflies.ai
+    // still documents. Accepting both would hide it if Fireflies changed shape
+    // again; the v1 rows already in raw_event are ours, not theirs.
+    w.rawEvent = {
+      id: 'raw-v1',
+      payload: json('webhook-v1-legacy-shape.json'),
+      externalId: null,
+      processed: false
+    };
+    await expect(handleFirefliesJob({ rawEventId: 'raw-v1' }, ctx)).resolves.toBeUndefined();
+    expect(w.inserted).toHaveLength(0);
+    expect(w.processedIds).toHaveLength(0);
+  });
+
+  // ── Test deliveries short-circuit ──────────────────────────────────────────
+
+  it('⚠️ a test event does NOT hit the GraphQL API', async () => {
+    // meeting_id "test_00000000" is not a real meeting. Fetching it would fail,
+    // retry 3× against a 500-requests-per-DAY budget, then dead-letter.
+    let fetchCalls = 0;
+    w.transcriptFetch.impl = async () => {
+      fetchCalls += 1;
+      throw new Error('should never be called for a test event');
+    };
+    w.rawEvent = {
+      id: 'raw-test',
+      payload: json('webhook-test-event.json'),
+      externalId: null,
+      processed: false
+    };
+
+    await expect(handleFirefliesJob({ rawEventId: 'raw-test' }, ctx)).resolves.toBeUndefined();
+
+    expect(fetchCalls).toBe(0);
+    expect(w.inserted).toHaveLength(0);
+  });
+
+  it('a test event IS marked processed, so it does not sit in the backlog forever', async () => {
+    w.rawEvent = {
+      id: 'raw-test',
+      payload: json('webhook-test-event.json'),
+      externalId: null,
+      processed: false
+    };
+    await handleFirefliesJob({ rawEventId: 'raw-test' }, ctx);
+    expect(w.processedIds).toHaveLength(1);
+  });
+
+  it('a test_ meeting_id short-circuits even under a non-test event name', async () => {
+    // Belt to the `event` value's braces: a future event name carrying a
+    // test_ meeting must still not be treated as a real meeting to fetch.
+    let fetchCalls = 0;
+    w.transcriptFetch.impl = async () => {
+      fetchCalls += 1;
+      return json('graphql-transcript.json').data.transcript;
+    };
+    w.rawEvent = {
+      id: 'raw-test2',
+      payload: { event: 'Meeting Transcribed', meeting_id: 'test_00000000', timestamp: 1 },
+      externalId: null,
+      processed: false
+    };
+
+    await handleFirefliesJob({ rawEventId: 'raw-test2' }, ctx);
+    expect(fetchCalls).toBe(0);
+    expect(w.processedIds).toHaveLength(1);
+  });
+
   it('upserts on fireflies_id so a retry after partial success does not duplicate', async () => {
     await handleFirefliesJob({ rawEventId: 'raw-1' }, ctx);
     await handleFirefliesJob({ rawEventId: 'raw-1' }, { ...ctx, attempt: 1 });

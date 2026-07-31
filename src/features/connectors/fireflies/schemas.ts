@@ -12,21 +12,66 @@ import * as z from 'zod';
 // ── Webhook payload ─────────────────────────────────────────────────────────
 
 /**
- * The whole webhook body. Three fields — metadata only, no transcript content.
+ * The whole webhook body — metadata only, no transcript content.
  *
- * `meetingId` and `transcriptId` are the same value on the Fireflies platform,
- * so this id goes straight into the `transcript(id:)` query.
+ * ⚠️ THIS IS THE v2 (Integrations page) SHAPE, CONFIRMED FROM LIVE DELIVERIES
+ * SENT BY `Fireflies-Webhook/2.0`:
+ *
+ *     { "event": "test", "timestamp": 1785510895435, "meeting_id": "test_00000000" }
+ *
+ * docs.fireflies.ai/graphql-api/webhooks documents the DEPRECATED v1 webhook and
+ * is wrong on every field. Do not build against it:
+ *
+ *     v1 (docs, deprecated)     v2 (actual)
+ *     ─────────────────────     ──────────────────────────
+ *     meetingId                 meeting_id     ← snake_case
+ *     eventType                 event
+ *     clientReferenceId         (does not exist)
+ *     (not mentioned)           timestamp      ← epoch MILLIseconds
+ *
+ * `meeting_id` is the same value as the transcript id, so it goes straight into
+ * the `transcript(id:)` query.
+ *
+ * `event` is a plain string on purpose. Fireflies' catalog is expected to grow
+ * and an unknown value must be STORED, not rejected — an event never stored
+ * cannot be replayed.
  */
 export const firefliesWebhookSchema = z.object({
-  meetingId: z.string().min(1),
-  eventType: z.string().min(1),
-  clientReferenceId: z.string().nullish()
+  event: z.string().min(1),
+  meeting_id: z.string().min(1),
+  /**
+   * Epoch MILLIseconds (13 digits), not seconds. Optional because it is
+   * undocumented — it appears on every delivery observed so far, but nothing
+   * guarantees it, and a missing timestamp must not make the envelope
+   * unparseable.
+   */
+  timestamp: z.number().nullish()
 });
 
 export type FirefliesWebhookPayload = z.infer<typeof firefliesWebhookSchema>;
 
-/** The only event type documented today. Others must be tolerated, not rejected. */
-export const FIREFLIES_TRANSCRIPTION_COMPLETED = 'Transcription completed';
+/**
+ * Setup test deliveries.
+ *
+ * Fireflies sends `event: "test"` with the CONSTANT `meeting_id "test_00000000"`
+ * — both live test deliveries carried exactly that id, differing only in
+ * `timestamp`. Same hazard as UGC's `evt_test` and Vision's all-zero id: keying
+ * on a constant would make the second ping vanish, which during setup is
+ * indistinguishable from a broken handler.
+ *
+ * The prefix check is the belt to the `event` value's braces — a future
+ * `meeting_id` of `test_…` under a different event name should still not be
+ * mistaken for a real meeting to fetch.
+ */
+export const FIREFLIES_TEST_EVENT = 'test';
+export const FIREFLIES_TEST_MEETING_PREFIX = 'test_';
+
+export function isFirefliesTestEvent(payload: { event: string; meeting_id: string }): boolean {
+  return (
+    payload.event === FIREFLIES_TEST_EVENT ||
+    payload.meeting_id.startsWith(FIREFLIES_TEST_MEETING_PREFIX)
+  );
+}
 
 // ── Transcript ──────────────────────────────────────────────────────────────
 

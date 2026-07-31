@@ -1,15 +1,20 @@
 /**
  * Fireflies webhook.
  *
- * https://docs.fireflies.ai/graphql-api/webhooks
+ * ⚠️ docs.fireflies.ai/graphql-api/webhooks documents the DEPRECATED v1 webhook
+ * and is wrong on every payload field. This handler targets v2 (the Integrations
+ * page), confirmed from live deliveries by `Fireflies-Webhook/2.0`.
  *
  *   header     x-hub-signature   ⚠️ NO "-256" suffix (not GitHub's convention)
  *   prefix     sha256=
  *   basestring rawBody only
- *   payload    { meetingId, eventType, clientReferenceId } — METADATA ONLY
+ *   payload    { event, meeting_id, timestamp } — snake_case, METADATA ONLY
  *
- * ⚠️ NO REPLAY PROTECTION. Fireflies sends no timestamp, so verifyBodyOnly is
- * used and idempotency on meetingId is the only defence.
+ * ⚠️ NO REPLAY WINDOW IS ENFORCED. There is no timestamp HEADER, so nothing
+ * enters the basestring and verifyBodyOnly stays correct. The BODY does carry a
+ * millisecond `timestamp` which could bound replay — see the reasoning in
+ * features/connectors/fireflies/index.ts for why it is deliberately not used.
+ * Idempotency on (event, meeting_id) is the defence.
  *
  * ⚠️ FIREFLIES' RETRY BEHAVIOUR IS UNDOCUMENTED. Slack and ClickUp both retry on
  * a non-2xx, which makes returning 500 a safe way to ask for redelivery. Their
@@ -89,7 +94,7 @@ export async function POST(req: Request) {
   // Store the notification verbatim. The transcript itself is fetched by the
   // worker and lands in the `transcript` table, not here.
   //
-  // Unknown eventType values are stored like any other — the catalog is
+  // Unknown `event` values are stored like any other — the catalog is
   // expected to grow and rejecting unknown types would drop real signal.
   try {
     const result = await ingestRawEvent({
@@ -111,12 +116,12 @@ export async function POST(req: Request) {
 
     // TODO(REMOVE with the unsigned-test exception)
     // ⚠️ Stored, but deliberately NOT enqueued. The worker's job is to fetch the
-    // transcript for a meetingId over GraphQL; a test ping carries no real
+    // transcript for a meeting_id over GraphQL; a test ping carries no real
     // meeting, so the fetch would fail and retry 3× on an API limited to 500
     // requests per DAY — spending real quota to learn nothing.
     if (unsignedTest) {
       console.warn(
-        `[fireflies-webhook] unsigned test delivery stored raw_event=${result.id} — NOT enqueued (no real meetingId to fetch)`
+        `[fireflies-webhook] unsigned test delivery stored raw_event=${result.id} — NOT enqueued (no real meeting_id to fetch)`
       );
       return new Response(null, { status: 200 });
     }

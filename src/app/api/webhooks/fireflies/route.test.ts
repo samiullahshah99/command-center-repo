@@ -90,7 +90,7 @@ describe('POST /api/webhooks/fireflies', () => {
     expect(res.status).toBe(200);
     expect(h.ingestCalls).toHaveLength(1);
     expect(h.ingestCalls[0].source).toBe('fireflies');
-    expect(h.ingestCalls[0].externalId).toBe('01JQFF1TESTMEETING000001');
+    expect(h.ingestCalls[0].externalId).toBe('Meeting Transcribed:01JQFF1TESTMEETING000001');
     expect(h.enqueued).toHaveLength(1);
     expect(h.enqueued[0].data).toEqual({ rawEventId: 'row-1' });
   });
@@ -129,7 +129,7 @@ describe('POST /api/webhooks/fireflies', () => {
     expect(h.ingestCalls).toHaveLength(0);
   });
 
-  it('a duplicate meetingId does not double-insert or double-enqueue', async () => {
+  it('a redelivery of the same event does not double-insert or double-enqueue', async () => {
     const r1 = await POST(signedRequest(fixture('webhook-transcription-completed.json')));
     const r2 = await POST(signedRequest(fixture('webhook-retry-duplicate.json')));
 
@@ -141,7 +141,7 @@ describe('POST /api/webhooks/fireflies', () => {
     expect(h.enqueued).toHaveLength(1);
   });
 
-  it('accepts an unknown eventType — the catalog is additive', async () => {
+  it('accepts an unknown event value — the catalog is additive', async () => {
     const res = await POST(signedRequest(fixture('webhook-unknown-event.json')));
     expect(res.status).toBe(200);
     expect(h.enqueued).toHaveLength(1);
@@ -281,8 +281,8 @@ describe('unsigned test-delivery exception', () => {
     );
 
     expect(res.status).toBe(200);
-    // Normal path: real meetingId key, and the fetch IS enqueued.
-    expect(h.ingestCalls[0].externalId).toBe('01JQFF1TESTMEETING000001');
+    // Normal path: composite event:meeting_id key, and the fetch IS enqueued.
+    expect(h.ingestCalls[0].externalId).toBe('Meeting Transcribed:01JQFF1TESTMEETING000001');
     expect(h.enqueued).toHaveLength(1);
     const logged = vi.mocked(console.warn).mock.calls.flat().join('\n');
     expect(logged).not.toContain('SIGNATURE CHECK BYPASSED');

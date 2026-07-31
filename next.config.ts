@@ -26,7 +26,14 @@ const baseConfig: NextConfig = {
   },
   transpilePackages: ['geist'],
   compiler: {
-    removeConsole: process.env.NODE_ENV === 'production'
+    // Strip console.log/debug in production, but KEEP warn and error.
+    //
+    // `removeConsole: true` removes ALL console.* calls, which silently deleted
+    // every operational diagnostic we had — webhook rejection reasons, duplicate
+    // suppression, ingest failures — from the production bundle. Verified by
+    // grepping the built output: "ingest failed, returning 500" was present in
+    // source and absent from .next/standalone.
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false
   },
   // Internal portal — block indexing at the HTTP layer as well as via
   // robots.ts and the layout metadata. Belt-and-braces: a header covers

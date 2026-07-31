@@ -39,6 +39,12 @@ export default defineConfig({
   dialect: 'postgresql',
   schema: './src/db/schema/',
   out: './drizzle',
+  // Scope drizzle-kit to `public` ONLY. pg-boss owns the `pgboss` schema and
+  // manages its own migrations; without this, a future `drizzle-kit push` or
+  // introspect could see those ~9 tables as drift and try to drop them.
+  // `public` is drizzle-kit's default, so this makes the guarantee explicit
+  // rather than relying on it.
+  schemaFilter: ['public'],
   dbCredentials: {
     url,
     // Railway's Postgres proxy terminates TLS with a certificate that does not

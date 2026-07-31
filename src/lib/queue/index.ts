@@ -63,7 +63,7 @@ function createBoss(): PgBoss {
 export function getBoss(): Promise<PgBoss> {
   if (g.commandCenterBossReady) return g.commandCenterBossReady;
 
-  g.commandCenterBossReady = (async () => {
+  const ready = (async () => {
     const boss = createBoss();
 
     boss.on('error', (err: unknown) => {
@@ -75,11 +75,13 @@ export function getBoss(): Promise<PgBoss> {
     await boss.start();
 
     // v12 requires queues to exist before send() or work(). Creating them is
-    // idempotent, so this is safe on every boot.
-    await boss.createQueue(DEAD_LETTER_QUEUE);
+    // idempotent, so this is safe on every boot. The name is named in the error
+    // because pg-boss's own validation message does not say WHICH name it
+    // rejected, which makes a startup failure needlessly hard to place.
+    await createQueueOrExplain(boss, DEAD_LETTER_QUEUE);
     for (const name of ALL_QUEUE_NAMES) {
       // createQueue takes Omit<Queue,'name'> — passing `name` again is a type error.
-      await boss.createQueue(name, {
+      await createQueueOrExplain(boss, name, {
         // Exhausted jobs land here instead of vanishing.
         deadLetter: DEAD_LETTER_QUEUE
       });
@@ -89,7 +91,41 @@ export function getBoss(): Promise<PgBoss> {
     return boss;
   })();
 
-  return g.commandCenterBossReady;
+  // ⚠️ Cache the promise, but DROP IT IF IT REJECTS.
+  //
+  // Caching the rejected promise instead is a trap that already bit us: the dev
+  // server failed to create a queue once at boot, the rejection stayed on
+  // globalThis, and every webhook for the next two hours answered 500 with that
+  // same stale error — long after the underlying fault was irrelevant. A startup
+  // fault must cost one request, not the whole process lifetime.
+  //
+  // The `catch` runs before any caller's own handler, so by the time a caller
+  // sees the rejection the slot is already clear and the next call retries.
+  g.commandCenterBossReady = ready;
+  ready.catch(() => {
+    if (g.commandCenterBossReady === ready) {
+      g.commandCenterBossReady = undefined;
+      g.commandCenterBoss = undefined;
+    }
+  });
+
+  return ready;
+}
+
+/** createQueue, but the failure says which queue. */
+async function createQueueOrExplain(
+  boss: PgBoss,
+  name: string,
+  options?: Parameters<PgBoss['createQueue']>[1]
+): Promise<void> {
+  try {
+    await boss.createQueue(name, options);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`[queue] createQueue(${JSON.stringify(name)}) failed: ${message}`, {
+      cause: err
+    });
+  }
 }
 
 /**

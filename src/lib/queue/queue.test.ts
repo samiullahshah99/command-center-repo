@@ -28,6 +28,10 @@ const TEST_SCHEMA = 'pgboss_test';
 
 const describeDb = HAS_DB ? describe : describe.skip;
 
+/** Batch-isolation fixtures — see the two batch tests at the end of the suite. */
+const SEED = 6;
+const poisonAt = (i: number) => i % 3 === 0; // 2 of the 6
+
 /** Poll until a predicate holds, so tests never depend on a fixed sleep. */
 async function waitFor(
   predicate: () => boolean | Promise<boolean>,
@@ -185,6 +189,86 @@ describeDb('queue integration', () => {
     // This is the state the operational SQL query in docs looks for.
     expect(failed).toBe(true);
   }, 60_000);
+
+  // ── Batch isolation ───────────────────────────────────────────────────────
+  // batch-isolation.test.ts proves OUR wrapper returns per-job statuses. These
+  // two prove the other half: that pg-boss honours them only when
+  // perJobResults is set. Without the pair, the flag could be removed and the
+  // unit test would still pass.
+
+  // ⚠️ Both seed SIX jobs rather than two. pg-boss decides how many a poll
+  // returns, so "exactly one batch of 2" is not something a test can demand —
+  // asserting it made an early version of these tests flaky under load. With six
+  // queued against batchSize 2, a multi-job batch is effectively certain, and
+  // the assertion below (`sawBatchOf >= 2`) still fails loudly if it never
+  // happens, so the test cannot silently degrade into proving nothing.
+
+  it('⚠️ WITHOUT perJobResults, one throw fails the WHOLE batch', async () => {
+    // Documents the default that `perJobResults: true` exists to escape.
+    const queue = await makeQueue('batch-default');
+    let sawBatchOf = 0;
+
+    for (let i = 0; i < SEED; i += 1) {
+      await boss.send(queue, { rawEventId: `raw-d-${i}` } satisfies ParseJobData, {
+        retryLimit: 0
+      });
+    }
+
+    await boss.work(queue, { batchSize: 2 }, async (jobs) => {
+      sawBatchOf = Math.max(sawBatchOf, jobs.length);
+      throw new Error('one bad apple');
+    });
+
+    const settled = await waitFor(
+      async () => {
+        const all = await boss.findJobs(queue, {});
+        return all.length === SEED && all.every((j) => j.state === 'failed');
+      },
+      { timeoutMs: 40_000 }
+    );
+
+    expect(sawBatchOf).toBeGreaterThanOrEqual(2);
+    // Every job died with the batch, including the ones whose data was fine.
+    expect(settled).toBe(true);
+  }, 90_000);
+
+  it('WITH perJobResults, innocent jobs in the batch still complete', async () => {
+    const queue = await makeQueue('batch-isolated');
+    let sawBatchOf = 0;
+
+    for (let i = 0; i < SEED; i += 1) {
+      await boss.send(queue, { rawEventId: `raw-i-${i}` } satisfies ParseJobData, {
+        retryLimit: 0
+      });
+    }
+
+    await boss.work(queue, { batchSize: 2, perJobResults: true }, async (jobs) => {
+      sawBatchOf = Math.max(sawBatchOf, jobs.length);
+      // Exactly what makeBatchHandler does: settle each job on its own outcome.
+      return jobs.map((j) => {
+        const i = Number((j.data as ParseJobData).rawEventId.split('-').pop());
+        return poisonAt(i)
+          ? { id: j.id, status: 'failed' as const, output: { message: 'poison' } }
+          : { id: j.id, status: 'completed' as const };
+      });
+    });
+
+    const settled = await waitFor(
+      async () => {
+        const all = await boss.findJobs(queue, {});
+        if (all.length !== SEED) return false;
+        return all.every((j) => {
+          const i = Number((j.data as ParseJobData).rawEventId.split('-').pop());
+          return j.state === (poisonAt(i) ? 'failed' : 'completed');
+        });
+      },
+      { timeoutMs: 40_000 }
+    );
+
+    expect(sawBatchOf).toBeGreaterThanOrEqual(2);
+    // The four healthy jobs completed despite sharing batches with poison ones.
+    expect(settled).toBe(true);
+  }, 90_000);
 });
 
 // ── Pure unit tests: always run, no database needed ─────────────────────────

@@ -51,8 +51,7 @@ export async function startWorkers(): Promise<void> {
         // on its own outcome.
         perJobResults: true
       },
-      async (jobs: JobWithMetadata<ParseJobData>[]): Promise<JobResult[]> =>
-        Promise.all(jobs.map((job) => runOne(source, job)))
+      makeBatchHandler(source)
     );
   }
 
@@ -60,6 +59,28 @@ export async function startWorkers(): Promise<void> {
     `[queue] workers started for ${RAW_EVENT_SOURCES.length} queues ` +
       `(batchSize=${BATCH_SIZE}, retryLimit=${RETRY_LIMIT})`
   );
+}
+
+/**
+ * Turns one queue's batch into per-job outcomes.
+ *
+ * ⚠️ THE BATCH IS THE HAZARD. batchSize=2 means work() is handed an ARRAY, and a
+ * handler that throws fails EVERY job in that array — a malformed event would
+ * drag its innocent batch-mate through the entire retry ladder and into the
+ * dead-letter queue with it. Two things prevent that, and BOTH are required:
+ *
+ *   1. `perJobResults: true` on the work() options, so pg-boss settles each job
+ *      on its own returned status instead of on whether the handler threw.
+ *   2. This function never throwing — runOne() catches per job, so one failure
+ *      becomes one 'failed' entry in the array and the rest still report
+ *      'completed'.
+ *
+ * Exported so the isolation guarantee is testable directly; there is no other
+ * way to exercise it without racing a live worker for the same queues.
+ */
+export function makeBatchHandler(source: RawEventSource) {
+  return async (jobs: JobWithMetadata<ParseJobData>[]): Promise<JobResult[]> =>
+    Promise.all(jobs.map((job) => runOne(source, job)));
 }
 
 async function runOne(

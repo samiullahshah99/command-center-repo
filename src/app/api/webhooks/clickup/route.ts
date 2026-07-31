@@ -19,7 +19,7 @@
  * for making failures visible in logs, not for hiding them behind a 200.
  */
 
-import { ingestRawEvent } from '@/features/connectors/ingest';
+import { ingestAndEnqueue } from '@/features/connectors/ingest';
 import { externalIdOf, verifyClickUpRequest } from '@/features/connectors/clickup';
 
 // Never cached, and must run on Node (the HMAC uses node:crypto).
@@ -53,18 +53,18 @@ export async function POST(req: Request) {
     return new Response('Bad Request', { status: 400 });
   }
 
-  // ── 3. Persist, then acknowledge ──────────────────────────────────────────
+  // ── 3. Persist + enqueue in one transaction, then acknowledge ─────────────
   // externalId is history_items[0].id when present, else null — see events.ts for
-  // why webhook_id must never be used.
+  // why webhook_id must never be used. A duplicate delivery queues no second job.
   try {
-    const result = await ingestRawEvent({
+    const result = await ingestAndEnqueue({
       source: 'clickup',
       payload: parsed, // verbatim, unmodified
       externalId: externalIdOf(parsed)
     });
 
     if (result.duplicate) {
-      console.warn('[clickup-webhook] duplicate suppressed');
+      console.warn('[clickup-webhook] duplicate suppressed — no second job queued');
     }
   } catch (err) {
     // 500 on purpose: this is what makes ClickUp retry. Returning 200 would

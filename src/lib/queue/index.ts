@@ -1,4 +1,4 @@
-import { PgBoss } from 'pg-boss';
+import { PgBoss, type Db as PgBossDb } from 'pg-boss';
 import { ALL_QUEUE_NAMES, DEAD_LETTER_QUEUE, queueNameFor, type ParseJobData } from './types';
 import type { RawEventSource } from '@/db/schema';
 
@@ -95,14 +95,29 @@ export function getBoss(): Promise<PgBoss> {
 /**
  * Enqueue a parse job.
  *
- * Called by webhook handlers AFTER the raw_event row is committed — the worker
- * re-reads that row, so enqueuing first would race.
+ * Ordering rule: the worker re-reads the raw_event row by id, so the job must
+ * never become visible before that row does. Two ways to satisfy that —
+ *
+ *   1. Pass `db` (preferred). The job INSERT joins the caller's transaction, so
+ *      row and job commit together and neither can exist without the other.
+ *   2. Omit it, and enqueue only after the row is committed.
+ *
+ * See ingestAndEnqueue() in src/features/connectors/ingest.ts for (1).
  */
 export type ParseJobOptions = {
   retryLimit?: number;
   retryDelay?: number;
   retryBackoff?: boolean;
   retryDelayMax?: number;
+  /**
+   * An external transaction to enqueue within, as pg-boss's IDatabase.
+   *
+   * Build it with `fromDrizzle(tx, sql)` from 'pg-boss' — a first-party adapter
+   * (v12 ships fromKnex/fromKysely/fromDrizzle/fromPrisma/fromPglite). Verified
+   * against the live database: rolling the transaction back removes the job as
+   * well as the row; committing persists both.
+   */
+  db?: PgBossDb;
 };
 
 export async function sendParseJob(

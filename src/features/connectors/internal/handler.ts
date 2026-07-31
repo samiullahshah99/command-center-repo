@@ -10,7 +10,7 @@
  * No parsing, no field extraction. The COMPLETE envelope is stored.
  */
 
-import { ingestRawEvent } from '../ingest';
+import { ingestAndEnqueue } from '../ingest';
 import type { HmacVerifyResult } from '../verify-hmac';
 import { verifyBodyOnly, verifyWithTimestamp } from '../verify-hmac';
 import {
@@ -107,23 +107,34 @@ export function createInternalWebhookHandler(platform: InternalPlatform) {
       console.warn(`${tag} TEST EVENT received — stored without deduplication`);
     }
 
-    // ── 4. Persist, THEN acknowledge ────────────────────────────────────────
+    // ── 4. Persist + enqueue in one transaction, THEN acknowledge ───────────
     // Senders do not retry after a 2xx, so a write deferred past the response
     // would be lost permanently on failure. 500 makes the sender retry, and the
     // (source, external_id) index absorbs the duplicate.
     //
+    // Both statements commit together, so a parse job can never name a row that
+    // is not there. The enqueue is gated on the insert: a redelivery of an event
+    // already stored queues nothing, or every sender retry would double the work.
+    //
+    // Test events carry a null externalId (step 3), so each ping inserts and each
+    // gets its own job — which is what makes the pipeline visible during setup.
+    //
     // No filtering here: unknown event types are additive per both contracts and
     // must be tolerated, and Vision's `environment` field is stored as-is.
     // Production-only filtering happens at the parsing stage.
+    //
+    // ⚠️ Budget: UGC times out at 10s and Vision at 15s. The added cost is one
+    // INSERT into pgboss.job inside a transaction we were already opening —
+    // single-digit milliseconds against the same connection.
     try {
-      const result = await ingestRawEvent({
+      const result = await ingestAndEnqueue({
         source: platform,
         payload: parsed, // complete envelope, verbatim
         externalId: isTest ? null : externalIdOf(parsed)
       });
 
       if (result.duplicate) {
-        console.warn(`${tag} duplicate suppressed`);
+        console.warn(`${tag} duplicate suppressed — no second job queued`);
       }
     } catch (err) {
       console.error(

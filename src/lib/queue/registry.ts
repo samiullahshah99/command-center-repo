@@ -48,11 +48,21 @@ export async function loadRawEvent(rawEventId: string) {
 }
 
 /**
- * Placeholder handler shared by every source.
+ * Placeholder handler shared by every source. No parsing — that is Day 5.
  *
- * Deliberately does NOT set `processed = true`: that flag means "a parser has
- * extracted meaning from this", and nothing has. Flipping it now would make the
- * backlog look drained when it is not.
+ * ⚠️ `processed` means "a worker has handled this row", NOT "a parser extracted
+ * meaning from it". Those were the same thing while the only real handler was
+ * Fireflies; they are not the same now that stubs set the flag.
+ *
+ * The trade was made deliberately: leaving it false makes a working pipeline
+ * indistinguishable from a broken one, because the flag is the only end-to-end
+ * evidence that a job ran. The cost is that Day 5 must reset `processed = false`
+ * for the sources it implements before the real parser can pick those rows up —
+ * `scripts/backfill-queue.ts --force` re-queues regardless of the flag.
+ *
+ * Errors are NOT caught here. start-workers.ts wraps every handler call and
+ * converts a throw into a failed job with the retry ladder applied, so throwing
+ * is the correct way to signal failure and cannot take the process down.
  */
 function makeStubHandler(source: RawEventSource): ParseHandler {
   return async (data, ctx) => {
@@ -67,8 +77,11 @@ function makeStubHandler(source: RawEventSource): ParseHandler {
       return;
     }
 
+    await db.update(rawEvent).set({ processed: true }).where(eq(rawEvent.id, row.id));
+
     console.warn(
-      `[queue:${source}] job=${ctx.jobId} attempt=${ctx.attempt} loaded raw_event=${row.id} externalId=${row.externalId ?? 'null'} — no parser yet, leaving processed=false`
+      `[queue:${source}] job=${ctx.jobId} attempt=${ctx.attempt} handled raw_event=${row.id} ` +
+        `externalId=${row.externalId ?? 'null'} — stub, no parsing; processed=true`
     );
   };
 }

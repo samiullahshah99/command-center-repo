@@ -25,11 +25,13 @@ const WINDOW_MS = UGC_WINDOW_SECONDS * 1000;
 const h = vi.hoisted(() => ({
   rows: new Map<string, string>(),
   calls: [] as { source: string; externalId?: string | null; payload: unknown }[],
+  /** raw_event ids handed to the queue. Length is the assertion that matters. */
+  enqueued: [] as string[],
   failNext: { value: false }
 }));
 
-vi.mock('../ingest', () => ({
-  ingestRawEvent: async (input: {
+vi.mock('../ingest', () => {
+  const ingestRawEvent = async (input: {
     source: string;
     payload: unknown;
     externalId?: string | null;
@@ -47,9 +49,26 @@ vi.mock('../ingest', () => ({
     const id = `row-${h.rows.size + 1}`;
     h.rows.set(key, id);
     return { inserted: true, id, duplicate: false };
-  },
-  findRawEventByExternalId: async () => null
-}));
+  };
+
+  return {
+    ingestRawEvent,
+    /**
+     * Mirrors the real ingestAndEnqueue, including the part under test: the
+     * enqueue is gated on `inserted`, so a duplicate delivery queues nothing.
+     */
+    ingestAndEnqueue: async (input: {
+      source: string;
+      payload: unknown;
+      externalId?: string | null;
+    }) => {
+      const result = await ingestRawEvent(input);
+      if (result.inserted && result.id) h.enqueued.push(result.id);
+      return { ...result, enqueued: result.inserted && result.id !== null };
+    },
+    findRawEventByExternalId: async () => null
+  };
+});
 
 const { createInternalWebhookGet, createInternalWebhookHandler } = await import('./handler');
 
@@ -135,6 +154,7 @@ describe.each(CASES)('$platform webhook', ({ platform, valid, retry, unknown }) 
     process.env.VISION_WEBHOOK_SECRET = SECRETS.vision;
     h.rows.clear();
     h.calls.length = 0;
+    h.enqueued.length = 0;
     h.failNext.value = false;
     vi.setSystemTime(new Date(NOW_MS));
   });
@@ -264,6 +284,7 @@ describe('ugc replay window', () => {
     process.env.UGC_WEBHOOK_SECRET = SECRETS.ugc;
     h.rows.clear();
     h.calls.length = 0;
+    h.enqueued.length = 0;
     vi.setSystemTime(new Date(NOW_MS));
   });
   afterEach(() => vi.useRealTimers());
@@ -335,6 +356,7 @@ describe('vision has no replay protection', () => {
     process.env.VISION_WEBHOOK_SECRET = SECRETS.vision;
     h.rows.clear();
     h.calls.length = 0;
+    h.enqueued.length = 0;
     vi.setSystemTime(new Date(NOW_MS));
   });
   afterEach(() => vi.useRealTimers());
@@ -371,6 +393,7 @@ describe('constant-id setup test events', () => {
     process.env.VISION_WEBHOOK_SECRET = SECRETS.vision;
     h.rows.clear();
     h.calls.length = 0;
+    h.enqueued.length = 0;
     vi.setSystemTime(new Date(NOW_MS));
   });
   afterEach(() => vi.useRealTimers());
@@ -426,6 +449,7 @@ describe('off-envelope payloads', () => {
     process.env.UGC_WEBHOOK_SECRET = SECRETS.ugc;
     h.rows.clear();
     h.calls.length = 0;
+    h.enqueued.length = 0;
     vi.setSystemTime(new Date(NOW_MS));
   });
   afterEach(() => vi.useRealTimers());

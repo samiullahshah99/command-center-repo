@@ -22,7 +22,7 @@
  * network — roughly 10% of the 3-second budget.
  */
 
-import { ingestRawEvent } from '@/features/connectors/ingest';
+import { ingestAndEnqueue } from '@/features/connectors/ingest';
 import {
   externalIdOf,
   isUrlVerification,
@@ -86,12 +86,15 @@ export async function POST(req: Request) {
     return new Response(null, { status: 200 });
   }
 
-  // ── 5. Persist, then acknowledge ──────────────────────────────────────────
+  // ── 5. Persist + enqueue in one transaction, then acknowledge ─────────────
   // Idempotent on (source, external_id). event_id is stable across Slack's
   // retries, so a retry of an already-stored event is suppressed by the index and
-  // still answered 200.
+  // still answered 200 — WITHOUT queuing a second job for the same event.
+  //
+  // Both statements share one transaction, so the parse job cannot become
+  // visible before the row it names. See ingestAndEnqueue().
   try {
-    const result = await ingestRawEvent({
+    const result = await ingestAndEnqueue({
       source: 'slack',
       payload: parsed, // verbatim, unmodified
       externalId: externalIdOf(parsed)
@@ -100,11 +103,12 @@ export async function POST(req: Request) {
     if (result.duplicate) {
       // A duplicate means Slack retried, which means an earlier delivery failed
       // or timed out. Dedup handled it, but the retry is worth noticing.
-      console.warn(`[slack-webhook] duplicate suppressed, event_id=${result.id ?? 'n/a'}`);
+      console.warn('[slack-webhook] duplicate suppressed — no second job queued');
     }
   } catch (err) {
     // 500 on purpose: this is what makes Slack retry. Returning 200 here would
-    // discard the event permanently.
+    // discard the event permanently. A queue failure lands here too, having
+    // rolled the row back, so the retry re-does both halves cleanly.
     console.error(
       '[slack-webhook] ingest failed, returning 500 so Slack retries:',
       err instanceof Error ? err.message : err

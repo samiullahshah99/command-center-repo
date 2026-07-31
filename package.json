@@ -1,7 +1,6 @@
 {
   "name": "next-shadcn-dashboard-starter",
   "version": "1.0.0",
-  "packageManager": "pnpm@9.15.0",
   "private": true,
   "author": {
     "name": "Kiran",
@@ -29,7 +28,14 @@
     "clickup:list": "tsx scripts/clickup/list-webhooks.ts",
     "clickup:delete": "tsx scripts/clickup/delete-webhook.ts",
     "verify:clickup": "tsx scripts/clickup/verify-clickup.ts",
-    "test:queue": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue"
+    "queue:backfill": "tsx scripts/backfill-queue.ts",
+    "webhook:send": "tsx scripts/send-test-webhook.ts",
+    "webhook:ugc": "tsx scripts/send-test-webhook.ts ugc",
+    "webhook:vision": "tsx scripts/send-test-webhook.ts vision",
+    "webhook:slack": "tsx scripts/send-test-webhook.ts slack",
+    "webhook:clickup": "tsx scripts/send-test-webhook.ts clickup",
+    "test:queue": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue",
+    "test:db": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue src/features/connectors/ingest.test.ts src/features/connectors/ingest-rollback.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -100,5 +106,6 @@
     "!(scripts)/**/*.{js,jsx,tsx,ts,css,less,scss,sass}": [
       "oxfmt --write"
     ]
-  }
+  },
+  "packageManager": "pnpm@9.15.0"
 }

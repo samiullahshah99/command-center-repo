@@ -17,14 +17,16 @@ const h = vi.hoisted(() => ({
   /** Mimics the (source, external_id) partial unique index. */
   rows: new Map<string, string>(),
   calls: [] as { source: string; externalId?: string | null; payload: unknown }[],
-  /** When set, ingestRawEvent throws — exercises the 500-so-Slack-retries path. */
+  /** raw_event ids handed to the queue. Length is the assertion that matters. */
+  enqueued: [] as string[],
+  /** When set, the ingest throws — exercises the 500-so-Slack-retries path. */
   failNext: { value: false }
 }));
 
 // No next/server mock: the route persists synchronously and no longer uses after().
 
-vi.mock('@/features/connectors/ingest', () => ({
-  ingestRawEvent: async (input: {
+vi.mock('@/features/connectors/ingest', () => {
+  const ingestRawEvent = async (input: {
     source: string;
     payload: unknown;
     externalId?: string | null;
@@ -41,9 +43,26 @@ vi.mock('@/features/connectors/ingest', () => ({
     const id = `row-${h.rows.size + 1}`;
     h.rows.set(key, id);
     return { inserted: true, id, duplicate: false };
-  },
-  findRawEventByExternalId: async () => null
-}));
+  };
+
+  return {
+    ingestRawEvent,
+    /**
+     * Mirrors the real ingestAndEnqueue, including the part under test: the
+     * enqueue is gated on `inserted`, so a duplicate delivery queues nothing.
+     */
+    ingestAndEnqueue: async (input: {
+      source: string;
+      payload: unknown;
+      externalId?: string | null;
+    }) => {
+      const result = await ingestRawEvent(input);
+      if (result.inserted && result.id) h.enqueued.push(result.id);
+      return { ...result, enqueued: result.inserted && result.id !== null };
+    },
+    findRawEventByExternalId: async () => null
+  };
+});
 
 // Imported after the mocks are declared.
 const { POST, GET } = await import('./route');
@@ -88,6 +107,7 @@ describe('POST /api/webhooks/slack', () => {
     process.env.SLACK_APP_ID = OUR_APP_ID;
     h.rows.clear();
     h.calls.length = 0;
+    h.enqueued.length = 0;
     h.failNext.value = false;
     // Verified that vi.setSystemTime takes effect without useFakeTimers in
     // Vitest 4, so Date.now() inside the route matches the signed timestamps.

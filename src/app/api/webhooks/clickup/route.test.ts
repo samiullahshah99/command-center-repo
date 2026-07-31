@@ -9,11 +9,13 @@ const h = vi.hoisted(() => ({
   /** Mimics the (source, external_id) partial unique index. */
   rows: new Map<string, string>(),
   calls: [] as { source: string; externalId?: string | null; payload: unknown }[],
+  /** raw_event ids handed to the queue. Length is the assertion that matters. */
+  enqueued: [] as string[],
   failNext: { value: false }
 }));
 
-vi.mock('@/features/connectors/ingest', () => ({
-  ingestRawEvent: async (input: {
+vi.mock('@/features/connectors/ingest', () => {
+  const ingestRawEvent = async (input: {
     source: string;
     payload: unknown;
     externalId?: string | null;
@@ -31,9 +33,26 @@ vi.mock('@/features/connectors/ingest', () => ({
     const id = `row-${h.rows.size + 1}`;
     h.rows.set(key, id);
     return { inserted: true, id, duplicate: false };
-  },
-  findRawEventByExternalId: async () => null
-}));
+  };
+
+  return {
+    ingestRawEvent,
+    /**
+     * Mirrors the real ingestAndEnqueue, including the part under test: the
+     * enqueue is gated on `inserted`, so a duplicate delivery queues nothing.
+     */
+    ingestAndEnqueue: async (input: {
+      source: string;
+      payload: unknown;
+      externalId?: string | null;
+    }) => {
+      const result = await ingestRawEvent(input);
+      if (result.inserted && result.id) h.enqueued.push(result.id);
+      return { ...result, enqueued: result.inserted && result.id !== null };
+    },
+    findRawEventByExternalId: async () => null
+  };
+});
 
 const { POST, GET } = await import('./route');
 
@@ -68,6 +87,7 @@ describe('POST /api/webhooks/clickup', () => {
     process.env.CLICKUP_WEBHOOK_SECRET = SECRET;
     h.rows.clear();
     h.calls.length = 0;
+    h.enqueued.length = 0;
     h.failNext.value = false;
   });
 

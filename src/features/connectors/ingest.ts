@@ -16,7 +16,16 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { rawEvent } from '@/db/schema';
+import type { ParseJobOptions } from '@/lib/queue';
 import type { IngestRawEventInput, IngestResult } from './types';
+
+/**
+ * Either the pooled client or an open transaction. Derived from Drizzle's own
+ * transaction callback rather than hand-written, so it cannot drift from the
+ * driver's actual type.
+ */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Executor = typeof db | Tx;
 
 /**
  * Insert one inbound event.
@@ -31,6 +40,14 @@ import type { IngestRawEventInput, IngestResult } from './types';
  * as distinct in a unique index, so there is nothing to conflict on.
  */
 export async function ingestRawEvent(input: IngestRawEventInput): Promise<IngestResult> {
+  return insertRawEvent(db, input);
+}
+
+/** The insert itself, against any executor. Shared by ingestRawEvent and ingestAndEnqueue. */
+async function insertRawEvent(
+  executor: Executor,
+  input: IngestRawEventInput
+): Promise<IngestResult> {
   const { source, payload, receivedAt, externalId } = input;
 
   const values = {
@@ -42,11 +59,11 @@ export async function ingestRawEvent(input: IngestRawEventInput): Promise<Ingest
 
   // No externalId -> nothing to deduplicate against, so a plain insert.
   if (!values.externalId) {
-    const [row] = await db.insert(rawEvent).values(values).returning({ id: rawEvent.id });
+    const [row] = await executor.insert(rawEvent).values(values).returning({ id: rawEvent.id });
     return { inserted: true, id: row.id, duplicate: false };
   }
 
-  const inserted = await db
+  const inserted = await executor
     .insert(rawEvent)
     .values(values)
     .onConflictDoNothing({
@@ -66,6 +83,67 @@ export async function ingestRawEvent(input: IngestRawEventInput): Promise<Ingest
   // already stored, which is a successful no-op, not an error — the caller
   // should still answer the provider with 2xx so it stops retrying.
   return { inserted: false, id: null, duplicate: true };
+}
+
+/** What ingestAndEnqueue reports back, on top of the plain ingest result. */
+export interface IngestAndEnqueueResult extends IngestResult {
+  /** false when the row was a duplicate, so no second job was queued. */
+  enqueued: boolean;
+}
+
+/**
+ * Persist an inbound event AND queue its parse job, atomically.
+ *
+ * ── Why one transaction ─────────────────────────────────────────────────────
+ * The job carries only the raw_event id and the worker re-reads that row, so the
+ * job must never be visible before the row. Doing the two as separate statements
+ * leaves a window in both directions: enqueue-then-insert lets a worker pick up
+ * an id that does not resolve, and insert-then-enqueue loses the job entirely if
+ * the process dies in between, leaving a row that is never processed.
+ *
+ * pg-boss v12 closes the window properly: `send({ db })` accepts an external
+ * database, and `fromDrizzle(tx, sql)` adapts an open Drizzle transaction. The
+ * job INSERT then joins our transaction. Verified against the live database — a
+ * rollback discards row and job together, a commit persists both.
+ *
+ * ⚠️ The enqueue is gated on `inserted`, NOT on the call succeeding. A duplicate
+ * delivery means the row and its job already exist; queuing again would do the
+ * work twice for every provider retry, and providers retry routinely.
+ *
+ * ⚠️ A queue failure therefore ROLLS BACK the insert and throws, so the caller
+ * returns 500 and the provider redelivers. That is the right trade for Slack,
+ * ClickUp, UGC and Vision, which all retry on a non-2xx. It is the wrong trade
+ * for Fireflies, whose retry behaviour is undocumented — that handler keeps its
+ * store-then-best-effort-enqueue shape on purpose and does not call this.
+ */
+export async function ingestAndEnqueue(
+  input: IngestRawEventInput & { jobOptions?: ParseJobOptions }
+): Promise<IngestAndEnqueueResult> {
+  const { jobOptions, ...ingest } = input;
+
+  return db.transaction(async (tx) => {
+    const result = await insertRawEvent(tx, ingest);
+
+    if (!result.inserted || !result.id) {
+      return { ...result, enqueued: false };
+    }
+
+    // Imported lazily so route modules do not pull pg-boss in at module load —
+    // `next build` imports every route to collect page data, and the queue must
+    // not demand a connection string at build time.
+    const [{ sendParseJob }, { fromDrizzle }] = await Promise.all([
+      import('@/lib/queue'),
+      import('pg-boss')
+    ]);
+
+    await sendParseJob(
+      ingest.source,
+      { rawEventId: result.id },
+      { ...jobOptions, db: fromDrizzle(tx, sql) }
+    );
+
+    return { ...result, enqueued: true };
+  });
 }
 
 /**

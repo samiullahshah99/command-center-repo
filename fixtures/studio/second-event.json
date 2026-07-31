@@ -1,0 +1,10 @@
+{
+  "event_id": "evt_studio_01HQ8Z5M4P6Q7R8S9T0U1V",
+  "event_type": "edit.submitted",
+  "occurred_at": "2026-07-31T10:44:51.902Z",
+  "data": {
+    "edit_id": "edt_9017",
+    "submitted_by": "studio_user_88",
+    "duration_seconds": 47
+  }
+}

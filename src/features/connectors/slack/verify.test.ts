@@ -125,7 +125,9 @@ describe('verifySlackRequest', () => {
     const headers = headersFor(body);
     expect(verifySlackRequest({ rawBody: body, headers, nowSeconds: NOW })).toEqual({
       ok: false,
-      reason: 'missing_signing_secret'
+      // Renamed from 'missing_signing_secret' when verification moved into the
+      // shared ../verify-hmac.ts module. This string appears in logs.
+      reason: 'missing_secret'
     });
   });
 

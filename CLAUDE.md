@@ -407,6 +407,30 @@ being fixed.
   a wrong downstream filter is one WHERE clause away from being fixed. There is a
   test asserting an unrelated channel is still persisted.
 
+### Shopify is NOT integrated — internal backend endpoints replace it
+
+PRD §5.5 and §7 list "Shopify | Read | Context for the copilot and status
+queries (orders, inventory)". **That is served by internal backend endpoints, not
+by the Shopify Admin API.** Per the team lead, direct Shopify access is out.
+
+- **Do not build a Shopify client.** Shopify credentials are not being requested,
+  and `SHOPIFY_*` variables must not reappear in `.env.example`.
+- The typed interface lives at `src/features/connectors/backend/client.ts`.
+  **Every method throws `NotImplementedError`** — the endpoints do not exist yet
+  (awaiting the backend engineer).
+- It is a **point-lookup** client, not a bulk sync: order by number, inventory by
+  SKU, orders by customer name. The copilot answers ad-hoc questions at request
+  time, so orders and inventory are never mirrored locally.
+- `BACKEND_API_URL` / `BACKEND_API_TOKEN` are reserved in `.env.example`, but the
+  auth scheme is unconfirmed — every connector so far has used a different one.
+
+> The stub throws rather than returning plausible data on purpose. A stub that
+> compiles and is wrong survives review; one that throws cannot be mistaken for
+> a working integration. Open questions for the backend engineer are listed at
+> the bottom of that file — resolve them before implementing.
+
+The same reasoning applies to `src/features/connectors/studio/client.ts`.
+
 ### Fixtures
 
 - **`fixtures/*/api-*.json` are captured from live APIs and have contained real

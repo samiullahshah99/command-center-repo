@@ -1,0 +1,10 @@
+{
+  "data": null,
+  "errors": [
+    {
+      "message": "Transcript not found",
+      "path": ["transcript"],
+      "extensions": { "code": "NOT_FOUND" }
+    }
+  ]
+}

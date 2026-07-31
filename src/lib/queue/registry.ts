@@ -80,7 +80,12 @@ function makeStubHandler(source: RawEventSource): ParseHandler {
 export const HANDLERS: Record<RawEventSource, ParseHandler> = {
   slack: makeStubHandler('slack'),
   clickup: makeStubHandler('clickup'),
-  fireflies: makeStubHandler('fireflies'),
+  // The first REAL handler. Imported lazily so the registry does not pull the
+  // Fireflies client (and its Zod schemas) into every module that imports this.
+  fireflies: async (data, ctx) => {
+    const { handleFirefliesJob } = await import('@/features/connectors/fireflies/worker');
+    return handleFirefliesJob(data, ctx);
+  },
   ugc: makeStubHandler('ugc'),
   vision: makeStubHandler('vision')
 };

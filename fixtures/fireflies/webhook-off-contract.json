@@ -1,0 +1,4 @@
+{
+  "notAMeetingId": true,
+  "somethingElse": { "nested": "value" }
+}

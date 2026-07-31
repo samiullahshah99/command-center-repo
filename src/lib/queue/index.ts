@@ -98,9 +98,20 @@ export function getBoss(): Promise<PgBoss> {
  * Called by webhook handlers AFTER the raw_event row is committed — the worker
  * re-reads that row, so enqueuing first would race.
  */
+export type ParseJobOptions = {
+  retryLimit?: number;
+  retryDelay?: number;
+  retryBackoff?: boolean;
+  retryDelayMax?: number;
+};
+
 export async function sendParseJob(
   source: RawEventSource,
-  data: ParseJobData
+  data: ParseJobData,
+  // Per-source override. Fireflies uses a smaller budget with longer delays
+  // because its API is rate-limited per DAY and a transcript may legitimately
+  // not be ready yet — see FIREFLIES_JOB_OPTIONS.
+  options: ParseJobOptions = {}
 ): Promise<string | null> {
   const boss = await getBoss();
   return boss.send(queueNameFor(source), data, {
@@ -109,7 +120,8 @@ export async function sendParseJob(
     // Exponential with jitter. pg-boss computes roughly
     //   min(retryDelayMax, retryDelay * 2^retryCount)  (plus jitter)
     retryBackoff: true,
-    retryDelayMax: RETRY_DELAY_MAX_SECONDS
+    retryDelayMax: RETRY_DELAY_MAX_SECONDS,
+    ...options
   });
 }
 

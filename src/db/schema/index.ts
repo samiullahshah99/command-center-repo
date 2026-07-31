@@ -10,3 +10,4 @@ export * from './tracked-item';
 export * from './recurring-task';
 export * from './completion-event';
 export * from './raw-event';
+export * from './transcript';

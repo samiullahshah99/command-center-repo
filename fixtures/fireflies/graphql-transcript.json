@@ -1,0 +1,48 @@
+{
+  "data": {
+    "transcript": {
+      "id": "01JQFF1TESTMEETING000001",
+      "title": "Weekly Sync (test fixture)",
+      "date": 1785500000000,
+      "dateString": "2026-07-31T14:00:00.000Z",
+      "duration": 1832,
+      "host_email": "host@example.com",
+      "organizer_email": "host@example.com",
+      "transcript_url": "https://app.fireflies.ai/view/test-0001",
+      "audio_url": null,
+      "video_url": null,
+      "participants": ["host@example.com", "attendee1@example.com"],
+      "speakers": [
+        { "id": 0, "name": "Test Speaker One" },
+        { "id": 1, "name": "Test Speaker Two" }
+      ],
+      "sentences": [
+        {
+          "index": 0,
+          "speaker_name": "Test Speaker One",
+          "speaker_id": 0,
+          "text": "Let us start with the returns queue.",
+          "raw_text": "Let us start with the returns queue.",
+          "start_time": 1.2,
+          "end_time": 4.6
+        },
+        {
+          "index": 1,
+          "speaker_name": "Test Speaker Two",
+          "speaker_id": 1,
+          "text": "I will take that today.",
+          "raw_text": "I will take that today.",
+          "start_time": 4.9,
+          "end_time": 7.1
+        }
+      ],
+      "summary": {
+        "keywords": ["returns", "queue"],
+        "action_items": ["Test Speaker Two to clear the returns queue"],
+        "outline": "Discussed the returns queue",
+        "overview": "A short synthetic meeting used only as a test fixture.",
+        "topics_discussed": ["returns"]
+      }
+    }
+  }
+}

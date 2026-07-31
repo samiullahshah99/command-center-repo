@@ -1,0 +1,12 @@
+{
+  "event": "taskStatusUpdated",
+  "history_items": [
+    {
+      "id": "ATTACKER-INJECTED-ID",
+      "field": "status",
+      "after": { "status": "complete" }
+    }
+  ],
+  "task_id": "1vwnf1h",
+  "webhook_id": "7fa3ec74-69a8-4530-a251-8a13730bd204"
+}

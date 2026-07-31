@@ -24,7 +24,11 @@
     "db:seed": "tsx --env-file=.env.local src/db/seed.ts",
     "verify:notion": "tsx scripts/verify-notion.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "clickup:register": "tsx scripts/clickup/register-webhook.ts",
+    "clickup:list": "tsx scripts/clickup/list-webhooks.ts",
+    "clickup:delete": "tsx scripts/clickup/delete-webhook.ts",
+    "verify:clickup": "tsx scripts/clickup/verify-clickup.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

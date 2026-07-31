@@ -1,0 +1,263 @@
+{
+  "tasks": [
+    {
+      "id": "86eyf1rk7",
+      "custom_id": null,
+      "custom_item_id": 0,
+      "name": "Task 1",
+      "text_content": "",
+      "description": "",
+      "status": {
+        "status": "in progress",
+        "id": "p901812221191_g9uxhsQM",
+        "color": "#1090e0",
+        "type": "custom",
+        "orderindex": 1
+      },
+      "orderindex": "10001785332361.59109300000000300000000000000000",
+      "date_created": "1785332365958",
+      "date_updated": "1785332365958",
+      "date_closed": null,
+      "date_done": null,
+      "archived": false,
+      "creator": {
+        "id": 228140872,
+        "username": "Test User 228140872",
+        "color": "#595d66",
+        "email": "user1@example.com",
+        "profilePicture": null
+      },
+      "assignees": [],
+      "group_assignees": [],
+      "watchers": [],
+      "checklists": [],
+      "tags": [],
+      "parent": null,
+      "top_level_parent": null,
+      "priority": null,
+      "due_date": null,
+      "start_date": null,
+      "points": null,
+      "time_estimate": null,
+      "custom_fields": [],
+      "dependencies": [],
+      "linked_tasks": [],
+      "locations": [],
+      "team_id": "90182930145",
+      "url": "https://app.clickup.com/t/86eyf1rk7",
+      "sharing": {
+        "public": false,
+        "public_share_expires_on": null,
+        "public_fields": [
+          "assignees",
+          "priority",
+          "due_date",
+          "content",
+          "comments",
+          "attachments",
+          "customFields",
+          "subtasks",
+          "tags",
+          "checklists",
+          "coverimage"
+        ],
+        "token": null,
+        "seo_optimized": false
+      },
+      "permission_level": "create",
+      "list": {
+        "id": "901820032439",
+        "name": "Project 2",
+        "access": true
+      },
+      "project": {
+        "id": "901815727098",
+        "name": "hidden",
+        "hidden": true,
+        "access": true
+      },
+      "folder": {
+        "id": "901815727098",
+        "name": "hidden",
+        "hidden": true,
+        "access": true
+      },
+      "space": {
+        "id": "901812221191"
+      }
+    },
+    {
+      "id": "86eyf1rk6",
+      "custom_id": null,
+      "custom_item_id": 0,
+      "name": "Task 2",
+      "text_content": "",
+      "description": "",
+      "status": {
+        "status": "to do",
+        "id": "p901812221191_DCnaeiSB",
+        "color": "#87909e",
+        "type": "open",
+        "orderindex": 0
+      },
+      "orderindex": "10001785332361.59109300000000400000000000000000",
+      "date_created": "1785332365958",
+      "date_updated": "1785332365958",
+      "date_closed": null,
+      "date_done": null,
+      "archived": false,
+      "creator": {
+        "id": 228140872,
+        "username": "Test User 228140872",
+        "color": "#595d66",
+        "email": "user1@example.com",
+        "profilePicture": null
+      },
+      "assignees": [],
+      "group_assignees": [],
+      "watchers": [],
+      "checklists": [],
+      "tags": [],
+      "parent": null,
+      "top_level_parent": null,
+      "priority": null,
+      "due_date": null,
+      "start_date": null,
+      "points": null,
+      "time_estimate": null,
+      "custom_fields": [],
+      "dependencies": [],
+      "linked_tasks": [],
+      "locations": [],
+      "team_id": "90182930145",
+      "url": "https://app.clickup.com/t/86eyf1rk6",
+      "sharing": {
+        "public": false,
+        "public_share_expires_on": null,
+        "public_fields": [
+          "assignees",
+          "priority",
+          "due_date",
+          "content",
+          "comments",
+          "attachments",
+          "customFields",
+          "subtasks",
+          "tags",
+          "checklists",
+          "coverimage"
+        ],
+        "token": null,
+        "seo_optimized": false
+      },
+      "permission_level": "create",
+      "list": {
+        "id": "901820032439",
+        "name": "Project 2",
+        "access": true
+      },
+      "project": {
+        "id": "901815727098",
+        "name": "hidden",
+        "hidden": true,
+        "access": true
+      },
+      "folder": {
+        "id": "901815727098",
+        "name": "hidden",
+        "hidden": true,
+        "access": true
+      },
+      "space": {
+        "id": "901812221191"
+      }
+    },
+    {
+      "id": "86eyf1rk5",
+      "custom_id": null,
+      "custom_item_id": 0,
+      "name": "Task 3",
+      "text_content": "",
+      "description": "",
+      "status": {
+        "status": "to do",
+        "id": "p901812221191_DCnaeiSB",
+        "color": "#87909e",
+        "type": "open",
+        "orderindex": 0
+      },
+      "orderindex": "10001785332361.59109300000000500000000000000000",
+      "date_created": "1785332365958",
+      "date_updated": "1785332365958",
+      "date_closed": null,
+      "date_done": null,
+      "archived": false,
+      "creator": {
+        "id": 228140872,
+        "username": "Test User 228140872",
+        "color": "#595d66",
+        "email": "user1@example.com",
+        "profilePicture": null
+      },
+      "assignees": [],
+      "group_assignees": [],
+      "watchers": [],
+      "checklists": [],
+      "tags": [],
+      "parent": null,
+      "top_level_parent": null,
+      "priority": null,
+      "due_date": null,
+      "start_date": null,
+      "points": null,
+      "time_estimate": null,
+      "custom_fields": [],
+      "dependencies": [],
+      "linked_tasks": [],
+      "locations": [],
+      "team_id": "90182930145",
+      "url": "https://app.clickup.com/t/86eyf1rk5",
+      "sharing": {
+        "public": false,
+        "public_share_expires_on": null,
+        "public_fields": [
+          "assignees",
+          "priority",
+          "due_date",
+          "content",
+          "comments",
+          "attachments",
+          "customFields",
+          "subtasks",
+          "tags",
+          "checklists",
+          "coverimage"
+        ],
+        "token": null,
+        "seo_optimized": false
+      },
+      "permission_level": "create",
+      "list": {
+        "id": "901820032439",
+        "name": "Project 2",
+        "access": true
+      },
+      "project": {
+        "id": "901815727098",
+        "name": "hidden",
+        "hidden": true,
+        "access": true
+      },
+      "folder": {
+        "id": "901815727098",
+        "name": "hidden",
+        "hidden": true,
+        "access": true
+      },
+      "space": {
+        "id": "901812221191"
+      }
+    }
+  ],
+  "last_page": true
+}

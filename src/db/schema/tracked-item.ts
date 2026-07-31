@@ -1,4 +1,5 @@
-import { boolean, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { boolean, check, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
 import { person } from './person';
@@ -8,55 +9,103 @@ import { person } from './person';
 export const sourceTypeEnum = pgEnum('source_type', ['meeting', 'slack', 'manual', 'system']);
 
 /**
+ * Which system owns this item's CONTENT.
+ *
+ * ClickUp is explicitly TEMPORARY (lead's direction: in-platform brief creation
+ * and studio stats APIs are expected to replace it), while PRD §3.2 keeps it as
+ * system of record for now and §5.1 still requires meeting action items to sync
+ * INTO it. This column lets both be true at once, so the swap is a data change
+ * rather than a migration.
+ */
+export const TASK_SOURCE_SYSTEMS = ['clickup', 'internal'] as const;
+
+export type TaskSourceSystem = (typeof TASK_SOURCE_SYSTEMS)[number];
+
+export const sourceSystemEnum = pgEnum('source_system', TASK_SOURCE_SYSTEMS);
+
+/**
  * A commitment we are tracking.
  *
- * ⚠️ ARCHITECTURAL RULE — ClickUp is the authoritative system of record for
- * tasks. This table stores a REFERENCE (`clickup_task_id`) plus OUR OWN
- * intelligence state. It must NOT duplicate ClickUp task data: no title,
- * description, assignee name, comments, priority, or ClickUp status. Mirroring
- * those guarantees drift, and there is no reconciliation story.
+ * ⚠️ ARCHITECTURAL RULE — depends on `source_system`:
  *
- * If a view needs task detail, read it from the ClickUp API at request time.
+ *   'clickup'  ClickUp is the system of record. This row holds a REFERENCE
+ *              (`clickup_task_id`) plus OUR OWN intelligence state, and the
+ *              content columns (title, description) MUST stay NULL. Task detail
+ *              is read through to the ClickUp API at request time.
  *
- * `status` here is OUR lifecycle state for the tracked item, which is not the
- * same thing as the ClickUp task's status.
+ *   'internal' Command Center owns the content. `clickup_task_id` is NULL and
+ *              the content columns are populated here.
+ *
+ * The rule is enforced by the CHECK constraint below, not by convention, because
+ * ClickUp is expected to be replaced and a cached title that drifts is exactly
+ * what makes that replacement painful.
+ *
+ * `status` is OUR lifecycle state under BOTH source systems, and is not the same
+ * thing as the source system's own status.
  */
-export const trackedItem = pgTable('tracked_item', {
-  id: uuid('id').primaryKey().defaultRandom(),
+export const trackedItem = pgTable(
+  'tracked_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
 
-  // The reference into the system of record.
-  clickupTaskId: text('clickup_task_id').notNull(),
+    // Which system owns the content of this item.
+    sourceSystem: sourceSystemEnum('source_system').notNull().default('clickup'),
 
-  // Nullable: an item can be captured from a meeting before we have resolved who
-  // owns it. onDelete: 'set null' keeps the item when a person record goes away.
-  ownerPersonId: uuid('owner_person_id').references(() => person.id, {
-    onDelete: 'set null'
-  }),
+    // The reference into ClickUp. NULL when source_system = 'internal', because
+    // there is no ClickUp task to point at.
+    clickupTaskId: text('clickup_task_id'),
 
-  sourceType: sourceTypeEnum('source_type').notNull(),
+    // ── Content columns: populated ONLY when source_system = 'internal' ───────
+    // For 'clickup' rows these stay NULL and the CHECK constraint enforces it.
+    title: text('title'),
+    description: text('description'),
 
-  // Pointer back to where this came from: a Slack message ts, a transcript id,
-  // etc. Nullable because 'manual' capture has no external reference.
-  sourceRef: text('source_ref'),
+    // Who is actually doing the work, per the source system. Distinct from
+    // owner_person_id, which is who Command Center holds accountable — usually the
+    // same person, but a lead can own an item an editor is executing.
+    assigneePersonId: uuid('assignee_person_id').references(() => person.id, {
+      onDelete: 'set null'
+    }),
 
-  dueDate: timestamp('due_date', { withTimezone: true }),
+    // Nullable: an item can be captured from a meeting before we have resolved who
+    // owns it. onDelete: 'set null' keeps the item when a person record goes away.
+    ownerPersonId: uuid('owner_person_id').references(() => person.id, {
+      onDelete: 'set null'
+    }),
 
-  // OUR lifecycle state, validated by Zod rather than a Postgres enum — these
-  // values will churn as the product settles, and ALTER TYPE migrations are a
-  // poor trade for that. Allowed: open | in_progress | blocked | done | cancelled
-  status: text('status').notNull().default('open'),
+    sourceType: sourceTypeEnum('source_type').notNull(),
 
-  // When we last saw movement on this item, used for staleness detection.
-  lastUpdateAt: timestamp('last_update_at', { withTimezone: true }),
+    // Pointer back to where this came from: a Slack message ts, a transcript id,
+    // etc. Nullable because 'manual' capture has no external reference.
+    sourceRef: text('source_ref'),
 
-  riskFlag: boolean('risk_flag').notNull().default(false),
+    dueDate: timestamp('due_date', { withTimezone: true }),
 
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date())
-});
+    // OUR lifecycle state, validated by Zod rather than a Postgres enum — these
+    // values will churn as the product settles, and ALTER TYPE migrations are a
+    // poor trade for that. Allowed: open | in_progress | blocked | done | cancelled
+    status: text('status').notNull().default('open'),
+
+    // When we last saw movement on this item, used for staleness detection.
+    lastUpdateAt: timestamp('last_update_at', { withTimezone: true }),
+
+    riskFlag: boolean('risk_flag').notNull().default(false),
+
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date())
+  },
+  (table) => [
+    // Makes the system-of-record rule structural instead of a comment. A future
+    // refactor cannot quietly start caching ClickUp titles.
+    check(
+      'tracked_item_content_by_source_ck',
+      sql`${table.sourceSystem} <> 'clickup' OR (${table.title} IS NULL AND ${table.description} IS NULL)`
+    )
+  ]
+);
 
 export type TrackedItem = typeof trackedItem.$inferSelect;
 export type NewTrackedItem = typeof trackedItem.$inferInsert;

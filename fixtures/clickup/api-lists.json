@@ -1,0 +1,86 @@
+{
+  "lists": [
+    {
+      "id": "901820032439",
+      "name": "Project 2",
+      "orderindex": 0,
+      "status": null,
+      "priority": null,
+      "assignee": null,
+      "task_count": 3,
+      "due_date": null,
+      "start_date": null,
+      "folder": {
+        "id": "901815727098",
+        "name": "hidden",
+        "hidden": true,
+        "archived": false,
+        "access": true
+      },
+      "space": {
+        "id": "901812221191",
+        "name": "Team Space",
+        "archived": false,
+        "access": true
+      },
+      "archived": false,
+      "override_statuses": false,
+      "permission_level": "create"
+    },
+    {
+      "id": "901820032438",
+      "name": "Project 1",
+      "orderindex": 0,
+      "status": null,
+      "priority": null,
+      "assignee": null,
+      "task_count": 3,
+      "due_date": null,
+      "start_date": null,
+      "folder": {
+        "id": "901815727099",
+        "name": "hidden",
+        "hidden": true,
+        "archived": false,
+        "access": true
+      },
+      "space": {
+        "id": "901812221191",
+        "name": "Team Space",
+        "archived": false,
+        "access": true
+      },
+      "archived": false,
+      "override_statuses": false,
+      "permission_level": "create"
+    },
+    {
+      "id": "901820032442",
+      "name": "Get Started with ClickUp",
+      "orderindex": 0,
+      "content": "",
+      "status": null,
+      "priority": null,
+      "assignee": null,
+      "task_count": 6,
+      "due_date": null,
+      "start_date": null,
+      "folder": {
+        "id": "901815727101",
+        "name": "hidden",
+        "hidden": true,
+        "archived": false,
+        "access": true
+      },
+      "space": {
+        "id": "901812221191",
+        "name": "Team Space",
+        "archived": false,
+        "access": true
+      },
+      "archived": false,
+      "override_statuses": true,
+      "permission_level": "create"
+    }
+  ]
+}

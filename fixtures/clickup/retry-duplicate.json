@@ -1,0 +1,36 @@
+{
+  "event": "taskStatusUpdated",
+  "history_items": [
+    {
+      "id": "2800763136717140999",
+      "type": 1,
+      "date": "1642734700000",
+      "field": "status",
+      "parent_id": "901300123456",
+      "data": { "status_type": "custom" },
+      "source": null,
+      "user": {
+        "id": 184,
+        "username": "Diane",
+        "email": "diane@example.com",
+        "color": "#02bcd4",
+        "initials": "D",
+        "profilePicture": null
+      },
+      "before": {
+        "status": "to do",
+        "color": "#d3d3d3",
+        "orderindex": 0,
+        "type": "open"
+      },
+      "after": {
+        "status": "in progress",
+        "color": "#4194f6",
+        "orderindex": 1,
+        "type": "custom"
+      }
+    }
+  ],
+  "task_id": "1vwnf1h",
+  "webhook_id": "7fa3ec74-69a8-4530-a251-8a13730bd204"
+}

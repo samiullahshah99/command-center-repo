@@ -1,28 +1,24 @@
 /**
  * Slack Web API client — only what identity backfill needs.
  *
- * ⚠️⚠️ SLACK IDENTITIES HAVE NO AUTOMATIC RESOLUTION PATH TODAY.
+ * Slack event ENVELOPES carry a user id (`U…`) and nothing else — no email, no
+ * name. Email is the only automatic cross-system join key, so resolving a Slack
+ * account without a human requires `users.info` / `users.list`, and those return
+ * `user.profile.email` only when the token holds the `users:read.email` scope.
  *
- * Slack event envelopes carry a user id (`U…`) and nothing else — no email, no
- * name. Email is the only automatic cross-system join key we have, so the ONLY
- * way to resolve a Slack account without a human is `users.info`, and that
- * returns `user.profile.email` **only** when the token holds the
- * `users:read.email` scope.
+ * ✅ THE SCOPE IS NOW GRANTED. Verified live after the reinstall: 60 members,
+ * 30 humans, **30 with an email**. Slack identities resolve automatically again.
  *
- * We currently hold `users:read`, which is NOT sufficient. Until the scope is
- * added and the app reinstalled, EVERY Slack user must be linked by hand in the
- * admin UI. That is the single largest manual cost in the identity model.
+ * ── ⚠️ KEEP THE SCOPE CHECK ANYWAY ──────────────────────────────────────────
+ * A missing scope does NOT surface as an error. `users.list` returns HTTP 200
+ * with `ok: true` and simply OMITS `profile.email` — measured, when the scope
+ * was absent: 30 humans, 0 emails, `profile` holding only `real_name` and
+ * `display_name`.
  *
- * ── ⚠️ HOW THE MISSING SCOPE ACTUALLY MANIFESTS (verified live) ─────────────
- * NOT as an error. `users.list` and `users.info` return HTTP 200 with
- * `ok: true` and simply OMIT `profile.email`. Confirmed against the real
- * workspace on the current token: 60 members, 30 humans, **0 with an email**,
- * and `profile` containing only `real_name` and `display_name`.
- *
- * This is the worst possible failure shape — a backfill would report success,
- * link nobody, and say nothing about why. So absence is detected explicitly and
- * converted into SlackScopeError by requireEmailScope(); it is not inferred from
- * an error Slack never sends.
+ * That is the worst possible failure shape: a backfill reports success, links
+ * nobody, and says nothing about why. Scopes are lost by a token rotation or an
+ * app reinstall, so requireEmailScope() stays as the guard that turns silence
+ * back into an actionable error.
  *
  * Some other Slack methods DO return `{ ok: false, error: "missing_scope" }`, so
  * that path is handled too — but it is not the one that bites here.

@@ -367,17 +367,21 @@ not `eventType`, no `clientReferenceId`, plus an undocumented millisecond
 > meetings within the workspace** (verified on three meetings hosted by another
 > user). Do not add the media URLs back without re-checking the plan.
 
-### Slack needs `users:read.email` — we have `users:read`
+### Slack `users:read.email` — GRANTED (was the blocker)
 
-Slack events carry a user id and nothing else. Email is the only automatic
-cross-system join key, so **Slack identities cannot resolve automatically at
-all** until the scope is granted and the app **reinstalled** (new scopes do not
-apply to an existing installation).
+Slack event envelopes carry a user id and nothing else, so resolving a Slack
+account needs `users.info` / `users.list`, which return `profile.email` only with
+the `users:read.email` scope.
 
-> ⚠️ **The missing scope is NOT an error.** `users.list` returns HTTP 200,
-> `ok: true`, and silently OMITS `profile.email` — 60 members, 30 humans, 0
-> emails. A backfill would report success and link nobody. Detected explicitly by
-> `requireEmailScope()`, and by reading `x-oauth-scopes` off any response.
+✅ **The scope is granted** (verified after reinstall: 30 humans, 30 emails), so
+Slack identities resolve automatically. New scopes do NOT apply to an existing
+installation — a reinstall was required.
+
+> ⚠️ **Keep the guard.** A missing scope is NOT an error: `users.list` returns
+> HTTP 200, `ok: true`, and silently OMITS `profile.email` — measured at 30
+> humans / 0 emails while it was absent. A backfill reports success and links
+> nobody. Scopes are lost to token rotation and reinstalls, so
+> `requireEmailScope()` and the `x-oauth-scopes` check stay in place.
 
 ### Rate limits: what each provider actually exposes
 

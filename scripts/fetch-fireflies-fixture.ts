@@ -24,19 +24,22 @@ import { loadEnvLocal } from './clickup/shared';
 
 loadEnvLocal();
 
-/** Stable synthetic names, assigned in the order speakers appear. */
-const SPEAKER_ALIASES = [
-  'Speaker One',
-  'Speaker Two',
-  'Speaker Three',
-  'Speaker Four',
-  'Speaker Five'
-];
+/** Speaker A, B, C … then AA, AB for the improbable case of >26 speakers. */
+function alias(index: number): string {
+  let n = index;
+  let out = '';
+  do {
+    out = String.fromCharCode(65 + (n % 26)) + out;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return `Speaker ${out}`;
+}
 
 type Scrubber = {
   speakerName: (real: string) => string;
   email: (real: string) => string;
-  report: () => { speakers: number; emails: number };
+  /** Every substitution made, so a human can review what left the building. */
+  report: () => { speakers: [string, string][]; emails: [string, string][] };
 };
 
 function makeScrubber(): Scrubber {
@@ -45,19 +48,15 @@ function makeScrubber(): Scrubber {
 
   return {
     speakerName(real) {
-      if (!speakers.has(real)) {
-        speakers.set(real, SPEAKER_ALIASES[speakers.size] ?? `Speaker ${speakers.size + 1}`);
-      }
+      if (!speakers.has(real)) speakers.set(real, alias(speakers.size));
       return speakers.get(real)!;
     },
     email(real) {
-      if (!emails.has(real)) {
-        // example.com is reserved by RFC 2606 and can never be a real mailbox.
-        emails.set(real, `speaker${emails.size + 1}@example.com`);
-      }
+      // example.com is reserved by RFC 2606 and can never be a real mailbox.
+      if (!emails.has(real)) emails.set(real, `speaker${emails.size + 1}@example.com`);
       return emails.get(real)!;
     },
-    report: () => ({ speakers: speakers.size, emails: emails.size })
+    report: () => ({ speakers: [...speakers], emails: [...emails] })
   };
 }
 
@@ -104,7 +103,7 @@ async function main(): Promise<number> {
     console.error(`
   Usage: pnpm tsx scripts/fetch-fireflies-fixture.ts <meetingId> [--out=NAME] [--keep-sentences=N]
 
-    --out=NAME            fixture filename (default graphql-transcript-real.json)
+    --out=NAME            fixture filename (default replay-transcript.json)
     --keep-sentences=N    trim to the first N sentences (default 12)
 `);
     return 1;
@@ -112,7 +111,7 @@ async function main(): Promise<number> {
 
   const outName =
     args.find((a) => a.startsWith('--out='))?.slice('--out='.length) ??
-    'graphql-transcript-real.json';
+    'replay-transcript.json';
   const keep = Number(
     args.find((a) => a.startsWith('--keep-sentences='))?.slice('--keep-sentences='.length) ?? 12
   );
@@ -202,12 +201,42 @@ async function main(): Promise<number> {
   const realEmails = [...written.matchAll(EMAIL_RE)].map((m) => m[0]);
   for (const e of realEmails) if (!e.endsWith('@example.com')) leaks.push(e);
 
-  console.log(`  wrote     fixtures/fireflies/${outName}`);
+  // ── The review report ─────────────────────────────────────────────────────
+  // Printed in full, not counted, because "2 names scrubbed" is not something a
+  // human can check. Seeing the actual mapping is.
+  console.log(`\n  wrote     fixtures/fireflies/${outName}`);
   console.log(`  sentences ${(transcript.sentences ?? []).length} → ${keep}`);
-  console.log(`  scrubbed  ${counts.speakers} speaker name(s), ${counts.emails} email(s)`);
+
+  console.log('\n  ── speaker names replaced ──');
+  if (counts.speakers.length === 0) console.log('     (none)');
+  for (const [real, fake] of counts.speakers) console.log(`     "${real}"  →  "${fake}"`);
+
+  console.log('\n  ── emails replaced ──');
+  if (counts.emails.length === 0) console.log('     (none)');
+  for (const [real, fake] of counts.emails) {
+    // Local part masked: the report is for reviewing WHAT was caught, and the
+    // mapping is reconstructable from the transcript if anyone truly needs it.
+    const [local, domain] = real.split('@');
+    const masked = `${local.slice(0, 2)}${'*'.repeat(Math.max(1, local.length - 2))}@${domain}`;
+    console.log(`     ${masked}  →  ${fake}`);
+  }
+
+  console.log('\n  ── summary prose ──');
+  console.log(
+    transcript.summary
+      ? '     REPLACED WHOLESALE with synthetic text (real summaries are dense\n' +
+          '     business content — vendors, tooling, priorities — and this repo is public)'
+      : '     (no summary on this transcript)'
+  );
+
+  console.log('\n  ── sentence text retained (review these) ──');
+  const kept = (scrubbed as { sentences?: { speaker_name?: string; text?: string }[] }).sentences ?? [];
+  for (const line of kept) console.log(`     ${line.speaker_name}: ${line.text}`);
 
   if (leaks.length > 0) {
-    console.error(`\n  ❌ SCRUB FAILED — these still appear in the file: ${[...new Set(leaks)].join(', ')}`);
+    console.error(
+      `\n  ❌ SCRUB FAILED — these still appear in the file: ${[...new Set(leaks)].join(', ')}`
+    );
     console.error('     DO NOT COMMIT. Fix the scrubber first.\n');
     return 1;
   }

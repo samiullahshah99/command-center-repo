@@ -98,8 +98,44 @@ const PEOPLE = [
   { name: 'Ronalyn', roleProfileName: 'CX agent' },
   { name: 'Diane', roleProfileName: 'CX agent' },
   { name: 'Hashim', roleProfileName: 'Creative strategist' },
-  { name: 'Usama', roleProfileName: 'Engineer' }
+  { name: 'Usama', roleProfileName: 'Engineer' },
+  // Not in PRD §4, which predates the engineer joining. Added so events from
+  // this person resolve to somebody instead of sitting in the unresolved queue.
+  { name: 'Sami', roleProfileName: 'Engineer' }
 ] as const;
+
+/**
+ * Roster email addresses, read from the environment — NEVER hardcoded.
+ *
+ * ⚠️ THIS REPO IS PUBLIC (verified: api.github.com returns 200 unauthenticated).
+ * Names are already committed above and are low-risk; work email addresses are
+ * not, and CLAUDE.md forbids committing real identities — we already had to
+ * scrub one out of the ClickUp fixtures.
+ *
+ * Email is the ONLY automatic cross-system join key, so seeding it is what makes
+ * ClickUp and UGC events resolve without a human. Supply it at run time:
+ *
+ *   PERSON_EMAILS='Sami=sami@example.com,Usama=usama@example.com' pnpm db:seed
+ *
+ * Anyone not listed keeps whatever email they already have — a re-seed with the
+ * variable unset must not wipe addresses that were set through the admin UI.
+ */
+function rosterEmails(): Map<string, string> {
+  const raw = process.env.PERSON_EMAILS?.trim();
+  if (!raw) return new Map();
+
+  const entries: [string, string][] = [];
+  for (const pair of raw.split(',')) {
+    // split with a limit of 2 would drop anything after a second '=' — emails
+    // cannot contain one, but a malformed value should be skipped, not mangled.
+    const idx = pair.indexOf('=');
+    if (idx <= 0) continue;
+    const name = pair.slice(0, idx).trim().toLowerCase();
+    const email = pair.slice(idx + 1).trim();
+    if (name && email) entries.push([name, email]);
+  }
+  return new Map(entries);
+}
 
 // ── Recurring tasks ──────────────────────────────────────────────────────────
 // NOTE: recurring_task has no title/label column, so the natural identifier is
@@ -178,6 +214,8 @@ async function seed() {
     // person — keyed on name
     const personIds = new Map<string, string>();
 
+    const emails = rosterEmails();
+
     for (const pr of PEOPLE) {
       const roleProfileId = profileIds.get(pr.roleProfileName);
       if (!roleProfileId) {
@@ -190,16 +228,25 @@ async function seed() {
         .where(eq(person.name, pr.name))
         .limit(1);
 
+      // Undefined (not null) when absent, so the update below omits the column
+      // entirely rather than overwriting a real address with NULL.
+      const seededEmail = emails.get(pr.name.toLowerCase());
+
       if (existing) {
-        // Only the profile link is managed here. External ids are left exactly
-        // as they are, so a real slack_id added by hand is never clobbered.
-        await tx.update(person).set({ roleProfileId }).where(eq(person.id, existing.id));
+        // Only the profile link and a supplied email are managed here. External
+        // ids are left exactly as they are, so a real slack_id added by hand is
+        // never clobbered.
+        await tx
+          .update(person)
+          .set({ roleProfileId, ...(seededEmail ? { email: seededEmail } : {}) })
+          .where(eq(person.id, existing.id));
         personIds.set(pr.name, existing.id);
       } else {
         const [created] = await tx
           .insert(person)
           .values({
             name: pr.name,
+            email: seededEmail ?? null,
             roleProfileId,
             slackId: null,
             clickupId: null,

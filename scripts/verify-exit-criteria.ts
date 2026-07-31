@@ -1,7 +1,7 @@
 /**
  * Week 1 exit criteria — automated portion.
  *
- *   pnpm tsx scripts/verify-exit-criteria.ts [--verbose]
+ *   pnpm tsx scripts/verify-exit-criteria.ts [--verbose] [--replay]
  *
  * Checks everything that can be checked from the database and the code without
  * a human posting a Slack message. Prints a pass/fail table.
@@ -11,7 +11,14 @@
  * from here and are marked MANUAL in docs/week-1-exit-test.md. A green table
  * means "everything checkable is correct", not "Week 1 is signed off".
  *
- * Read-only: it writes nothing. Safe to run against production.
+ * ── Read-only BY DEFAULT ────────────────────────────────────────────────────
+ * Safe to run against production, which matters because .env.local points at it.
+ *
+ * ⚠️ `--replay` is the ONE exception and it WRITES. It feeds
+ * fixtures/fireflies/replay-transcript.json through the real pipeline as though
+ * it had just been fetched, so the Fireflies criterion can be satisfied without
+ * spending a request from a per-DAY quota. Every row it creates is namespaced
+ * `replay-` and removable — see replayFirefliesFixture().
  */
 
 import { loadEnvLocal } from './clickup/shared';
@@ -25,11 +32,108 @@ const checks: Check[] = [];
 const add = (id: string, name: string, status: Status, detail: string) =>
   checks.push({ id, name, status, detail });
 
+/**
+ * Push the committed transcript fixture through the real pipeline.
+ *
+ * "As if fetched live" means using the SAME code paths a live delivery uses —
+ * ingestRawEvent for the webhook announcement, normaliseRawEvent for the
+ * mapping, and the same upsert-on-fireflies_id the worker performs. The only
+ * substitution is the network call: the transcript comes from the fixture
+ * instead of the API.
+ *
+ * ⚠️ The worker itself is NOT called, because it would hit the network. That is
+ * the one seam between this and a live run, and it is deliberate — the point of
+ * a replay is to avoid the request.
+ */
+async function replayFirefliesFixture(): Promise<{ ok: boolean; detail: string }> {
+  const { readFileSync, existsSync } = await import('node:fs');
+  const { join } = await import('node:path');
+  const path = join(process.cwd(), 'fixtures', 'fireflies', 'replay-transcript.json');
+
+  if (!existsSync(path)) {
+    return { ok: false, detail: 'fixtures/fireflies/replay-transcript.json is missing' };
+  }
+
+  const { db } = await import('../src/db');
+  const { transcript, rawEvent } = await import('../src/db/schema');
+  const { ingestRawEvent } = await import('../src/features/connectors/ingest');
+  const { normaliseRawEvent } = await import('../src/features/normalise');
+  const { firefliesTranscriptSchema } = await import(
+    '../src/features/connectors/fireflies/schemas'
+  );
+  const { eq } = await import('drizzle-orm');
+
+  const envelope = JSON.parse(readFileSync(path, 'utf8')) as { data?: { transcript?: unknown } };
+  // Parsed through the REAL schema, so a fixture that has drifted from the
+  // contract fails here rather than silently replaying a shape we no longer accept.
+  const parsed = firefliesTranscriptSchema.safeParse(envelope.data?.transcript);
+  if (!parsed.success) {
+    return { ok: false, detail: `fixture does not match the transcript schema: ${parsed.error.issues[0]?.message}` };
+  }
+  const t = parsed.data;
+
+  // 1. The webhook announcement, exactly as Fireflies v2 sends it.
+  const ingested = await ingestRawEvent({
+    source: 'fireflies',
+    payload: { event: 'meeting.transcribed', timestamp: Date.now(), meeting_id: t.id },
+    externalId: `replay-meeting.transcribed:${t.id}`
+  });
+
+  const rawEventId =
+    ingested.id ??
+    (
+      await db
+        .select({ id: rawEvent.id })
+        .from(rawEvent)
+        .where(eq(rawEvent.externalId, `replay-meeting.transcribed:${t.id}`))
+        .limit(1)
+    )[0]?.id;
+
+  if (!rawEventId) return { ok: false, detail: 'could not resolve the replayed raw_event' };
+
+  // 2. Normalise it — the same call the worker makes.
+  const normalised = await normaliseRawEvent(rawEventId);
+
+  // 3. Store the transcript with the worker's upsert-on-fireflies_id, so a
+  //    repeated replay updates rather than duplicating.
+  const values = {
+    rawEventId,
+    firefliesId: t.id,
+    title: t.title ?? null,
+    meetingDate: typeof t.date === 'number' ? new Date(t.date) : null,
+    durationSeconds: typeof t.duration === 'number' ? Math.round(t.duration) : null,
+    payload: t,
+    fetchedAt: new Date()
+  };
+  await db
+    .insert(transcript)
+    .values(values)
+    .onConflictDoUpdate({ target: transcript.firefliesId, set: values });
+
+  return {
+    ok: true,
+    detail:
+      `replayed ${t.id} — ${normalised.written} unified_event row(s), ` +
+      `transcript stored (${t.sentences?.length ?? 0} sentences, ${t.speakers?.length ?? 0} speakers)`
+  };
+}
+
 async function main(): Promise<number> {
   const verbose = process.argv.includes('--verbose');
+  const replay = process.argv.includes('--replay');
 
   const { db, pool } = await import('../src/db');
   const { sql } = await import('drizzle-orm');
+
+  if (replay) {
+    console.log('\n  ⚠️  --replay WRITES to the database (rows namespaced `replay-`).');
+    const r = await replayFirefliesFixture();
+    console.log(`  ${r.ok ? '✅' : '❌'} ${r.detail}`);
+    if (!r.ok) {
+      await pool.end();
+      return 1;
+    }
+  }
 
   const one = async <T extends Record<string, unknown>>(q: ReturnType<typeof sql>): Promise<T> => {
     const r = await db.execute<T>(q);
@@ -195,24 +299,36 @@ async function main(): Promise<number> {
   );
 
   const { existsSync } = await import('node:fs');
-  const fixture = 'fixtures/fireflies/graphql-transcript-real.json';
+  const fixture = 'fixtures/fireflies/replay-transcript.json';
   add(
     '8b',
     'scrubbed replay fixture is committed',
     existsSync(fixture) ? 'PASS' : 'FAIL',
-    existsSync(fixture) ? fixture : 'run pnpm tsx scripts/fetch-fireflies-fixture.ts <meetingId>'
+    existsSync(fixture) ? fixture : 'run pnpm fireflies:fixture <meetingId>'
   );
 
   // ── 9. Known constraints, surfaced not hidden ─────────────────────────────
-  const slackIdentities = ident.rows.find((r) => r.source === 'slack');
-  add(
-    '9',
-    'KNOWN: Slack cannot auto-resolve (missing users:read.email)',
-    slackIdentities && slackIdentities.linked < slackIdentities.total ? 'WARN' : 'PASS',
-    slackIdentities
-      ? `${slackIdentities.total - slackIdentities.linked} Slack identity(ies) need manual linking`
-      : 'no Slack identities yet'
-  );
+  // Checked live rather than assumed: the scope was granted mid-project, and a
+  // token rotation can silently take it away again without any error surfacing.
+  try {
+    const authRes = await fetch('https://slack.com/api/auth.test', {
+      headers: { Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN ?? ''}` }
+    });
+    const granted = (authRes.headers.get('x-oauth-scopes') ?? '')
+      .split(',')
+      .map((x) => x.trim());
+    const hasEmail = granted.includes('users:read.email');
+    add(
+      '9',
+      'Slack users:read.email scope granted (needed for auto-resolution)',
+      hasEmail ? 'PASS' : 'WARN',
+      hasEmail
+        ? 'granted — Slack identities can resolve by email'
+        : 'MISSING — Slack identities have no automatic path; every user needs manual linking'
+    );
+  } catch {
+    add('9', 'Slack users:read.email scope granted', 'WARN', 'could not reach slack.com/api/auth.test');
+  }
 
   // ── 10. Manual steps ──────────────────────────────────────────────────────
   add('M1', 'Post a live Slack message in a #proj- channel', 'MANUAL', 'checklist step 1');

@@ -24,7 +24,7 @@ is behaving correctly.
 
 | # | Constraint | Effect | Remedy |
 | --- | --- | --- | --- |
-| C1 | The Slack bot token holds `users:read` but **not `users:read.email`** | Slack events carry a user id and no email, and `users.list` silently omits `profile.email` (verified: 30 humans, 0 emails). **Slack identities can never auto-resolve.** | Add the scope at api.slack.com/apps → OAuth & Permissions → Bot Token Scopes, **reinstall** the app, update `SLACK_BOT_TOKEN`. Until then every Slack user is linked by hand. |
+| C1 | ~~Slack lacks `users:read.email`~~ — **RESOLVED**, scope granted after reinstall | Slack identities now auto-resolve by email (verified: 30 humans, 30 emails). Slack event envelopes still carry no email themselves, so resolution happens via the `users.list` backfill, not from the event. | None. Keep `requireEmailScope()`: a scope lost to token rotation returns HTTP 200 with the email silently omitted, so a backfill would report success and link nobody. |
 | C2 | Vision sends `actor.email: null` on every real event so far | Vision identities usually arrive unresolved even though the contract allows an email | Link by hand once per person; every later event resolves at step 1 (exact) automatically. |
 | C3 | Fireflies `audio_url` / `video_url` are **paid-plan only** | Requesting either fails the WHOLE GraphQL query with "You need to be subscribed to a paid plan", which reads like the entire API being unavailable | Already handled: both fields are excluded from `TRANSCRIPT_FIELDS`. Everything else — `sentences`, `speakers`, `summary`, `participants`, `transcript_url` — works on the current plan. **Do not add them back.** |
 | C4 | The Fireflies webhook carries no actor (`{event, meeting_id, timestamp}` only) | A Fireflies `unified_event` has `person_id = NULL` by construction | Speaker→person attribution comes from the transcript's `speakers`/`participants`, which is Week 2 extraction work. |
@@ -101,25 +101,33 @@ LIMIT 3;
 
 **1c. `person_id` resolves with NO manual step:**
 
-*Expected under C1:* **`person_id` is NULL.** Slack sends no email, so there is
-nothing to match on. The identity is recorded, not dropped:
+⚠️ The Slack **event envelope** carries no email — only a `U…` id. Resolution
+comes from the `users.list` backfill, which now works because `users:read.email`
+is granted. Run it once so the identity carries an address:
+
+```bash
+pnpm identities:backfill slack --commit
+```
 
 ```sql
-SELECT source, external_id, email, person_id
+SELECT source, external_id, email, person_id, confidence
 FROM person_identity
-WHERE source = 'slack';
+WHERE source = 'slack'
+ORDER BY created_at DESC;
 ```
-*Expected:* a row with `email IS NULL`, `person_id IS NULL`.
+*Expected:* rows with a populated `email`, and `person_id` set with
+`confidence = 'email'` **for anyone whose address is on a person** (Step 0).
 
-**This step passes fully only after C1 is fixed.** Until then, verify the
-fallback path instead: link the identity at `/dashboard/identities`, then
+An identity whose Slack address is not on the roster stays
+`person_id IS NULL` — correct, not a failure. Link it at
+`/dashboard/identities`, then:
 
 ```sql
 SELECT count(*) FROM unified_event ue
 JOIN person_identity pi ON pi.id = ue.person_identity_id
 WHERE pi.source = 'slack' AND ue.person_id IS NOT NULL;
 ```
-*Expected:* every historical Slack event for that user is now attributed — one
+*Expected:* every historical Slack event for that user is attributed by one
 `UPDATE`, because `unified_event.person_identity_id` is stored.
 
 ---
@@ -135,9 +143,22 @@ A committed, scrubbed fixture makes this repeatable without spending API quota
 pnpm vitest run src/features/connectors/fireflies
 ```
 *Expected:* all pass, including the real-shape fixture
-`fixtures/fireflies/graphql-transcript-real.json`.
+`fixtures/fireflies/replay-transcript.json`.
 
-**2b. Fetch a real transcript end to end** (spends one API call):
+**2b. Replay the committed fixture through the real pipeline** (spends NO API
+call — this is the repeatable path):
+
+```bash
+pnpm verify:exit --replay
+```
+
+⚠️ `--replay` is the one mode of `verify:exit` that WRITES. It runs the fixture
+through `ingestRawEvent` → `normaliseRawEvent` → the worker's
+upsert-on-`fireflies_id`, i.e. the same code a live delivery uses; only the
+network call is substituted. Rows are namespaced `replay-` and re-running
+updates rather than duplicating.
+
+**Or fetch live** (spends one request from a per-DAY quota):
 
 ```bash
 pnpm renormalise --source=fireflies --commit

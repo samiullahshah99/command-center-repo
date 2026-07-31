@@ -2,7 +2,7 @@
   "data": {
     "transcript": {
       "id": "01KYCZAXP9010HKG9VTDG6NS3J",
-      "title": "Speaker Two Onboarding",
+      "title": "Speaker B Onboarding",
       "date": 1785153600000,
       "dateString": "2026-07-27T12:00:00.000Z",
       "duration": 57.369998931884766,
@@ -13,17 +13,17 @@
       "speakers": [
         {
           "id": 0,
-          "name": "Speaker One"
+          "name": "Speaker A"
         },
         {
           "id": 1,
-          "name": "Speaker Two"
+          "name": "Speaker B"
         }
       ],
       "sentences": [
         {
           "index": 0,
-          "speaker_name": "Speaker One",
+          "speaker_name": "Speaker A",
           "speaker_id": 0,
           "text": "Hello.",
           "raw_text": "Hello.",
@@ -32,7 +32,7 @@
         },
         {
           "index": 1,
-          "speaker_name": "Speaker One",
+          "speaker_name": "Speaker A",
           "speaker_id": 0,
           "text": "Hello.",
           "raw_text": "Hello.",
@@ -41,7 +41,7 @@
         },
         {
           "index": 2,
-          "speaker_name": "Speaker One",
+          "speaker_name": "Speaker A",
           "speaker_id": 0,
           "text": "Hello.",
           "raw_text": "Hello.",
@@ -50,7 +50,7 @@
         },
         {
           "index": 3,
-          "speaker_name": "Speaker Two",
+          "speaker_name": "Speaker B",
           "speaker_id": 1,
           "text": "How are you?",
           "raw_text": "How are you?",
@@ -59,16 +59,16 @@
         },
         {
           "index": 4,
-          "speaker_name": "Speaker One",
+          "speaker_name": "Speaker A",
           "speaker_id": 0,
-          "text": "Hey, Speaker Two.",
-          "raw_text": "Hey, Speaker Two.",
+          "text": "Hey, Speaker B.",
+          "raw_text": "Hey, Speaker B.",
           "start_time": 4.08,
           "end_time": 5
         },
         {
           "index": 5,
-          "speaker_name": "Speaker One",
+          "speaker_name": "Speaker A",
           "speaker_id": 0,
           "text": "I'm good.",
           "raw_text": "I'm good.",
@@ -77,7 +77,7 @@
         },
         {
           "index": 6,
-          "speaker_name": "Speaker One",
+          "speaker_name": "Speaker A",
           "speaker_id": 0,
           "text": "What about you?",
           "raw_text": "What about you?",
@@ -86,7 +86,7 @@
         },
         {
           "index": 7,
-          "speaker_name": "Speaker Two",
+          "speaker_name": "Speaker B",
           "speaker_id": 1,
           "text": "Yeah, I'm doing great.",
           "raw_text": "Yeah, I'm doing great.",
@@ -95,7 +95,7 @@
         },
         {
           "index": 8,
-          "speaker_name": "Speaker One",
+          "speaker_name": "Speaker A",
           "speaker_id": 0,
           "text": "How was your weekend?",
           "raw_text": "How was your weekend?",
@@ -104,30 +104,12 @@
         },
         {
           "index": 9,
-          "speaker_name": "Speaker Two",
+          "speaker_name": "Speaker B",
           "speaker_id": 1,
           "text": "I traveled to my home.",
           "raw_text": "I traveled to my home.",
           "start_time": 13.28,
           "end_time": 15.68
-        },
-        {
-          "index": 10,
-          "speaker_name": "Speaker Two",
-          "speaker_id": 1,
-          "text": "Right.",
-          "raw_text": "Right.",
-          "start_time": 15.84,
-          "end_time": 16.239
-        },
-        {
-          "index": 11,
-          "speaker_name": "Speaker Two",
-          "speaker_id": 1,
-          "text": "Basically I am from Peshawar and I live in Islamabad.",
-          "raw_text": "Basically I am from Peshawar and I live in Islamabad.",
-          "start_time": 17.68,
-          "end_time": 22.32
         }
       ],
       "summary": {

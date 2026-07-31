@@ -1,0 +1,10 @@
+{
+  "id": "b27f3c91aa0d4e5fa6b8c9d0e1f2a3b4",
+  "type": "creator.imported",
+  "occurred_at": "2026-07-31T16:12:44Z",
+  "actor": { "id": "system", "name": null, "email": null },
+  "entity": null,
+  "summary": "Imported 42 creators from CSV",
+  "metadata": { "created": 42, "skipped_duplicates": 3, "errors": 0 },
+  "source": "ugc-management"
+}

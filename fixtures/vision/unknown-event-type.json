@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "6b3a4c12-9e5d-6e3a-1d2c-4f7a8b9c0d12",
+  "event": "vision.some.future.capability",
+  "occurred_at": "2026-07-31T14:45:30.000000Z",
+  "source": "vision",
+  "environment": "development",
+  "actor": {
+    "user_id": "user_2TestManagerDef456",
+    "name": "Test Manager",
+    "editor_name": null,
+    "email": "manager@example.com",
+    "role": "manager"
+  },
+  "subject": null,
+  "metadata": { "arbitrary": { "future": "shape" } }
+}

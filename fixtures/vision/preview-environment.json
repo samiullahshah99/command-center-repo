@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "5a2f3b01-8d4c-5d2f-0c1b-3e6f7a8b9c01",
+  "event": "ai_lab.generated",
+  "occurred_at": "2026-07-31T13:02:11.400000Z",
+  "source": "vision",
+  "environment": "preview",
+  "actor": {
+    "user_id": "user_2TestEditorXyz789",
+    "name": null,
+    "editor_name": null,
+    "email": null,
+    "role": null
+  },
+  "subject": { "type": "ai_lab_chat", "id": "chat_5512", "label": null },
+  "metadata": { "model": "sample-model-v1", "image_count": 4 }
+}

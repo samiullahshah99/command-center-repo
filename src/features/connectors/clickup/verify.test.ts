@@ -64,7 +64,9 @@ describe('verifyClickUpRequest', () => {
     const body = '{"a":1}';
     expect(verifyClickUpRequest({ rawBody: body, headers: headersFor(body) })).toEqual({
       ok: false,
-      reason: 'missing_webhook_secret'
+      // Renamed when verification moved into the shared ../verify-hmac.ts.
+      // This string appears in logs.
+      reason: 'missing_secret'
     });
   });
 

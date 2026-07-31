@@ -1,24 +1,70 @@
 /**
- * Shared webhook handler for our internal platforms.
+ * Shared webhook handler for the UGC and Vision platforms.
  *
- * Portal and Studio speak the SAME contract (docs/webhook-contract.md), so both
- * routes are one line each: `createInternalWebhookHandler('portal' | 'studio')`.
- * They differ only in which secret verifies them and which `source` is stored.
+ * They share an ingest path but NOT a signature scheme — UGC signs with a
+ * timestamp, Vision does not. That is dispatched explicitly below rather than
+ * hidden behind an optional parameter, so the absence of replay protection on
+ * Vision is visible in the code.
  *
- * Follows the pattern in CLAUDE.md:
- *   raw body once -> verify -> persist BEFORE responding -> 200.
+ * Follows CLAUDE.md: raw body once -> verify -> persist BEFORE responding -> 2xx.
+ * No parsing, no field extraction. The COMPLETE envelope is stored.
  */
 
 import { ingestRawEvent } from '../ingest';
-import { verifyTimestampedHmac } from '../verify-hmac';
+import type { HmacVerifyResult } from '../verify-hmac';
+import { verifyBodyOnly, verifyWithTimestamp } from '../verify-hmac';
 import {
-  CC_SIGNATURE_HEADER,
-  CC_SIGNATURE_PREFIX,
-  CC_TIMESTAMP_HEADER,
   externalIdOf,
+  isTestEvent,
   SECRET_ENV_VAR,
+  UGC_EVENT_HEADER,
+  UGC_SEPARATOR,
+  UGC_SIGNATURE_HEADER,
+  UGC_SIGNATURE_PREFIX,
+  UGC_TIMESTAMP_HEADER,
+  UGC_WINDOW_SECONDS,
+  VISION_EVENT_HEADER,
+  VISION_SIGNATURE_HEADER,
+  VISION_SIGNATURE_PREFIX,
   type InternalPlatform
 } from './contract';
+
+function verify(
+  platform: InternalPlatform,
+  rawBody: string,
+  headers: Headers,
+  secret: string | undefined
+): HmacVerifyResult {
+  if (platform === 'ugc') {
+    return verifyWithTimestamp({
+      headerName: UGC_SIGNATURE_HEADER,
+      timestampHeader: UGC_TIMESTAMP_HEADER,
+      prefix: UGC_SIGNATURE_PREFIX,
+      // Literal dot, not a colon. See contract.ts.
+      separator: UGC_SEPARATOR,
+      format: 'plain',
+      secret,
+      rawBody,
+      headers,
+      windowSeconds: UGC_WINDOW_SECONDS
+    });
+  }
+
+  // ⚠️ Vision: NO REPLAY WINDOW EXISTS. The sender transmits no timestamp, so a
+  // captured request remains valid indefinitely and can be replayed verbatim.
+  // Idempotency on payload.id is the ONLY protection for this endpoint.
+  return verifyBodyOnly({
+    headerName: VISION_SIGNATURE_HEADER,
+    prefix: VISION_SIGNATURE_PREFIX,
+    secret,
+    rawBody,
+    headers
+  });
+}
+
+function eventTypeHeader(platform: InternalPlatform, headers: Headers): string | null {
+  return headers.get(platform === 'ugc' ? UGC_EVENT_HEADER : VISION_EVENT_HEADER);
+}
 
 export function createInternalWebhookHandler(platform: InternalPlatform) {
   const secretVar = SECRET_ENV_VAR[platform];
@@ -36,17 +82,7 @@ export function createInternalWebhookHandler(platform: InternalPlatform) {
     }
 
     // ── 2. Signature ────────────────────────────────────────────────────────
-    const verified = verifyTimestampedHmac({
-      rawBody,
-      headers: req.headers,
-      secret: process.env[secretVar],
-      config: {
-        signatureHeader: CC_SIGNATURE_HEADER,
-        timestampHeader: CC_TIMESTAMP_HEADER,
-        signaturePrefix: CC_SIGNATURE_PREFIX
-      }
-    });
-
+    const verified = verify(platform, rawBody, req.headers, process.env[secretVar]);
     if (!verified.ok) {
       // Reason only. Never the secret, the signature, or the body.
       console.warn(`${tag} rejected: ${verified.reason}`);
@@ -57,21 +93,33 @@ export function createInternalWebhookHandler(platform: InternalPlatform) {
     try {
       parsed = JSON.parse(rawBody);
     } catch {
-      // Signature was valid, so this really is our platform sending malformed
-      // JSON — worth surfacing rather than storing an unparseable blob.
       console.warn(`${tag} rejected: malformed_json`);
       return new Response('Bad Request', { status: 400 });
     }
 
-    // ── 3. Persist, THEN acknowledge ────────────────────────────────────────
-    // Senders do not retry after a 200, so a write deferred past the response
-    // would be lost permanently on failure. 500 here makes the sender retry, and
-    // the (source, external_id) index absorbs the duplicate.
+    // ── 3. Setup test events ────────────────────────────────────────────────
+    // Both platforms send a CONSTANT id for their test event. Deduplicating on
+    // it would make the second ping vanish, which during setup is indis-
+    // tinguishable from a broken handler. Stored with a null externalId so every
+    // ping lands as its own row and is visible.
+    const isTest = isTestEvent(platform, parsed, eventTypeHeader(platform, req.headers));
+    if (isTest) {
+      console.warn(`${tag} TEST EVENT received — stored without deduplication`);
+    }
+
+    // ── 4. Persist, THEN acknowledge ────────────────────────────────────────
+    // Senders do not retry after a 2xx, so a write deferred past the response
+    // would be lost permanently on failure. 500 makes the sender retry, and the
+    // (source, external_id) index absorbs the duplicate.
+    //
+    // No filtering here: unknown event types are additive per both contracts and
+    // must be tolerated, and Vision's `environment` field is stored as-is.
+    // Production-only filtering happens at the parsing stage.
     try {
       const result = await ingestRawEvent({
         source: platform,
-        payload: parsed, // verbatim, unmodified
-        externalId: externalIdOf(parsed)
+        payload: parsed, // complete envelope, verbatim
+        externalId: isTest ? null : externalIdOf(parsed)
       });
 
       if (result.duplicate) {
@@ -89,10 +137,7 @@ export function createInternalWebhookHandler(platform: InternalPlatform) {
   };
 }
 
-/**
- * Reachability check. Senders and humans both GET the URL to confirm it exists
- * before wiring it up.
- */
+/** Reachability check for humans and senders wiring the URL up. */
 export function createInternalWebhookGet(platform: InternalPlatform) {
   return function GET(): Response {
     return Response.json(

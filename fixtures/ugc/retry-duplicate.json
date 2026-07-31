@@ -1,0 +1,22 @@
+{
+  "id": "8f14e45fceea167a5a36dedd4bea2543",
+  "type": "creator.approved",
+  "occurred_at": "2026-07-31T15:04:05Z",
+  "actor": {
+    "id": "user_2TestActorAbc123",
+    "name": "Test Staff One",
+    "email": "staff1@example.com"
+  },
+  "entity": { "type": "creator", "id": "d1f9a2b3-4c5d-6e7f-8a9b-0c1d2e3f4a5b" },
+  "summary": "Approved @testcreator",
+  "metadata": {
+    "creator_handle": "testcreator",
+    "creator_name": "Test Creator",
+    "platform": "instagram",
+    "from_stage": "applied",
+    "to_stage": "details_pending",
+    "requested_stage": "approved",
+    "reason": null
+  },
+  "source": "ugc-management"
+}

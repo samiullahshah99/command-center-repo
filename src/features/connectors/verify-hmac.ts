@@ -1,42 +1,23 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
- * Shared verifier for TIMESTAMPED HMAC webhook signatures.
+ * HMAC webhook signature verification, shared across all four inbound schemes.
  *
- * Covers any provider whose scheme is:
+ * Two SEPARATE entry points, deliberately:
  *
- *   basestring = `v0:${timestamp}:${rawBody}`
- *   signature  = `${prefix}${HMAC_SHA256(secret, basestring)}`   (hex)
+ *   verifyWithTimestamp()  — signature + timestamp, replay window enforced
+ *   verifyBodyOnly()       — signature only, NO replay protection
  *
- * ── Who shares this, and who does not ──────────────────────────────────────
- *
- *   Slack               ✅ identical basestring; signature carries a 'v0=' prefix
- *   Portal / Studio     ✅ identical basestring; signature is bare hex
- *   ClickUp             ❌ NOT shared, deliberately
- *
- * ClickUp sends no timestamp header at all and signs the raw body alone. Forcing
- * it through here would mean making the timestamp optional, which would turn the
- * replay check into a silent no-op for whichever caller forgot to pass one —
- * exactly the kind of security control that should not be conditional. It keeps
- * its own verifier in clickup/verify.ts.
+ * The timestamp is NOT an optional parameter on one function. If it were, a
+ * caller could omit it and silently lose replay protection while the code still
+ * read as "verified". Two functions make the absence visible at the call site,
+ * where a reviewer will see it.
  *
  * ⚠️ `rawBody` MUST be the exact request text. Parsing to JSON and
- * re-serialising changes bytes and the HMAC will not match.
+ * re-serialising changes bytes, and the HMAC will not match.
  */
 
-/** Slack's recommendation, and what our own contract specifies. */
-export const DEFAULT_MAX_AGE_SECONDS = 60 * 5;
-
-export type TimestampedHmacConfig = {
-  signatureHeader: string;
-  timestampHeader: string;
-  /**
-   * Prefix on the signature VALUE (not the basestring).
-   * Slack sends 'v0=<hex>'; our internal contract sends bare '<hex>'.
-   */
-  signaturePrefix?: string;
-  maxAgeSeconds?: number;
-};
+export const DEFAULT_WINDOW_SECONDS = 300;
 
 export type HmacVerifyFailure =
   | 'missing_signature_header'
@@ -49,11 +30,18 @@ export type HmacVerifyFailure =
 export type HmacVerifyResult = { ok: true } | { ok: false; reason: HmacVerifyFailure };
 
 /**
+ * How the signed string is assembled.
+ *
+ *   'v0-prefixed'  `v0{sep}{timestamp}{sep}{body}`   — Slack
+ *   'plain'        `{timestamp}{sep}{body}`          — UGC
+ */
+export type BasestringFormat = 'v0-prefixed' | 'plain';
+
+/**
  * Constant-time comparison.
  *
- * timingSafeEqual throws when buffers differ in length, so lengths are checked
- * first. That check leaks nothing: the expected signature length is fixed and
- * publicly known.
+ * timingSafeEqual throws on length mismatch, so lengths are compared first. That
+ * leaks nothing — the expected signature length is fixed and public.
  */
 function safeEqual(a: string, b: string): boolean {
   const ba = Buffer.from(a, 'utf8');
@@ -62,29 +50,51 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ba, bb);
 }
 
-export function buildBasestring(timestamp: string, rawBody: string): string {
-  // The literal 'v0:' is part of the SIGNED STRING — it is a scheme version, not
-  // decoration, and both Slack and our contract include it.
-  return `v0:${timestamp}:${rawBody}`;
+export function buildTimestampedBasestring(input: {
+  format: BasestringFormat;
+  separator: string;
+  timestamp: string;
+  rawBody: string;
+}): string {
+  const { format, separator: s, timestamp, rawBody } = input;
+  return format === 'v0-prefixed'
+    ? `v0${s}${timestamp}${s}${rawBody}`
+    : `${timestamp}${s}${rawBody}`;
 }
 
-export function verifyTimestampedHmac(input: {
+function hexHmac(secret: string, message: string): string {
+  return createHmac('sha256', secret).update(message).digest('hex');
+}
+
+// ── Scheme A: signature + timestamp ─────────────────────────────────────────
+
+/**
+ * Verifies a signature AND enforces a replay window.
+ *
+ * Used by Slack (`v0:{ts}:{body}`, prefix `v0=`) and UGC (`{ts}.{body}`,
+ * prefix `sha256=`).
+ */
+export function verifyWithTimestamp(input: {
+  headerName: string;
+  timestampHeader: string;
+  /** Prefix on the signature VALUE, e.g. 'v0=' or 'sha256='. */
+  prefix: string;
+  /** Separator inside the basestring: ':' for Slack, '.' for UGC. */
+  separator: string;
+  format: BasestringFormat;
+  secret: string | undefined;
   rawBody: string;
   headers: Headers;
-  /** Read by the caller so this module never touches process.env. */
-  secret: string | undefined;
-  config: TimestampedHmacConfig;
+  windowSeconds?: number;
   /** Injectable for tests. Defaults to wall clock. */
   nowSeconds?: number;
 }): HmacVerifyResult {
-  const { rawBody, headers, secret, config } = input;
-  const prefix = config.signaturePrefix ?? '';
-  const maxAge = config.maxAgeSeconds ?? DEFAULT_MAX_AGE_SECONDS;
+  const window = input.windowSeconds ?? DEFAULT_WINDOW_SECONDS;
 
-  const signature = headers.get(config.signatureHeader);
+  const signature = input.headers.get(input.headerName);
   if (!signature) return { ok: false, reason: 'missing_signature_header' };
 
-  const timestamp = headers.get(config.timestampHeader);
+  const timestamp = input.headers.get(input.timestampHeader);
   if (!timestamp) return { ok: false, reason: 'missing_timestamp_header' };
 
   const ts = Number(timestamp);
@@ -95,36 +105,78 @@ export function verifyTimestampedHmac(input: {
   const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   // Math.abs on purpose: a timestamp far in the FUTURE is equally suspect, and a
   // one-sided check would let a forged future timestamp replay indefinitely.
-  if (Math.abs(now - ts) > maxAge) {
+  if (Math.abs(now - ts) > window) {
     return { ok: false, reason: 'stale_timestamp' };
   }
 
-  if (!secret) return { ok: false, reason: 'missing_secret' };
+  if (!input.secret) return { ok: false, reason: 'missing_secret' };
 
-  const expected =
-    prefix + createHmac('sha256', secret).update(buildBasestring(timestamp, rawBody)).digest('hex');
+  const basestring = buildTimestampedBasestring({
+    format: input.format,
+    separator: input.separator,
+    timestamp,
+    rawBody: input.rawBody
+  });
+
+  const expected = input.prefix + hexHmac(input.secret, basestring);
 
   return safeEqual(expected, signature)
     ? { ok: true }
     : { ok: false, reason: 'signature_mismatch' };
 }
 
+// ── Scheme B: signature over the body alone ─────────────────────────────────
+
 /**
- * Produce a signature the way a sender would.
+ * Verifies a signature over the raw body ONLY.
  *
- * Used by tests so they sign fixtures rather than hardcoding digests that would
- * silently rot if the basestring ever changed — and by the worked example in
- * docs/webhook-contract.md.
+ * ⚠️ THERE IS NO REPLAY PROTECTION. The sender transmits no timestamp, so a
+ * captured request stays valid forever and can be replayed verbatim.
+ * Idempotency on the provider's event id is the ONLY defence.
+ *
+ * Used by Vision (prefix `sha256=`) and ClickUp (no prefix). Every call site
+ * must state this in a comment.
  */
-export function signTimestampedHmac(input: {
+export function verifyBodyOnly(input: {
+  headerName: string;
+  /** Prefix on the signature VALUE. '' for ClickUp, 'sha256=' for Vision. */
+  prefix: string;
+  secret: string | undefined;
+  rawBody: string;
+  headers: Headers;
+}): HmacVerifyResult {
+  const signature = input.headers.get(input.headerName);
+  if (!signature) return { ok: false, reason: 'missing_signature_header' };
+
+  if (!input.secret) return { ok: false, reason: 'missing_secret' };
+
+  const expected = input.prefix + hexHmac(input.secret, input.rawBody);
+
+  return safeEqual(expected, signature)
+    ? { ok: true }
+    : { ok: false, reason: 'signature_mismatch' };
+}
+
+// ── Signing helpers (tests + docs) ──────────────────────────────────────────
+
+export function signWithTimestamp(input: {
   rawBody: string;
   timestamp: number;
   secret: string;
-  signaturePrefix?: string;
+  prefix: string;
+  separator: string;
+  format: BasestringFormat;
 }): { signature: string; timestamp: string } {
   const timestamp = String(input.timestamp);
-  const digest = createHmac('sha256', input.secret)
-    .update(buildBasestring(timestamp, input.rawBody))
-    .digest('hex');
-  return { signature: `${input.signaturePrefix ?? ''}${digest}`, timestamp };
+  const basestring = buildTimestampedBasestring({
+    format: input.format,
+    separator: input.separator,
+    timestamp,
+    rawBody: input.rawBody
+  });
+  return { signature: input.prefix + hexHmac(input.secret, basestring), timestamp };
+}
+
+export function signBodyOnly(input: { rawBody: string; secret: string; prefix: string }): string {
+  return input.prefix + hexHmac(input.secret, input.rawBody);
 }

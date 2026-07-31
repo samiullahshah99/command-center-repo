@@ -24,7 +24,7 @@ export const rawEvent = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
 
-    // Origin system, e.g. 'slack' | 'fireflies' | 'clickup' | 'portal'.
+    // Origin system — see RAW_EVENT_SOURCES below for the canonical list.
     source: text('source').notNull(),
 
     payload: jsonb('payload').notNull(),
@@ -78,12 +78,12 @@ export type NewRawEvent = typeof rawEvent.$inferInsert;
  * The column is `text`, not a Postgres enum, so adding a value here needs no
  * migration.
  *
- * ⚠️ 'portal' and 'studio' may be the same system under two names. 'portal' came
- * from PRD §6 (auto-completion signals); 'studio' is the internal backend API
- * that replaced the original Shopify integration (BACKEND_API_* in .env.example).
- * Both are listed until that is confirmed — do not assume they are distinct.
+ * 'ugc' and 'vision' are our two internal platforms. They were briefly called
+ * 'portal' and 'studio' — renamed to match the source values the senders use in
+ * their own systems, so the same event is called the same thing on both sides.
+ * Verified no rows carried the old values before renaming.
  */
-export const RAW_EVENT_SOURCES = ['slack', 'clickup', 'fireflies', 'studio', 'portal'] as const;
+export const RAW_EVENT_SOURCES = ['slack', 'clickup', 'fireflies', 'ugc', 'vision'] as const;
 
 export type RawEventSource = (typeof RAW_EVENT_SOURCES)[number];
 

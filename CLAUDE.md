@@ -305,24 +305,52 @@ different problem.
 1. **Verify the signature against the RAW request body.** Read `await req.text()`
    once, then `JSON.parse` it yourself. Never `req.json()` first — it consumes
    the stream, and re-serialising changes the bytes, so the HMAC fails in a way
-   that is indistinguishable from a wrong secret. There is a test in each
-   connector proving a re-serialised body fails verification.
-2. **Write to `raw_event` BEFORE responding 200.** Providers do **not** retry
-   after a 2xx — a 200 means "delivered, discard". So a write deferred past the
-   response (`after()`, a queue, a floating promise) is lost permanently and
-   silently on failure. Persist first and return **500** on failure, so the
-   provider retries and idempotency absorbs the duplicate.
-3. **Idempotent on the provider's own event id**, via the
-   `(source, external_id)` partial unique index and `ON CONFLICT DO NOTHING`.
-   One statement, so concurrent retries cannot both land. Verified against
-   Postgres with 5 simultaneous inserts producing exactly 1 row.
-4. **`timingSafeEqual` behind a length guard** — it throws on length mismatch,
-   so compare lengths first.
+   that is indistinguishable from a wrong secret. Every connector has a test
+   proving a re-serialised body fails verification.
+2. **Write to `raw_event` BEFORE responding 2xx.** Senders do **not** retry after
+   a success — a 2xx means "delivered, discard". A write deferred past the
+   response is lost permanently and silently on failure. Persist first and return
+   **500** on failure so the sender retries and idempotency absorbs the duplicate.
+3. **Idempotent on the sender's own event id**, via the `(source, external_id)`
+   partial unique index and `ON CONFLICT DO NOTHING`.
+4. **`timingSafeEqual` behind a length guard** — it throws on length mismatch.
 
-> Picking the idempotency key needs care and is per-provider. Slack has
-> `event_id` on the envelope. **ClickUp has none** — `webhook_id` identifies the
-> *registration* and is identical on every delivery, so using it would collapse
-> every event into one row; the key is `history_items[0].id`, null when absent.
+### The four inbound signature schemes
+
+Full reference: [docs/webhook-contract.md](./docs/webhook-contract.md).
+
+| Source | Header | Prefix | Basestring | Replay window |
+| --- | --- | --- | --- | --- |
+| Slack | `X-Slack-Signature` | `v0=` | `v0:{ts}:{body}` | ✅ ±300s |
+| UGC | `X-LuckyFours-Signature` | `sha256=` | `{ts}.{body}` | ✅ ±300s |
+| Vision | `X-Vision-Signature` | `sha256=` | `{body}` | ❌ none |
+| ClickUp | `X-Signature` | *(none)* | `{body}` | ❌ none |
+
+`src/features/connectors/verify-hmac.ts` exposes **two** functions —
+`verifyWithTimestamp()` and `verifyBodyOnly()` — rather than one with an optional
+timestamp. A security control must not be silently disabled by omitting a config
+field; two functions make the absence visible at the call site.
+
+> ⚠️ **UGC's separator is a literal DOT.** `{ts}.{body}`, not Slack's
+> `v0:{ts}:{body}`. Copying the Slack verifier yields a valid-looking hex
+> signature that never matches, reading exactly like a wrong secret.
+
+> ⚠️ **UGC and Vision use DIFFERENT keys for the event type** — UGC sends
+> `type`, Vision sends `event`. Both also send it as a header, which the handler
+> prefers. Their envelopes differ elsewhere too (`actor.id` vs `actor.user_id`,
+> `entity` vs `subject`); see docs/webhook-contract.md.
+
+> ⚠️⚠️ **Vision and ClickUp have NO replay protection.** Neither sends a
+> timestamp, so a captured request stays valid forever and can be replayed
+> verbatim. **Idempotency is the sole defence on those two.** Do not add side
+> effects to those paths that are unsafe to repeat.
+
+### Setup test events use constant ids
+
+UGC sends `test.ping` with id `evt_test`; Vision sends `control_center.test` with
+an all-zero id. Deduplicating on a constant id would make the *second* ping
+vanish — during setup that looks exactly like a broken handler. Both are stored
+with a **null** `external_id` so every ping lands, and logged as `TEST EVENT`.
 
 ### Data flow
 
@@ -355,6 +383,20 @@ different problem.
   holding `title`/`description`. Content columns are for `source_system='internal'`
   only. The rule is structural, not a comment — verified by inserting a clickup
   row with a title and watching Postgres reject it.
+
+### Store everything, filter at the parsing stage
+
+No handler filters on payload content. Vision sends an `environment` field
+(`production` | `preview` | `development`) and **all of it is stored** —
+production-only filtering happens later, at the parsing stage, not at ingest.
+
+Both internal contracts state event types are **additive**, so unknown types must
+be tolerated rather than rejected. The handlers never inspect event type except to
+recognise setup test events.
+
+The reasoning is the same as the Slack channel decision: an event never stored
+cannot be replayed, while a wrong downstream filter is one WHERE clause away from
+being fixed.
 
 ### Slack specifics
 

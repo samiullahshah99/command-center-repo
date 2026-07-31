@@ -28,8 +28,7 @@ import { RAW_EVENT_SOURCES, type RawEventSource } from '@/db/schema';
  * write a `source` value the table does not recognise.
  *
  * Note this is the full set of raw_event writers, which is a superset of the
- * connectors that exist: 'portal' has no connector, and may turn out to be the
- * same system as 'studio' (see the comment on RAW_EVENT_SOURCES).
+ * connectors that exist: 'fireflies' has no connector yet (day 4).
  */
 export type ConnectorSource = RawEventSource;
 

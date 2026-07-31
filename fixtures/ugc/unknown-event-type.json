@@ -1,0 +1,10 @@
+{
+  "id": "c38a4d02bb1e5f60b7c9d0e1f2a3b4c5",
+  "type": "creator.some.future.action",
+  "occurred_at": "2026-07-31T17:20:01Z",
+  "actor": { "id": "user_2TestActorAbc123", "name": "Test Staff One", "email": "staff1@example.com" },
+  "entity": { "type": "creator", "id": "e2f0b3c4-5d6e-7f8a-9b0c-1d2e3f4a5b6c" },
+  "summary": "Did something new",
+  "metadata": { "brand_new_key": true, "nested": { "shape": [1, 2] } },
+  "source": "ugc-management"
+}

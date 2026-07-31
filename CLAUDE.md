@@ -295,6 +295,99 @@ where latency does not matter.
 
 ---
 
+## Connectors and webhooks
+
+### Webhook handler pattern — mandatory for every new connector
+
+Four rules. Each exists because breaking it fails in a way that looks like a
+different problem.
+
+1. **Verify the signature against the RAW request body.** Read `await req.text()`
+   once, then `JSON.parse` it yourself. Never `req.json()` first — it consumes
+   the stream, and re-serialising changes the bytes, so the HMAC fails in a way
+   that is indistinguishable from a wrong secret. There is a test in each
+   connector proving a re-serialised body fails verification.
+2. **Write to `raw_event` BEFORE responding 200.** Providers do **not** retry
+   after a 2xx — a 200 means "delivered, discard". So a write deferred past the
+   response (`after()`, a queue, a floating promise) is lost permanently and
+   silently on failure. Persist first and return **500** on failure, so the
+   provider retries and idempotency absorbs the duplicate.
+3. **Idempotent on the provider's own event id**, via the
+   `(source, external_id)` partial unique index and `ON CONFLICT DO NOTHING`.
+   One statement, so concurrent retries cannot both land. Verified against
+   Postgres with 5 simultaneous inserts producing exactly 1 row.
+4. **`timingSafeEqual` behind a length guard** — it throws on length mismatch,
+   so compare lengths first.
+
+> Picking the idempotency key needs care and is per-provider. Slack has
+> `event_id` on the envelope. **ClickUp has none** — `webhook_id` identifies the
+> *registration* and is identical on every delivery, so using it would collapse
+> every event into one row; the key is `history_items[0].id`, null when absent.
+
+### Data flow
+
+- **`raw_event` is a landing zone.** Connectors store; they do **not** parse.
+  Payloads are written verbatim so a parser bug is replayable — flip `processed`
+  back to false and re-run, rather than having lost the event.
+- **`ingestRawEvent()` in `src/features/connectors/ingest.ts` is the ONLY write
+  path into `raw_event`.** No connector touches the table directly. That is what
+  keeps the idempotency guarantee and the verbatim rule in one place instead of
+  duplicated per connector.
+- **Parsing `raw_event` into domain tables is a separate, later stage.** Nothing
+  in the request path interprets meaning.
+
+> `ingest.ts` is deliberately **not** `'use server'`. That would publish it as a
+> Server Action, giving any browser an endpoint to inject rows into `raw_event`.
+
+### ClickUp is TRANSITIONAL
+
+- Per the lead, ClickUp is **temporary**, for content team outputs. In-platform
+  brief creation plus studio stats APIs will replace it. PRD §3.2 still keeps it
+  as system of record and §5.1 requires meeting action items to sync into it, so
+  both have to work at once.
+- **Do not build deeper ClickUp coupling.** The client is a thin typed wrapper;
+  person→ClickUp user mapping, list selection, and status taxonomy mapping are
+  deliberately absent and TODO-marked.
+- **`TASK_SOURCE_OF_RECORD` controls behaviour — read it only via
+  `src/config/env.ts`.** Never `process.env` it inline.
+- **`tracked_item.source_system`** discriminates, and a CHECK constraint
+  (`tracked_item_content_by_source_ck`) prevents `clickup`-sourced rows from
+  holding `title`/`description`. Content columns are for `source_system='internal'`
+  only. The rule is structural, not a comment — verified by inserting a clickup
+  row with a title and watching Postgres reject it.
+
+### Slack specifics
+
+- **Event subscriptions are workspace-wide.** Channel scoping happens by **bot
+  invitation**, not by config or code.
+- **Do not add channel-prefix filtering.** Persist everything and filter
+  downstream on `payload->>'channel'`. An event never stored cannot be replayed;
+  a wrong downstream filter is one WHERE clause away from being fixed. There is a
+  test asserting an unrelated channel is still persisted.
+
+### Fixtures
+
+- **`fixtures/*/api-*.json` are captured from live APIs and have contained real
+  names and email addresses.** Scrub PII before any commit — this repo is public.
+  The captured ClickUp task response contained a real work email on first capture.
+- Fixtures without the `api-` prefix are hand-written webhook envelopes and carry
+  no real data.
+
+### Auth conventions
+
+A wrong header returns a 401 that is indistinguishable from a revoked token, so
+each convention is encoded once in its own connector and never hand-written.
+
+| Provider | Header |
+| --- | --- |
+| Slack | `Authorization: Bearer xoxb-...` |
+| **ClickUp** | `Authorization: <token>` — **raw, NO `Bearer` prefix** |
+| Notion | `Authorization: Bearer ...` **plus** the mandatory `Notion-Version` header |
+| Fireflies | `Authorization: Bearer ...`, GraphQL only |
+
+Each `authHeaders()` **throws** on a missing env var rather than sending
+`Bearer undefined`, which produces the same ambiguous 401.
+
 ## Notion (PRD §5.8 — later phase)
 
 Source for the company AI search feature. **Not on this week's critical path** —

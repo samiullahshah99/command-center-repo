@@ -5,16 +5,19 @@ live in `.env.local` (gitignored) — never in this file.
 
 | Integration | Status | Notes |
 | --- | --- | --- |
-| **Clerk** | ✅ done | Dev instance `feasible-mudfish-56`. Sign-up mode `restricted` (invitation-only). Production instance not yet created. |
-| **Slack** | ✅ done | App "Command Center". Scopes: channels/groups read+history, `chat:write`, `users:read`, `app_mentions:read`. Test channel ID in [urls.md](./urls.md). |
-| **ClickUp** | 🟨 token present, unverified | `CLICKUP_API_TOKEN` + `CLICKUP_TEAM_ID` are in `.env.local`, but no live call has confirmed them. Blocks the capture → confirm → sync pipeline. Prefer a service account token over a personal one. |
-| **Meeting tool / Fireflies** | 🟨 token present, unverified | `FIREFLIES_API_KEY` + `FIREFLIES_WEBHOOK_SECRET` are in `.env.local`, unverified. Tool decision (dedicated AI meeting tool vs. Fireflies + own extraction) may still be open. |
-| **Internal portal** | ⬜ not started | Read access for auto-completion signals. Confirm an event exists for "returns/awaiting-review acknowledged" before building against it. |
-| **Klaviyo** | ⬜ not started | Agency reporting metrics. |
-| **Shopify** | ⬜ not started | Read-only context for the founder copilot. |
-| **Sentry** | ✅ done | Client + server + edge configured. `NEXT_PUBLIC_SENTRY_DISABLED='true'` disables locally. |
-| **OpenRouter (LLM)** | ✅ done | Key verified with a live call to `anthropic/claude-sonnet-5`. ⚠️ Only **$10.28** of $110 credit remains. See [CLAUDE.md](../CLAUDE.md) for model slugs. **Open question: was routing via a third-party proxy a deliberate choice? See below.** |
-| **Notion** | ✅ done | Token verified via `pnpm verify:notion` — integration "Command Center", **4 databases already shared** (see below). Feeds PRD §5.8 company AI search, a **later phase**; client not built. |
+| **Slack** | ✅ done | App installed, webhook **live** at `/api/webhooks/slack`, bot invited to the `#proj-` channel. 2 events received. |
+| **ClickUp** | ✅ done | Token + team id set. Webhook **registered team-wide** (`b2322908-49a8-4388-8796-8cac3c128ae1`), health active. 1 event received. ⚠️ Transitional — see [CLAUDE.md](../CLAUDE.md). |
+| **Notion** | ✅ done | Token verified via `pnpm verify:notion` — 4 databases shared. Pull-only; feeds PRD §5.8, a later phase. |
+| **Fireflies** | ✅ done | `FIREFLIES_API_KEY` + `FIREFLIES_WEBHOOK_SECRET` present. Integration is day 4. |
+| **OpenRouter (LLM)** | ✅ done | Key verified with a live call. ⚠️ Only **$10.28** of $110 credit remains. |
+| **Postgres** | ✅ done | Railway. Schema + migrations applied; `DATABASE_URL` internal, `DATABASE_PUBLIC_URL` for migrations. |
+| **Clerk** | ✅ done | Dev instance, invitation-only sign-up. Production instance not yet created. |
+| **Sentry** | ✅ done | Client + server + edge. Source-map upload configured. |
+| **Portal API** | ⏳ blocked | Contract questions sent to the backend engineer. Endpoint reserved at `/api/webhooks/portal` (PRD §5.2). |
+| **Studio API** | ⏳ blocked | Awaiting Usama. Endpoint reserved at `/api/webhooks/studio`. Expected to replace ClickUp for content outputs. |
+| **Zendesk** | ⏳ not requested | PRD §5.3. |
+| **Klaviyo** | ⏳ not requested | PRD §5.7. |
+| **Miro** | ⏳ not requested | PRD §5.9. |
 
 ## Notion — recorded detail
 

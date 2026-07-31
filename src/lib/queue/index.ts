@@ -113,13 +113,28 @@ export async function sendParseJob(
   });
 }
 
-/** Graceful shutdown, for scripts. The long-running server never calls this. */
-export async function stopBoss(): Promise<void> {
-  if (g.commandCenterBoss) {
-    await g.commandCenterBoss.stop({ graceful: true });
-    g.commandCenterBoss = undefined;
-    g.commandCenterBossReady = undefined;
-  }
+/**
+ * Stop pg-boss.
+ *
+ * `graceful: true` stops fetching new jobs and waits for in-flight handlers.
+ * `timeout` is MILLISECONDS (pg-boss StopOptions), so callers passing seconds
+ * must convert — see shutdown.ts.
+ *
+ * Anything still running when the timeout elapses stays `active` and is returned
+ * to the queue by pg-boss maintenance, so no job is lost; worst case it retries.
+ */
+export async function stopBoss(
+  opts: { graceful?: boolean; timeoutSeconds?: number } = {}
+): Promise<void> {
+  if (!g.commandCenterBoss) return;
+
+  await g.commandCenterBoss.stop({
+    graceful: opts.graceful ?? true,
+    ...(opts.timeoutSeconds !== undefined ? { timeout: opts.timeoutSeconds * 1000 } : {})
+  });
+
+  g.commandCenterBoss = undefined;
+  g.commandCenterBossReady = undefined;
 }
 
 export { DEAD_LETTER_QUEUE, queueNameFor, ALL_QUEUE_NAMES };

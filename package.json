@@ -28,7 +28,8 @@
     "clickup:register": "tsx scripts/clickup/register-webhook.ts",
     "clickup:list": "tsx scripts/clickup/list-webhooks.ts",
     "clickup:delete": "tsx scripts/clickup/delete-webhook.ts",
-    "verify:clickup": "tsx scripts/clickup/verify-clickup.ts"
+    "verify:clickup": "tsx scripts/clickup/verify-clickup.ts",
+    "test:queue": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -14,6 +14,7 @@ import type { JobResult, JobWithMetadata } from 'pg-boss';
 import { RAW_EVENT_SOURCES, type RawEventSource } from '@/db/schema';
 import { getBoss, RETRY_LIMIT } from './index';
 import { HANDLERS } from './registry';
+import { registerShutdownHandlers } from './shutdown';
 import { isParseJobData, queueNameFor, type ParseJobData } from './types';
 
 /** Jobs fetched per poll, per queue. Modest: this shares the web container. */
@@ -32,6 +33,10 @@ export async function startWorkers(): Promise<void> {
   started = true;
 
   const boss = await getBoss();
+
+  // Wire SIGTERM/SIGINT before the first job can be picked up, so a redeploy
+  // during startup still drains rather than killing an in-flight handler.
+  registerShutdownHandlers();
 
   for (const source of RAW_EVENT_SOURCES) {
     await boss.work(

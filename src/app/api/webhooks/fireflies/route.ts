@@ -21,7 +21,12 @@
  */
 
 import { ingestRawEvent } from '@/features/connectors/ingest';
-import { externalIdOf, verifyFirefliesRequest } from '@/features/connectors/fireflies';
+import {
+  externalIdOf,
+  FIREFLIES_DELIVERY_ID_HEADER,
+  isUnsignedTestDelivery,
+  verifyFirefliesRequest
+} from '@/features/connectors/fireflies';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -39,7 +44,14 @@ export async function POST(req: Request) {
 
   // ── 2. Signature ──────────────────────────────────────────────────────────
   const verified = verifyFirefliesRequest({ rawBody, headers: req.headers });
-  if (!verified.ok) {
+
+  // TODO(REMOVE ONCE REAL EVENTS ARE CONFIRMED SIGNED) — see
+  // isUnsignedTestDelivery(). Narrow exception for Fireflies' UNSIGNED test
+  // pings so their payload can be inspected. Real deliveries (no `test-`
+  // prefix) fall straight through to the 401 below, unchanged.
+  const unsignedTest = !verified.ok && isUnsignedTestDelivery(req.headers);
+
+  if (!verified.ok && !unsignedTest) {
     // Reason only. Never the secret, the signature, or the body.
     console.warn(`[fireflies-webhook] rejected: ${verified.reason}`);
 
@@ -47,6 +59,22 @@ export async function POST(req: Request) {
     logRejectedRequest(req, rawBody, verified.reason);
 
     return new Response('Unauthorized', { status: 401 });
+  }
+
+  if (unsignedTest) {
+    // Loud on purpose: this line means signature verification was BYPASSED.
+    // If it ever appears for something that is not a Fireflies setup ping, the
+    // exception is being abused and must come out immediately.
+    console.warn(
+      `[fireflies-webhook] ⚠️⚠️ SIGNATURE CHECK BYPASSED — accepting UNSIGNED test delivery ` +
+        `deliveryId=${JSON.stringify(req.headers.get(FIREFLIES_DELIVERY_ID_HEADER))} ` +
+        `verifyReason=${verified.ok ? 'n/a' : verified.reason} ` +
+        `— TEMPORARY, remove once real events are confirmed signed`
+    );
+
+    // Full header/body dump too: the whole point is to learn the real contract,
+    // and a test ping is the only delivery we currently receive.
+    logRejectedRequest(req, rawBody, 'unsigned_test_delivery_accepted');
   }
 
   let parsed: unknown;
@@ -67,12 +95,29 @@ export async function POST(req: Request) {
     const result = await ingestRawEvent({
       source: 'fireflies',
       payload: parsed,
-      externalId: externalIdOf(parsed)
+      // TODO(REMOVE with the unsigned-test exception): test pings store with a
+      // NULL key, matching how UGC and Vision handle theirs. Their ids are not
+      // meeting ids, and deduplicating on them would make the second ping vanish
+      // — during setup that is indistinguishable from a broken handler. A null
+      // key also makes these rows trivial to find and purge afterwards.
+      externalId: unsignedTest ? null : externalIdOf(parsed)
     });
 
     if (result.duplicate) {
       console.warn('[fireflies-webhook] duplicate suppressed');
       // Already stored and already queued — nothing more to do.
+      return new Response(null, { status: 200 });
+    }
+
+    // TODO(REMOVE with the unsigned-test exception)
+    // ⚠️ Stored, but deliberately NOT enqueued. The worker's job is to fetch the
+    // transcript for a meetingId over GraphQL; a test ping carries no real
+    // meeting, so the fetch would fail and retry 3× on an API limited to 500
+    // requests per DAY — spending real quota to learn nothing.
+    if (unsignedTest) {
+      console.warn(
+        `[fireflies-webhook] unsigned test delivery stored raw_event=${result.id} — NOT enqueued (no real meetingId to fetch)`
+      );
       return new Response(null, { status: 200 });
     }
 
@@ -135,25 +180,29 @@ export async function POST(req: Request) {
 function logRejectedRequest(req: Request, rawBody: string, reason: string): void {
   const BODY_LIMIT = 500;
 
-  // Emitted as ONE console.warn rather than a line per header: concurrent
-  // deliveries would otherwise interleave and the headers of one request would
-  // be unattributable. console.warn survives production — next.config.ts strips
-  // console.* except error and warn.
-  const headers = [...req.headers.entries()].map(([name, value]) => `    ${name}: ${value}`);
-
-  const truncated = rawBody.length > BODY_LIMIT;
-  const body = rawBody.slice(0, BODY_LIMIT);
+  // ⚠️ TWO LOG CALLS, AND NEITHER CONTAINS A NEWLINE.
+  //
+  // An earlier version emitted one console.warn holding a multi-line string.
+  // That is still one call, but log shippers split on newlines, so each line
+  // became its own record and other workers' output interleaved between the
+  // "body (N bytes):" header and the body itself — losing exactly the part
+  // worth reading. Each call below is a single unsplittable line.
+  //
+  // Both values go through JSON.stringify, which is what makes that guarantee
+  // hold: a header value or a body containing a newline would otherwise
+  // reintroduce the split. It also quotes empty values so they stay visible.
+  //
+  // console.warn, NOT console.log: next.config.ts strips console.* in
+  // production except error and warn, and production is where Fireflies
+  // actually delivers. A console.log here would print nothing where it matters.
+  const headers = Object.fromEntries(req.headers.entries());
 
   console.warn(
-    [
-      '[fireflies-webhook] ⚠️ TEMPORARY CONTRACT DIAGNOSTICS (remove after confirming)',
-      `  reason: ${reason}`,
-      `  method: ${req.method}  url: ${req.url}`,
-      `  headers (${headers.length}):`,
-      ...headers,
-      `  body (${rawBody.length} bytes${truncated ? `, first ${BODY_LIMIT} shown` : ''}):`,
-      `    ${body}`
-    ].join('\n')
+    `[fireflies-webhook] DIAG reason=${reason} method=${req.method} url=${req.url} headers=${JSON.stringify(headers)}`
+  );
+
+  console.warn(
+    `[fireflies-webhook] DIAG bodyBytes=${rawBody.length} truncated=${rawBody.length > BODY_LIMIT} body=${JSON.stringify(rawBody.slice(0, BODY_LIMIT))}`
   );
 }
 

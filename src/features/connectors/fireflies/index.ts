@@ -42,6 +42,39 @@ export function verifyFirefliesRequest(input: {
   });
 }
 
+/** Per-delivery id Fireflies sends on the new (Integrations page) webhook. */
+export const FIREFLIES_DELIVERY_ID_HEADER = 'x-webhook-delivery-id';
+export const FIREFLIES_TEST_DELIVERY_PREFIX = 'test-';
+
+/**
+ * TODO(REMOVE ONCE REAL EVENTS ARE CONFIRMED SIGNED)
+ *
+ * Fireflies' *test* deliveries arrive with NO signature header at all — two
+ * confirmed, both carrying `x-webhook-delivery-id: test-…` among 20 headers and
+ * nothing resembling a signature. Either they sign only real events, or their
+ * config never persisted our secret. Until we have seen a real delivery we
+ * cannot tell which, and we cannot see the payload shape without accepting one.
+ *
+ * ⚠️ SECURITY: BOTH conditions below are attacker-controlled, and this endpoint
+ * is public and unauthenticated by design. Anyone who knows the URL can send
+ * `x-webhook-delivery-id: test-x` with no signature and have arbitrary JSON
+ * written to raw_event. Nothing parses raw_event yet and these rows are stored
+ * with a null external_id so they are trivially identifiable and purgeable, but
+ * this is a real hole and the reason to close the window quickly.
+ *
+ * The exception is deliberately narrow in one important way: a signature that is
+ * PRESENT but INVALID never qualifies. Only total absence does. Otherwise an
+ * attacker could send a `test-` id plus any garbage signature and be waved
+ * through, and a genuinely misconfigured secret would look like a test ping.
+ */
+export function isUnsignedTestDelivery(headers: Headers): boolean {
+  const deliveryId = headers.get(FIREFLIES_DELIVERY_ID_HEADER);
+  if (!deliveryId?.startsWith(FIREFLIES_TEST_DELIVERY_PREFIX)) return false;
+
+  // Absence only — never a present-but-wrong signature.
+  return headers.get(FIREFLIES_SIGNATURE_HEADER) === null;
+}
+
 /** Test/util helper: sign the way Fireflies does. */
 export function signFirefliesRequest(input: { rawBody: string; secret: string }): string {
   return signBodyOnly({

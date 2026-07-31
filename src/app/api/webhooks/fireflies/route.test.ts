@@ -173,6 +173,131 @@ describe('POST /api/webhooks/fireflies', () => {
   });
 });
 
+// ────────────────────────────────────────────────────────────────────────────
+// TODO(REMOVE WITH THE UNSIGNED-TEST EXCEPTION)
+// Delete this whole describe block when isUnsignedTestDelivery() comes out.
+// ────────────────────────────────────────────────────────────────────────────
+const DELIVERY_HEADER = 'x-webhook-delivery-id';
+
+function deliveryRequest(rawBody: string, headers: Record<string, string>) {
+  return new Request('https://example.test/api/webhooks/fireflies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: rawBody
+  });
+}
+
+describe('unsigned test-delivery exception', () => {
+  beforeEach(() => {
+    process.env.FIREFLIES_WEBHOOK_SECRET = SECRET;
+    h.rows.clear();
+    h.ingestCalls.length = 0;
+    h.enqueued.length = 0;
+    h.ingestThrows.value = false;
+    h.enqueueThrows.value = false;
+    // mockClear matters: vi.spyOn keeps ONE spy per file, so without it
+    // console.warn calls accumulate across tests and the "must NOT contain
+    // SIGNATURE CHECK BYPASSED" assertion below reads an earlier test's output.
+    vi.spyOn(console, 'warn')
+      .mockImplementation(() => {})
+      .mockClear();
+    vi.spyOn(console, 'error')
+      .mockImplementation(() => {})
+      .mockClear();
+  });
+
+  const body = () => fixture('webhook-transcription-completed.json');
+
+  it('accepts an UNSIGNED delivery whose id starts with test-, and stores it', async () => {
+    const res = await POST(deliveryRequest(body(), { [DELIVERY_HEADER]: 'test-abc123' }));
+
+    expect(res.status).toBe(200);
+    expect(h.ingestCalls).toHaveLength(1);
+    expect(h.ingestCalls[0].source).toBe('fireflies');
+    // Null key, so repeated setup pings each land instead of deduping away.
+    expect(h.ingestCalls[0].externalId).toBeNull();
+    expect(h.ingestCalls[0].payload).toEqual(JSON.parse(body()));
+  });
+
+  it('does NOT enqueue a transcript fetch for a test ping', async () => {
+    // The API is limited to 500 requests/DAY; a fake meetingId would burn 4 of
+    // them across the retry ladder and never succeed.
+    await POST(deliveryRequest(body(), { [DELIVERY_HEADER]: 'test-abc123' }));
+    expect(h.enqueued).toHaveLength(0);
+  });
+
+  it('logs the bypass loudly', async () => {
+    await POST(deliveryRequest(body(), { [DELIVERY_HEADER]: 'test-abc123' }));
+    const logged = vi.mocked(console.warn).mock.calls.flat().join('\n');
+    expect(logged).toContain('SIGNATURE CHECK BYPASSED');
+  });
+
+  it('repeated test pings each land — none is deduped away', async () => {
+    await POST(deliveryRequest(body(), { [DELIVERY_HEADER]: 'test-abc123' }));
+    await POST(deliveryRequest(body(), { [DELIVERY_HEADER]: 'test-abc123' }));
+    expect(h.ingestCalls).toHaveLength(2);
+    expect(h.rows.size).toBe(2);
+  });
+
+  // ── The exception must not widen ──────────────────────────────────────────
+
+  it('⚠️ an UNSIGNED NON-test delivery is STILL REJECTED', async () => {
+    // The whole point: real events must keep requiring a valid signature.
+    const res = await POST(deliveryRequest(body(), { [DELIVERY_HEADER]: 'evt_9f3a2b' }));
+
+    expect(res.status).toBe(401);
+    expect(h.ingestCalls).toHaveLength(0);
+    expect(h.enqueued).toHaveLength(0);
+  });
+
+  it('⚠️ an unsigned delivery with NO delivery-id header is STILL REJECTED', async () => {
+    const res = await POST(deliveryRequest(body(), {}));
+    expect(res.status).toBe(401);
+    expect(h.ingestCalls).toHaveLength(0);
+  });
+
+  it('⚠️ a test- delivery with a PRESENT but INVALID signature is STILL REJECTED', async () => {
+    // Absence of a signature is the trigger, never a wrong one. Otherwise any
+    // garbage signature plus a test- id would be waved through, and a genuinely
+    // misconfigured secret would masquerade as a setup ping.
+    const res = await POST(
+      deliveryRequest(body(), {
+        [DELIVERY_HEADER]: 'test-abc123',
+        [FIREFLIES_SIGNATURE_HEADER]: 'sha256=deadbeef'
+      })
+    );
+
+    expect(res.status).toBe(401);
+    expect(h.ingestCalls).toHaveLength(0);
+  });
+
+  it('a CORRECTLY signed test- delivery takes the normal path, not the exception', async () => {
+    const raw = body();
+    const res = await POST(
+      deliveryRequest(raw, {
+        [DELIVERY_HEADER]: 'test-abc123',
+        [FIREFLIES_SIGNATURE_HEADER]: signFirefliesRequest({ rawBody: raw, secret: SECRET })
+      })
+    );
+
+    expect(res.status).toBe(200);
+    // Normal path: real meetingId key, and the fetch IS enqueued.
+    expect(h.ingestCalls[0].externalId).toBe('01JQFF1TESTMEETING000001');
+    expect(h.enqueued).toHaveLength(1);
+    const logged = vi.mocked(console.warn).mock.calls.flat().join('\n');
+    expect(logged).not.toContain('SIGNATURE CHECK BYPASSED');
+  });
+
+  it('a "test-" prefix is matched exactly — "Test-" and "testing" do not qualify', async () => {
+    for (const id of ['Test-abc', 'testing-abc', 'x-test-abc']) {
+      h.ingestCalls.length = 0;
+      const res = await POST(deliveryRequest(body(), { [DELIVERY_HEADER]: id }));
+      expect(res.status, `delivery id ${id} must not qualify`).toBe(401);
+      expect(h.ingestCalls).toHaveLength(0);
+    }
+  });
+});
+
 describe('GET /api/webhooks/fireflies', () => {
   it('answers reachability checks', async () => {
     const res = GET();

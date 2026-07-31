@@ -42,6 +42,10 @@ export async function POST(req: Request) {
   if (!verified.ok) {
     // Reason only. Never the secret, the signature, or the body.
     console.warn(`[fireflies-webhook] rejected: ${verified.reason}`);
+
+    // TODO(REMOVE): temporary contract diagnostics — see logRejectedRequest().
+    logRejectedRequest(req, rawBody, verified.reason);
+
     return new Response('Unauthorized', { status: 401 });
   }
 
@@ -96,6 +100,61 @@ export async function POST(req: Request) {
   }
 
   return new Response(null, { status: 200 });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TODO(REMOVE ONCE THE FIREFLIES CONTRACT IS CONFIRMED)
+//
+// Delete this function and its single call site in POST. Nothing else depends
+// on it, so removal is a clean two-hunk revert.
+//
+// ── Why it exists ───────────────────────────────────────────────────────────
+// Our verifier follows docs.fireflies.ai/graphql-api/webhooks: header
+// `x-hub-signature` (no -256), prefix `sha256=`, basestring = raw body, no
+// timestamp. Those docs may describe the DEPRECATED Developer Settings webhook;
+// Fireflies has since moved webhooks to the Integrations page and the header
+// name or basestring may differ. A bare `rejected: signature_mismatch` cannot
+// distinguish "wrong secret" from "wrong header" from "wrong basestring", so
+// the real contract has to be read off an actual rejected delivery.
+//
+// ── Scope ───────────────────────────────────────────────────────────────────
+// FAILURE PATH ONLY. A verified request logs nothing extra, so this cannot leak
+// the contents of legitimate transcripts. Verification is unchanged and the
+// response is still 401.
+//
+// ⚠️ This endpoint is public. Anything anyone POSTs to it is written to the logs
+// verbatim, which is both a log-flooding vector and a log-injection one (a body
+// can contain newlines that mimic further log lines). That is the main reason to
+// remove this as soon as one real delivery has been captured.
+//
+// Nothing is redacted, deliberately — identifying the scheme means seeing the
+// header names and values exactly as sent. FIREFLIES_WEBHOOK_SECRET is never
+// part of an inbound request, so it cannot appear here; the signature that does
+// appear is a digest and does not reveal it.
+// ════════════════════════════════════════════════════════════════════════════
+function logRejectedRequest(req: Request, rawBody: string, reason: string): void {
+  const BODY_LIMIT = 500;
+
+  // Emitted as ONE console.warn rather than a line per header: concurrent
+  // deliveries would otherwise interleave and the headers of one request would
+  // be unattributable. console.warn survives production — next.config.ts strips
+  // console.* except error and warn.
+  const headers = [...req.headers.entries()].map(([name, value]) => `    ${name}: ${value}`);
+
+  const truncated = rawBody.length > BODY_LIMIT;
+  const body = rawBody.slice(0, BODY_LIMIT);
+
+  console.warn(
+    [
+      '[fireflies-webhook] ⚠️ TEMPORARY CONTRACT DIAGNOSTICS (remove after confirming)',
+      `  reason: ${reason}`,
+      `  method: ${req.method}  url: ${req.url}`,
+      `  headers (${headers.length}):`,
+      ...headers,
+      `  body (${rawBody.length} bytes${truncated ? `, first ${BODY_LIMIT} shown` : ''}):`,
+      `    ${body}`
+    ].join('\n')
+  );
 }
 
 /** Reachability check for humans wiring the URL up. */

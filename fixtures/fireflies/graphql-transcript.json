@@ -5,7 +5,7 @@
       "title": "Weekly Sync (test fixture)",
       "date": 1785500000000,
       "dateString": "2026-07-31T14:00:00.000Z",
-      "duration": 1832,
+      "duration": 30.533333333333335,
       "host_email": "host@example.com",
       "organizer_email": "host@example.com",
       "transcript_url": "https://app.fireflies.ai/view/test-0001",

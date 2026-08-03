@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "tracked_item_candidate_key" ON "tracked_item" USING btree ("candidate_action_item_id") WHERE "tracked_item"."candidate_action_item_id" IS NOT NULL;

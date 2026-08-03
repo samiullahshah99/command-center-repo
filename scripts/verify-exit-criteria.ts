@@ -101,7 +101,8 @@ async function replayFirefliesFixture(): Promise<{ ok: boolean; detail: string }
     firefliesId: t.id,
     title: t.title ?? null,
     meetingDate: typeof t.date === 'number' ? new Date(t.date) : null,
-    durationSeconds: typeof t.duration === 'number' ? Math.round(t.duration) : null,
+    // Fireflies `duration` is MINUTES; this column is seconds. See worker.ts.
+    durationSeconds: typeof t.duration === 'number' ? Math.round(t.duration * 60) : null,
     payload: t,
     fetchedAt: new Date()
   };

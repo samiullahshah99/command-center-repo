@@ -1,0 +1,1 @@
+ALTER TABLE "tracked_item" DROP COLUMN "clickup_task_id";

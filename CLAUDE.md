@@ -16,7 +16,8 @@ AGENTS.md content here; the two files drift the moment they overlap.
 - **[docs/clerk_setup.md](./docs/clerk_setup.md)** — Clerk auth setup
 - **[docs/access-status.md](./docs/access-status.md)** — Integration credential status
 - **[fixtures/extraction-eval/README.md](./fixtures/extraction-eval/README.md)** — Eval harness: metric definitions, why `real/` is empty, fixture scrub rules
-- **docs/prd.md** — *Not yet committed.* Product requirements.
+- **[docs/prd-amendments.md](./docs/prd-amendments.md)** — Decisions that supersede the PRD. Authoritative while the PRD is absent
+- **docs/prd.md** — *Not yet committed.* Product requirements. Read the amendments file first: several of its sections are already superseded.
 
 ## Removed from this template
 
@@ -162,11 +163,14 @@ From PRD §6:
 - **Singular** entity names: `person`, `role_profile`, `tracked_item`,
   `recurring_task`, `completion_event`, `raw_event`.
 
-> ⚠️ **SUPERSEDED in Week 2 — the task destination is NOTION (Ocean).**
-> Leadership mandated Notion as the single home for task tracking. See
-> [Task destination](#task-destination-notion-ocean-not-clickup). ClickUp stays
-> a **read-only** transitional source for content-team outputs; there is no
-> ClickUp write path and none is to be built.
+> ⚠️ **THE COMMAND CENTRE IS THE TASK SYSTEM OF RECORD** (amendment
+> 2026-08-04). Approved action items become native `tracked_item` rows on the
+> in-platform board at `/dashboard/tracker`. See
+> [Task system of record](#task-system-of-record-the-command-centre).
+>
+> **No external task tool is written to.** ClickUp stays a **read-only**
+> transitional source for content-team outputs. Notion is **not** integrated for
+> tasks.
 >
 > **Whatever the destination, do not duplicate its task data.** `tracked_item`
 > holds a reference and no mirrored title, status, assignee or due date beyond
@@ -315,6 +319,67 @@ Verified against the live OpenRouter catalog. Slugs move; re-check with
 A `:batch` variant exists for most slugs at ~50% cost with async delivery —
 worth using for scheduled work (nightly role monitors, Control Tower recompute)
 where latency does not matter.
+
+### `temperature: 0` on every call — and why that is NOT determinism
+
+`complete()` sets `temperature: input.temperature ?? 0`
+(`src/lib/ai/client.ts`). Every call gets it unless one is deliberately passed;
+a test asserts the default. **Do not raise it for extraction.**
+
+> **Why 0:** extraction is a deterministic task — the same transcript should
+> yield the same items. At the provider default (~1.0) output varies run to run
+> on identical input, and two things break:
+>
+> 1. **`pnpm eval:extraction` stops working as a regression gate.** A score
+>    moving 92% → 88% could be a worse prompt or could be sampling, and there is
+>    no way to tell. A gate you cannot read is worse than no gate, because it
+>    still gets quoted.
+> 2. **Demos stop being repeatable.** Re-running the same meeting in front of
+>    someone produces different items, different wording and different
+>    confidence numbers than the run you rehearsed.
+
+> ⚠️ **MEASURED, and the headline is uncomfortable: temperature 0 is necessary
+> but NOT sufficient. It does not make output reproducible on this route.**
+>
+> What was actually established, each by direct probe:
+>
+> | Question | Finding |
+> | --- | --- |
+> | Is `temperature: 0` reaching the model? | **Yes.** "Pick a random number 1–1000" × 6: temp 0 → 2 distinct answers, temp 1 → 3, with one value dominating at 0. The distribution collapses, so the parameter is honoured |
+> | Is it *greedy*? | **No.** Those 2 distinct answers at temp 0 (`742`/`487`) are a token-level flip, not a rewording |
+> | Is OpenRouter routing between backends? | **No.** 4 identical calls all served by `Amazon Bedrock`, same slug — and output still differed, 943→1346 completion tokens |
+> | Does `seed` help? | **No.** `seed: 12345` changed nothing, and no `system_fingerprint` is returned. Anthropic models have no seed parameter |
+>
+> So the variance is in the serving stack, not in our parameters or our routing.
+> **There is no configuration that fixes this. Stop looking for one.**
+>
+> Across runs of the same fixture:
+>
+> | Field | Stable? |
+> | --- | --- |
+> | item count | ✅ always 4 |
+> | `owner_name` | ✅ identical |
+> | `due_date` | ⚠️ identical except the one genuinely ambiguous date |
+> | `source_span` | ⚠️ same line, but the **quoted window widens or narrows** |
+> | `description` | ❌ reworded every run |
+> | `confidence` | ❌ 0.70 / 0.55 / 0.65 for the same item |
+> | `follow_ups` | ❌ reworded |
+>
+> **The design rule that follows: never key anything on model wording.** Judge
+> extraction on the fields that hold — owner, date, and which transcript line
+> was cited — never on the prose.
+>
+> - ✅ The **eval harness is already safe**: it anchors on the `source_span`
+>   line rather than the description, and three consecutive runs produced
+>   identical scorecards while the raw JSON differed every time.
+> - ❌ **`content_hash` is not** — it exact-matches a span the model does not
+>   reproduce exactly. See
+>   [content_hash](#content_hash-gives-idempotency-on-re-extraction).
+> - ❌ **Repeatable demos are not solved by temperature.** If a demo must be
+>   identical every time, the only mechanism that delivers it is replaying a
+>   stored response — cache the model output keyed by a hash of the prompt and
+>   serve it back. That is a deliberate feature, not a config flag; it does not
+>   exist yet.
 
 ### JSON mode is NOT reliable through OpenRouter
 
@@ -517,21 +582,41 @@ everywhere else.
 
 ## Week 2 Day 1 — the extraction service
 
-### Task destination: NOTION (Ocean), not ClickUp
+### Task system of record: THE COMMAND CENTRE
 
-**Leadership mandated Notion as the single home for task tracking.** This is a
-product decision, not an engineering preference, and it overrides PRD §3.2 and
-§5.1, which both still name ClickUp.
+**Amendment 2026-08-04** — recorded in full in
+[docs/prd-amendments.md](./docs/prd-amendments.md), which is the authoritative
+record of superseded PRD decisions while `docs/prd.md` is absent.
 
-- **No ClickUp write path exists, and none is to be built.** The ClickUp client
-  is read-only.
-- **ClickUp remains a transitional READ source** for content-team outputs only.
-- Approved action items will be written to Notion (Day 2 work).
+Supersedes PRD §3.2 ("ClickUp is authoritative for tasks"), PRD §5.1 (meeting
+action items sync into ClickUp), §5.8 in part (Notion's role), and the Week 2
+statement that Notion is the task destination.
 
-> **Why this is called out this loudly:** the repo still contains a ClickUp
-> client, `TASK_SOURCE_OF_RECORD`, `tracked_item.source_system = 'clickup'` and
-> a PRD that names ClickUp as system of record. Every one of those reads like
-> permission to build a ClickUp write path. It is not.
+- **The Command Centre is the task system of record.** Approved action items
+  become native `tracked_item` rows, surfaced on the in-platform tracker board
+  at `/dashboard/tracker`.
+- **No external task tool is written to.** Not ClickUp, not Notion.
+- **Slack is the notification and update surface** — where people are told
+  something changed, never where the task itself lives.
+- **ClickUp: read-only, transitional, unchanged.** A source of content-team
+  events, nothing more.
+- **Notion: not integrated for tasks.** A read-only mirror into Ocean is an
+  explicitly possible phase-2 add-on; the schema already supports it via
+  `source_system` plus the external reference columns. See
+  [Phase 2: read-only Notion mirror](#phase-2-read-only-notion-mirror-not-built).
+
+> **Rationale, from the amendment:** Monday-model product direction from
+> leadership; eliminates two-way-sync loop risk, external rate limits and
+> member-mapping ahead of the Aug 13 delivery; and makes the Command Centre the
+> single source of truth **structurally rather than by convention**.
+
+> ⚠️ **Why this is stated this loudly, still.** The repo contains a ClickUp
+> client, `TASK_SOURCE_OF_RECORD`, `tracked_item.source_system = 'clickup'`,
+> `'notion'` in the shared `EXTERNAL_SYSTEMS` set, and a PRD that names ClickUp
+> as system of record. Every one of those reads like permission to build an
+> external write path. **None of them is.** The external columns exist for
+> INBOUND mirroring, never outbound sync — see
+> [external_task_id semantics](#where-a-destination-is-recorded--external_task_id-semantics).
 
 ### Field naming: `external_task_id` / `external_system` — NEVER a vendor name
 
@@ -579,7 +664,7 @@ Every extracted item carries a verbatim quote from its source. Not optional, not
 nullable, minimum 10 characters.
 
 > **Why it is load-bearing rather than nice-to-have:** the entire design rests on
-> a human reviewing proposals before anything is written to Notion. A reviewer
+> a human reviewing proposals before anything becomes a tracked task. A reviewer
 > confronted with "Dana will send the numbers by Friday" and no quote has to
 > re-listen to the meeting to check it — so they will not check it, they will
 > approve on vibes, and the review step becomes a rubber stamp that adds latency
@@ -600,7 +685,37 @@ place instead of duplicating.
 - ⚠️ **`review_status`, `reviewed_by`, `reviewed_at`, `edited_fields` and
   `external_task_id` are EXCLUDED from the update set.** A re-extraction must
   never undo a human decision. Without this, re-running would return an approved
-  item to the queue — or clear `external_task_id` and push it to Notion twice.
+  item to the queue — or clear `external_task_id`, the column a future inbound
+  mirror would key on.
+
+> ⚠️⚠️ **KNOWN GAP: the guarantee is weaker than it looks, because the model
+> does not return an identical `source_span` every time.**
+>
+> Measured on the live model at temperature 0: across three runs of one fixture,
+> one item's span widened from `"I'll take that one."` to
+> `"Someone needs to get through those before the end of the month or we'll be
+> publishing stale content. I'll take that one."` — the same commitment, quoted
+> with more context. Different span → different hash → **`ON CONFLICT` does not
+> fire and a duplicate pending row is created.**
+>
+> **Why this was not caught by the idempotency test:** that test mocks the model
+> with a FIXED response, so it proves Postgres upserts correctly and proves
+> nothing about whether the input is stable. It is a true test of the wrong
+> thing.
+>
+> Blast radius is bounded — a re-run adds duplicate rows with
+> `review_status='pending'`; it does not lose data, does not touch an approved
+> row, and cannot double-promote, because the partial unique index
+> `tracked_item_candidate_key` allows one tracked_item per candidate. The visible symptom is "why are there two of this action
+> item after a backfill?", which reads like a queue bug rather than a hashing
+> one.
+>
+> **Do not fix this by hashing the description instead** — descriptions vary far
+> more than spans (reworded on every single run). The fix is to stop requiring
+> exact equality: look up existing candidates for the same `unified_event_id`
+> and match on span *overlap* before inserting, which is what the eval scorer
+> already does. That is a deliberate design change, not a patch — leave the
+> exact-hash path until it is made.
 
 ### Owner resolution: names are NEVER an auto-match
 
@@ -654,6 +769,17 @@ hand-labelled fixtures and exits non-zero below threshold.
 > both DO fail the gate, so the harness works — but a green run means "the
 > pipeline is intact", not "the prompt is good". Details in
 > `fixtures/extraction-eval/README.md`.
+
+**The score is stable run to run even though the model output is not** — three
+consecutive runs gave identical scorecards while the raw JSON differed every
+time. That is by design: the scorer anchors on `source_span` and tolerates
+description drift ([temperature](#temperature-0-on-every-call--and-why-that-is-not-determinism)).
+
+> ⚠️ But that was measured at a **100% ceiling**, where variance is least
+> visible — nothing can move up. Do not assume a mid-range score is equally
+> stable. Before treating a change of one or two points as a real improvement,
+> run the eval **twice on the unchanged prompt** and see how much it moves on
+> its own.
 
 The eval calls the live model (~$0.04/run), so it is a deliberate gate, not a
 per-commit CI step.
@@ -814,10 +940,11 @@ shape change fails loudly instead of looking healthy.
 
 - Per the lead, ClickUp is **temporary**, for content team outputs. In-platform
   brief creation plus studio stats APIs will replace it.
-- ⚠️ **READ-ONLY as of Week 2.** PRD §3.2 names ClickUp as system of record and
-  §5.1 requires meeting action items to sync into it. **Both are superseded** —
-  leadership mandated Notion as the single home for task tracking. Action items
-  go to Notion; ClickUp is only a source of content-team events.
+- ⚠️ **READ-ONLY.** PRD §3.2 names ClickUp as system of record and §5.1 requires
+  meeting action items to sync into it. **Both are superseded** by the
+  2026-08-04 amendment: the Command Centre is the task system of record and no
+  external task tool is written to. ClickUp is only a source of content-team
+  events.
 - **Do not build deeper ClickUp coupling, and do not build a write path at all.**
   The client is a thin typed wrapper; person→ClickUp user mapping, list
   selection, and status taxonomy mapping are deliberately absent and TODO-marked
@@ -914,44 +1041,61 @@ each convention is encoded once in its own connector and never hand-written.
 Each `authHeaders()` **throws** on a missing env var rather than sending
 `Bearer undefined`, which produces the same ambiguous 401.
 
-## Notion — the task destination, and the AI-search source
+## Notion — company AI search, and a possible phase-2 mirror
 
-⚠️ **Promoted from "later phase" in Week 2.** The PRD files Notion under §5.8 as
-possibly phased separately; that is out of date. Notion (Ocean) is now the
-**destination for approved action items** — see
-[Task destination](#task-destination-notion-ocean-not-clickup) — as well as the
-source for company AI search. It is on the critical path.
+**Notion is NOT the task destination.** That was the Week 2 position and it is
+superseded by the 2026-08-04 amendment — the Command Centre is the task system
+of record and no external task tool is written to. See
+[Task system of record](#task-system-of-record-the-command-centre).
+
+What Notion is still for:
+
+1. **Company AI search** (PRD §5.8), reading pages shared with the integration.
+2. **A possible phase-2 READ-ONLY mirror** of Ocean projects into the tracker.
+   Explicitly not built.
 
 - Base URL `https://api.notion.com/v1`, `Authorization: Bearer <token>`.
-- **`Notion-Version` is mandatory on every request** (currently `2022-06-28`).
-  Omitting it returns `400 validation_error` — there is no default version.
 - **PULL-ONLY.** Notion has no webhook API for internal integrations, so it does
   **not** fit the `raw_event` inbound-webhook pattern the other connectors use.
   It has to be polled or fetched on demand, which is a different shape — do not
   assume the Slack/Fireflies design transfers.
+
+Verify the credential and list shared databases with `pnpm verify:notion`
+(`scripts/verify-notion.ts`). That script is read-only and is not the client.
+
+The client will live at `src/features/connectors/notion/` once there is a reason
+to build one. There is currently no Notion client and no Notion write path.
+
+### Phase 2: read-only Notion mirror (NOT BUILT)
+
+⚠️ **Nothing below is current behaviour.** It is API knowledge that cost real
+time to establish, kept because a read-only Ocean mirror is a live possibility.
+Do not read any of it as describing something the system does today.
+
+- **`Notion-Version` is mandatory on every request** (currently `2022-06-28`).
+  Omitting it returns `400 validation_error` — there is no default version.
 - **Deny-by-default per page.** An integration sees nothing until a page or
   database is explicitly shared with it (⋯ → Connections → Command Center).
   Sharing a *parent* page cascades to its children.
   > A `404 object_not_found` here almost always means "not shared", **not**
   > "wrong ID". Chasing the ID is the standard wasted hour.
-- **Rate limit ≈ 3 requests/second** average. Bursts get `429`. A batch of
-  approved items must be paced; pushing a meeting's worth in a loop will 429.
+- **Rate limit ≈ 3 requests/second** average. Bursts get `429`. Any batch read
+  must be paced.
 - **Cursor pagination on every list endpoint** — `has_more` / `next_cursor`.
   Reading only the first page silently under-reports.
-- ⚠️ **A `people` property accepts ONLY Notion workspace members.** An owner who
-  is not one fails the write — and it fails at the API, per item, after the
-  human has already approved it.
-  > This is why `owner_confidence` has to carry enough information for the
-  > review UI to catch it first. `ownerIsPushable(personId, 'notion')` in
-  > `src/features/extraction/owner.ts` answers the question up front so a
-  > missing workspace member surfaces as a **review item**, not as a job that
-  > retries forever against an error that will never clear.
+- **A `people` property accepts ONLY Notion workspace members.**
+  > This mattered when Notion was the write destination: an owner who was not a
+  > workspace member failed the write, per item, after a human had already
+  > approved it. `ownerIsPushable()` existed to catch that up front and **has
+  > been deleted** along with the push path — a helper encoding a superseded
+  > decision is worse than no helper. A read-only mirror does not need member
+  > mapping at all, which is one of the reasons the amendment names it as a
+  > cost eliminated.
 
-Verify the credential and list shared databases with `pnpm verify:notion`
-(`scripts/verify-notion.ts`). That script is read-only and is not the client.
-
-The client will live at `src/features/connectors/notion/` **once the shared
-connector interface exists** (Day 3). It is deliberately not written yet.
+> If phase 2 happens, an imported row is `source_system='notion'` with
+> `external_task_id` set — an ORIGIN pointer meaning "this row mirrors Notion".
+> It is never a push destination. See
+> [external_task_id semantics](#where-a-destination-is-recorded--external_task_id-semantics).
 
 ---
 
@@ -1075,9 +1219,301 @@ verbatim before any parser exists.
 
 ---
 
+## Where a destination is recorded — `external_task_id` semantics
+
+Three columns share the `EXTERNAL_SYSTEMS` value set
+(`src/db/schema/external-system.ts`, one constant, no duplicates). **They do not
+mean the same thing.**
+
+| Column | Meaning |
+| --- | --- |
+| `tracked_item.source_system` / `.external_task_id` | where the row **CAME FROM** — it mirrors that system |
+| `candidate_action_item.external_system` / `.external_task_id` | where an approved item was **PUSHED TO** |
+| `project.external_system` / `.external_id` | where the project **MIRRORS FROM** |
+
+**`tracked_item.external_task_id` means "this row mirrors an external system".**
+`tracked_item_external_ref_ck` enforces it: a non-internal row must have one, an
+internal row must not.
+
+The push destination of an **internally originated** item is recorded on
+`candidate_action_item.external_task_id`, reached from the board via
+`tracked_item.candidate_action_item_id`:
+
+```
+tracked_item (source_system='internal', external_task_id NULL)
+  └─ candidate_action_item_id ─→ candidate_action_item
+                                   .external_system  = 'notion'
+                                   .external_task_id = <notion page id>
+```
+
+> ⚠️ **THERE IS NO OUTBOUND SYNC, and these columns are not for one.** Per the
+> 2026-08-04 amendment the Command Centre is the task system of record; approved
+> items are native `tracked_item` rows and nothing is pushed anywhere.
+>
+> If a phase-2 read-only Notion mirror is ever built, an imported row carries
+> `source_system='notion'` and `external_task_id` = its page id — an ORIGIN
+> pointer. Writing a page id there to mean "we pushed this out" would violate
+> `tracked_item_external_ref_ck` *and* give one column two meanings, which is
+> how you end up with a sync that cannot tell an imported task from an exported
+> one.
+
+> ⚠️ **KNOWN GAP, accepted:** a **manually created** `tracked_item` has no
+> candidate, so it has **no destination slot at all**. Fine while manual items
+> are not synced outward. If manual-item sync is ever needed, add a destination
+> pair to `tracked_item` — do **not** overload `external_task_id`.
+
+`clickup` is a legitimate **origin** (read-only source for content-team outputs)
+but not a legitimate **destination** — no ClickUp write path exists and none is
+to be built. The shared CHECK permits the value; the rule is enforced by the
+absence of write code, not by the constraint. That asymmetry is deliberate: one
+shared constant beats a narrowed CHECK that re-creates value drift.
+
+> `tracked_item.source_system` was a Postgres **enum** until the tracker landed.
+> It is now TEXT + CHECK, because `ALTER TYPE ... ADD VALUE` cannot run inside a
+> transaction and a value can never be removed. Converted while the table was
+> empty. Same reasoning as `tracked_item.status` and `project.status`.
+
+> ⚠️ `tracked_item_content_by_source_ck` is an **allow-list**
+> (`source_system = 'internal' OR title IS NULL …`), not a deny-list. It was
+> `source_system <> 'clickup' OR …` — a deny-list of one, which silently started
+> permitting mirrored Notion titles the moment `'notion'` joined the set, while
+> still existing under the same name. Keep it an allow-list.
+
+---
+
+## Candidate rows are IMMUTABLE model output
+
+**Once extraction has written a `candidate_action_item`, its `description`,
+`owner_person_id`, `owner_confidence`, `due_date`, `source_span` and
+`confidence` are never edited.** A reviewer's corrections go onto the
+`tracked_item` created at approval; `edited_fields` records *which* fields they
+had to change. Nothing is written back.
+
+> **Why:** the candidate is the record of what the MODEL produced. Overwrite it
+> with a human's correction and the precision metric becomes unanswerable —
+> "how often did the model get this right?" has no data left to read, because
+> the wrong answer was replaced by the right one. `edited_fields` exists
+> precisely so the correction can be recorded without destroying the evidence.
+>
+> The same logic is why **`source_span` and `confidence` are not editable at
+> all**: the span is the quote the item is verified against, and correcting it
+> would erase what the reviewer was checking.
+
+The only mutable columns after extraction are the review-decision ones —
+`review_status`, `reviewed_by`, `reviewed_at`, `edited_fields` — plus
+`external_task_id` / `external_system` if a mirror is ever built.
+
+⚠️ **There is no `'edited'` review status, deliberately.** Editing is not a
+different decision; the item was still approved. It is recorded as a qualifier
+(`edited_fields` non-empty), not a state, so that every "was this approved?"
+query stays `review_status = 'approved'` and cannot silently miss a variant. The
+two precision queries live in a comment on the column itself.
+
+---
+
+## Cross-feature imports: constants yes, behaviour no
+
+**Key factories and constants may cross a feature boundary. Services, queries
+and mutations may not.**
+
+```ts
+// ✅ allowed — a shared token or cache key
+import { STATUS_META } from '@/features/tracker/constants/tracker-options';
+import { trackerKeys } from '@/features/tracker/api/queries';
+
+// ❌ not allowed — one feature driving another's data layer
+import { getBoard } from '@/features/tracker/api/service';
+import { updateStatusMutation } from '@/features/tracker/api/mutations';
+```
+
+> **Why the line is there:** invalidating another feature's cache after a write
+> is unavoidable — approving a candidate really does change what the tracker
+> board shows — and hardcoding `['tracker']` string arrays instead would drift
+> the moment a key factory changed, silently and with no type error. Importing
+> the *key factory* keeps that honest.
+>
+> Calling another feature's **service** is different in kind: it makes one
+> feature's behaviour depend on another's internals, and the dependency runs in
+> both directions the moment the second feature returns the favour. If two
+> features need the same behaviour, it belongs in `src/lib` or the DB layer, not
+> in an import between them.
+
+---
+
+## AI summaries — caching, labelling, and the empty-state guard
+
+Conventions established by the person profile (`src/features/person-profile/`).
+**Week 3's monitors reuse these**; do not invent a second set.
+
+### 1. The two-gate cache. Never call the model on a page render without it
+
+`ai_summary` is a CACHE — one row per subject, upserted, no history (the reason
+is written on the unique index; `monitor_report` is the time-series surface).
+
+| condition | action |
+| --- | --- |
+| `input_hash` unchanged | serve cache, **whatever its age** |
+| hash changed, younger than TTL | serve cache — the rate cap wins |
+| hash changed, at or past TTL | regenerate |
+| manual regenerate | bypass both, **but still write the hash** |
+
+> **Both gates are load-bearing and they do different jobs.** The TTL
+> (`SUMMARY_TTL_MS`, one hour) is what *guarantees* at most one call per subject
+> per hour — without it a refresh loop is a billing incident. The `input_hash`
+> is what stops a *pointless* call when the hour lapses and nothing has actually
+> moved, which on a seven-person roster is the common case and the difference
+> between cents and dollars.
+>
+> Hash only the fields a summary could legitimately change on — titles,
+> statuses, due dates, event ids. **Not `updated_at`**: a touch that changes
+> nothing observable must not burn a call.
+>
+> A manual regenerate that skipped writing the hash would leave the next
+> automatic check comparing against a stale fingerprint, so it would regenerate
+> again immediately. Force the call, still write the hash.
+
+**The cache must survive a restart**, so it is a table. In-memory alone fails on
+every Railway redeploy, which is also exactly when everyone reloads the page.
+
+### 2. Failure never takes the page down
+
+The summary is an enhancement, not the content. A parse failure, a provider
+outage or a missing key renders the page **without the card** plus a quiet
+regenerate affordance — never a broken page, never a placeholder string standing
+in for a summary. `getOrCreateSummary()` does not throw; it returns
+`unavailable`. It also falls back to a **stale cached summary** in preference to
+nothing — an hour-old summary labelled with its real timestamp beats an empty
+card.
+
+Parsing is the extraction hardening pattern, unchanged: no `response_format`,
+prompt for bare JSON, strip fences defensively, Zod-validate, throw on garbage.
+
+### 3. ⚠️ The zero-data guard — in CODE, not only in the prompt
+
+**When `item_count + event_count === 0`, the model is not called at all.** The
+card renders "Nothing currently tracked for X" from code.
+
+> A "write a summary" instruction against empty lists is an invitation to invent
+> one, and a fabricated summary about a real colleague is the single worst output
+> this feature can produce. The prompt says be brief; the guard makes the call
+> impossible. Prompt rules are a request, code is a guarantee — and this is the
+> case where you want the guarantee.
+
+### 4. Double labelling, always
+
+A generated chip **and** a footer caveat — "AI-generated from tracked items and
+activity, may be imperfect" — plus the generated-at time through the pinned-date
+helper, and what it was built from.
+
+> Not decoration. These summaries are written to be faithful to real data, which
+> makes them *more* likely to be read as authoritative, not less.
+
+### 5. Prompt rules that are not optional
+
+Summaries describe **work**, never the worker, and **never advise**:
+
+```
+5. Neutral and factual. This is read by the person's colleagues and may be read
+   by the person. Describe work, never the worker.
+6. Never recommend actions, assign blame, or suggest what the person should do
+   next. Describe, don't advise.
+```
+
+> Same failure mode twice. A summary that editorialises about a person, or that
+> starts suggesting what they should do next, is performance commentary wearing
+> a helpful face. The first one that says someone "seems overloaded" is the one
+> that gets the feature switched off.
+
+Send **only that subject's own data** — their items, their events. No transcript
+content, no other people's work.
+
+### 6. Trust our counts, not the model's
+
+The response schema asks for `generated_from: { item_count, event_count }` so
+the model has to look at the lists — but the values PERSISTED are ours. A model
+that miscounts must not make the footer lie.
+
+---
+
+## Dates and numbers in rendered output: PIN THE LOCALE
+
+**Never pass `undefined` (or omit) the locale argument to `toLocaleString`,
+`toLocaleDateString`, or `toLocaleTimeString` in anything that renders.** Pin the
+locale *and* the timezone explicitly.
+
+```ts
+// ❌ resolves to the HOST's locale — different on server and client
+d.toLocaleString(undefined, { month: 'short', day: 'numeric' })
+d.toLocaleString()
+
+// ✅ same string everywhere
+d.toLocaleString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+```
+
+> **Why — this cost a demo-day debugging session.** `undefined` resolves to the
+> host's locale: Node's during SSR, the browser's during hydration. The same
+> timestamp rendered as `31 Jul 2026, 20:55` on the server and
+> `Jul 31, 2026, 08:55 PM` on the client, React declared a hydration mismatch and
+> **discarded the whole subtree**. The symptom was a data table showing its
+> toolbar and its "5 row(s) total" footer with **no rows at all** — which reads
+> exactly like a failed fetch, and sent the investigation into the query layer,
+> the API client and the error handling before the real cause surfaced in the
+> browser console. The data had been correct the entire time.
+>
+> Timezone needs pinning for the same reason: a server in UTC and a browser in
+> PKT disagree even with the locale fixed. Label the zone in the output so a
+> pinned time is not silently wrong for whoever reads it.
+
+The same applies to **numbers** — `(1000).toLocaleString()` is `1,000` in en-US
+and `1.000` in de-DE.
+
+⚠️ **`Date.now()` in a render is the same class of bug** — the server clock and
+the browser clock are never identical, so a relative timestamp ("3m ago")
+computed during render mismatches by construction. Compute it in an effect after
+mount, or accept the mismatch deliberately with `suppressHydrationWarning`.
+
+### Known violations — fix when touching these files
+
+Three places predate this rule. **Deliberately left unfixed** (demo first) rather
+than swept up in an unrelated change. Fix each one when you are next editing that
+file for another reason, and tick it off here.
+
+All three sit in `'use client'` components — **which are still server-rendered on
+first paint**, so "it's a client component" is not a defence. All three are
+latent: not yet observed failing, which is exactly how the extraction bug looked
+the day before it cost an afternoon.
+
+- [ ] **`src/features/identities/components/identity-tables/columns.tsx:11`** —
+      `Date.now()` inside a cell renderer, computing "3m ago".
+      > ⚠️ **The one most likely to bite next, and the worst to diagnose.** The
+      > other two only mismatch when the host locale differs; this one mismatches
+      > **by construction** — the server clock and the browser clock are never
+      > the same instant, so every render where the rendered string ticks over
+      > (`2m ago` → `3m ago`) is a mismatch. It will present exactly as the
+      > extraction bug did: the Identities table rendering its toolbar and row
+      > count with **no rows**, looking like a failed query. If that happens,
+      > start here, not in the data layer.
+      > Fix: compute after mount in an effect, or `suppressHydrationWarning`.
+- [ ] **`src/features/identities/components/person-identities-card.tsx:128`** —
+      bare `toLocaleString()` on `linkedAt`; no locale, no timezone.
+- [ ] **`src/components/ui/table/data-table-slider-filter.tsx:80`** —
+      `toLocaleString(undefined, …)` on a number. Shared component, so this one
+      reaches every table with a numeric range filter.
+
+**`src/lib/format-date.ts` is the one implementation** — `formatMeetingDate`,
+`formatDateOnly`, `formatDueDate`. Extraction re-exports from it; the tracker
+imports it directly. Use it rather than writing another Intl call.
+
+---
+
 ## Critical Conventions
 
 - **React Query** for all data fetching — see the SSR pattern above
+- **Dates/numbers** — pin the locale AND timezone via `@/lib/format-date`; never `toLocale*(undefined)`, never `Date.now()` in a render. `formatDueDate` takes `now` as a parameter for that reason — resolve it once above the tree
+- **Candidate rows are immutable** after extraction — reviewer corrections live on `tracked_item` + `edited_fields`, never written back
+- **Cross-feature imports** — key factories and constants may cross a boundary; services, queries and mutations may not
+- **AI summaries** — two-gate cache (hash, then TTL), never call the model with zero data, double-label the card, describe work not the worker. See the AI-summaries section
+- **`external_task_id` means "mirrors an external system"**, not "was pushed to" — push destinations live on `candidate_action_item`, reached via `tracked_item.candidate_action_item_id`
 - **API layer** per feature — `api/types.ts` → `api/service.ts` → `api/queries.ts` → `api/mutations.ts`; queries use key factories; components never import mock APIs directly
 - **nuqs** for URL search params — `searchParamsCache` on server, `useQueryStates` on client, `getSortingStateParser` for sort on both
 - **Icons** — only import from `@/components/icons`, never from `@tabler/icons-react` directly
@@ -1085,7 +1521,8 @@ verbatim before any parser exists.
 - **Page headers** — use `PageContainer` props (`pageTitle`, `pageDescription`, `pageHeaderAction`), never import `<Heading>` manually
 - **Formatting** — single quotes, JSX single quotes, no trailing comma, 2-space indent. Tooling is **oxfmt + oxlint** (`pnpm format`, `pnpm lint`), not Prettier/ESLint
 - **LLM calls** — always `complete()` from `@/lib/ai/client`, requested by TIER, never an inline `fetch` and never a slug in feature code
-- **Tasks go to Notion**, not ClickUp. Columns are `external_task_id` / `external_system` — never a vendor name
+- **The Command Centre is the task system of record** — approved items are native `tracked_item` rows on `/dashboard/tracker`; no external task tool is written to. Slack is the notification surface
+- **External reference columns are vendor-neutral and INBOUND only** — `external_task_id` / `external_system` mean "this row mirrors an external system", never "this row was pushed out". Never name a column after a vendor
 - **One extraction path** for meetings and Slack. A second one is a design failure
 - **Prompt changes** — `pnpm eval:extraction` before and after, every time
 

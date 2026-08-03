@@ -129,7 +129,12 @@ export async function handleFirefliesJob(data: ParseJobData, ctx: ParseContext):
     firefliesId: fetched.id,
     title: fetched.title ?? null,
     meetingDate: toDate(fetched.date) ?? toDate(fetched.dateString),
-    durationSeconds: typeof fetched.duration === 'number' ? Math.round(fetched.duration) : null,
+    // ⚠️ Fireflies reports `duration` in MINUTES, fractional — a real 57-minute
+    // meeting comes back as 57.369998931884766. This column is SECONDS, so it
+    // must be converted. Storing it raw filed that meeting as 57 seconds: wrong,
+    // but small and plausible-looking, so nothing downstream ever complained.
+    durationSeconds:
+      typeof fetched.duration === 'number' ? Math.round(fetched.duration * 60) : null,
     payload: fetched,
     fetchedAt: new Date()
   };

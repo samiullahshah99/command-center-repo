@@ -100,6 +100,11 @@ describe('fireflies worker', () => {
     expect(row.firefliesId).toBe('01JQFF1TESTMEETING000001');
     expect(row.rawEventId).toBe('raw-1');
     expect(row.title).toBe('Weekly Sync (test fixture)');
+    // ⚠️ Pins the UNIT CONVERSION, not pass-through. Fireflies reports MINUTES
+    // (fixture: 30.5333) and the column is seconds, so 30.5333 * 60 = 1832.
+    // The fixture previously said `1832` and this asserted 1832 unchanged —
+    // which looked right and pinned the wrong unit. 1832 MINUTES is a 30-hour
+    // meeting, so the fixture value itself was the tell.
     expect(row.durationSeconds).toBe(1832);
   });
 

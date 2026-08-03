@@ -218,38 +218,3 @@ describeDb('resolveOwner', () => {
     expect(missing.ownerPersonId).toBeNull();
   });
 });
-
-describeDb('ownerIsPushable', () => {
-  let db: typeof import('@/db').db;
-  let ownerIsPushable: typeof import('./owner').ownerIsPushable;
-  let personId: string;
-
-  beforeAll(async () => {
-    ({ db } = await import('@/db'));
-    ({ ownerIsPushable } = await import('./owner'));
-    const { person } = await import('@/db/schema');
-    const [row] = await db
-      .insert(person)
-      .values({ name: `${RUN} pushable`, email: `${RUN}-push@example.com` })
-      .returning({ id: person.id });
-    personId = row.id;
-  });
-
-  afterAll(async () => {
-    await db.execute(sql`delete from person_identity where person_id = ${personId}`);
-    await db.execute(sql`delete from person where id = ${personId}`);
-  });
-
-  it('⚠️ an owner with no Notion identity is NOT pushable — a review item, not a retry', async () => {
-    // Notion's people property only accepts workspace members, so this write
-    // would fail at the API. Day 4 surfaces it rather than retrying forever.
-    const r = await ownerIsPushable(personId, 'notion');
-    expect(r.pushable).toBe(false);
-    expect(r.reason).toMatch(/NO notion identity/);
-  });
-
-  it('an unresolved owner is not pushable', async () => {
-    const r = await ownerIsPushable(null, 'notion');
-    expect(r.pushable).toBe(false);
-  });
-});

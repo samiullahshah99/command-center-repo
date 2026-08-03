@@ -64,6 +64,24 @@ export const navGroups: NavGroup[] = [
         shortcut: ['r', 'r'],
         isActive: false,
         items: []
+      },
+      {
+        title: 'Tracker',
+        url: '/dashboard/tracker',
+        // Existing registry key (IconLayoutKanban-ish); no new @tabler import.
+        icon: 'dashboard',
+        shortcut: ['t', 't'],
+        isActive: false,
+        items: []
+      },
+      {
+        title: 'Extraction',
+        url: '/dashboard/extraction',
+        // Existing registry key (IconChecks) — no new @tabler import needed.
+        icon: 'checks',
+        shortcut: ['x', 'x'],
+        isActive: false,
+        items: []
       }
     ]
   },

@@ -50,6 +50,34 @@
       "when": 1785762276469,
       "tag": "0006_red_klaw",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785787900087,
+      "tag": "0007_real_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785787919636,
+      "tag": "0008_numerous_rumiko_fujikawa",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785792240110,
+      "tag": "0009_damp_secret_warriors",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785794553595,
+      "tag": "0010_hot_living_tribunal",
+      "breakpoints": true
     }
   ]
 }

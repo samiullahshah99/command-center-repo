@@ -32,6 +32,11 @@ export function CellAction({ data }: CellActionProps) {
         <DropdownMenuGroup>
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
         </DropdownMenuGroup>
+        {/* Profile first: reading someone's workload is the common case, and
+            editing the roster record is the rarer admin one. */}
+        <DropdownMenuItem onClick={() => router.push(`/dashboard/people/${data.id}/profile`)}>
+          <Icons.user className='mr-2 h-4 w-4' /> View profile
+        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push(`/dashboard/people/${data.id}`)}>
           <Icons.edit className='mr-2 h-4 w-4' /> Edit
         </DropdownMenuItem>

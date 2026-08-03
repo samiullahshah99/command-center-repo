@@ -178,37 +178,8 @@ export async function resolveOwner(input: ResolveOwnerInput): Promise<OwnerResol
   };
 }
 
-/**
- * Can this owner be written to its destination without a human first?
- *
- * ⚠️ Day 2 will need this. Notion's people property only accepts workspace
- * members, so an owner with no Notion identity fails the write. Rather than
- * discovering that as a failed API call and retrying forever, the condition is
- * checkable up front and surfaces as a review item.
- */
-export async function ownerIsPushable(
-  ownerPersonId: string | null,
-  destination: 'notion'
-): Promise<{ pushable: boolean; reason: string }> {
-  if (!ownerPersonId) {
-    return { pushable: false, reason: 'no owner resolved' };
-  }
-
-  const [identity] = await db
-    .select({ id: personIdentity.id })
-    .from(personIdentity)
-    .where(
-      sql`${personIdentity.personId} = ${ownerPersonId} AND ${personIdentity.source} = ${destination}`
-    )
-    .limit(1);
-
-  return identity
-    ? { pushable: true, reason: `person has a ${destination} identity` }
-    : {
-        pushable: false,
-        // The actionable form: this is a review item, not a retry.
-        reason: `person has NO ${destination} identity — the ${destination} write would fail. Link one before pushing.`
-      };
-}
+// `ownerIsPushable()` was deleted 2026-08-04 — it pre-checked Notion workspace
+// membership before a write that no longer happens. Knowledge kept under
+// "Phase 2: read-only Notion mirror (NOT BUILT)" in CLAUDE.md.
 
 export { FUZZY_THRESHOLD, AMBIGUITY_MARGIN };

@@ -98,7 +98,30 @@ export const candidateActionItem = pgTable(
     reviewedBy: text('reviewed_by'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
 
-    /** Which fields a human changed. The live precision metric. */
+    /**
+     * Which fields a human changed on approval. THE LIVE PRECISION METRIC.
+     *
+     * ⚠️ There is deliberately NO `'edited'` review_status. Editing is not a
+     * different DECISION — the item was still approved — so it is recorded as a
+     * qualifier on the approval, not as a state. A separate status would force
+     * every "was this approved?" query to remember `IN ('approved','edited')`,
+     * and one of them eventually would not.
+     *
+     * The metric, in full:
+     *
+     *   -- accepted exactly as the model produced it
+     *   SELECT count(*) FROM candidate_action_item
+     *   WHERE review_status = 'approved' AND cardinality(edited_fields) = 0;
+     *
+     *   -- accepted, but a human had to correct something
+     *   SELECT count(*) FROM candidate_action_item
+     *   WHERE review_status = 'approved' AND cardinality(edited_fields) > 0;
+     *
+     * Only the three reviewer-editable fields can appear here: 'description',
+     * 'owner', 'due_date'. `source_span` and `confidence` are the model's own
+     * record and are not a reviewer's to change — correcting them would destroy
+     * the evidence the metric is measured against.
+     */
     editedFields: text('edited_fields')
       .array()
       .notNull()
@@ -148,7 +171,17 @@ export const candidateActionItem = pgTable(
     ),
     check(
       'candidate_action_item_external_system_ck',
-      sql`${table.externalSystem} IS NULL OR ${table.externalSystem} IN ('notion','internal')`
+      // ⚠️ Widened from ('notion','internal') to the shared EXTERNAL_SYSTEMS
+      // list so the three external_system columns cannot drift.
+      //
+      // NOTE THE ASYMMETRY: this column is a DESTINATION (where an approved item
+      // was pushed), unlike tracked_item.source_system which is an ORIGIN.
+      // 'clickup' is a legitimate origin — read-only content-team source — but
+      // NOT a legitimate destination; CLAUDE.md states no ClickUp write path
+      // exists and none is to be built. The constraint permits the value; the
+      // rule is enforced by there being no ClickUp write code. Narrow this CHECK
+      // if that ever needs to be structural.
+      sql`${table.externalSystem} IS NULL OR ${table.externalSystem} IN ('internal','notion','clickup')`
     ),
     check(
       'candidate_action_item_confidence_range_ck',

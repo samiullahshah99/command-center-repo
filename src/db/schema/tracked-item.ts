@@ -1,8 +1,21 @@
 import { sql } from 'drizzle-orm';
-import { boolean, check, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  check,
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid
+} from 'drizzle-orm/pg-core';
 import { createInsertSchema, createSelectSchema } from 'drizzle-zod';
 import { z } from 'zod';
+import { candidateActionItem } from './candidate-action-item';
+import { EXTERNAL_SYSTEMS } from './external-system';
 import { person } from './person';
+import { project } from './project';
 
 // Closed set — a captured item comes from exactly one of these origins and this
 // list is not expected to change. Worth a real Postgres enum.
@@ -17,24 +30,29 @@ export const sourceTypeEnum = pgEnum('source_type', ['meeting', 'slack', 'manual
  * INTO it. This column lets both be true at once, so the swap is a data change
  * rather than a migration.
  */
-export const TASK_SOURCE_SYSTEMS = ['clickup', 'internal'] as const;
+/**
+ * ⚠️ Was a pgEnum of ('clickup','internal'); now TEXT + CHECK over the shared
+ * EXTERNAL_SYSTEMS list. The enum made adding 'notion' an ALTER TYPE — which
+ * cannot run inside a transaction and whose values can never be removed — and
+ * Notion is now the mandated task destination. Converted while the table was
+ * empty, so the change cost nothing.
+ */
+export const TASK_SOURCE_SYSTEMS = EXTERNAL_SYSTEMS;
 
 export type TaskSourceSystem = (typeof TASK_SOURCE_SYSTEMS)[number];
-
-export const sourceSystemEnum = pgEnum('source_system', TASK_SOURCE_SYSTEMS);
 
 /**
  * A commitment we are tracking.
  *
  * ⚠️ ARCHITECTURAL RULE — depends on `source_system`:
  *
- *   'clickup'  ClickUp is the system of record. This row holds a REFERENCE
- *              (`clickup_task_id`) plus OUR OWN intelligence state, and the
- *              content columns (title, description) MUST stay NULL. Task detail
- *              is read through to the ClickUp API at request time.
+ *   'internal' Command Center owns the content. `external_task_id` is NULL and
+ *              the content columns (title, description) are populated here.
  *
- *   'internal' Command Center owns the content. `clickup_task_id` is NULL and
- *              the content columns are populated here.
+ *   'clickup'  } The source system owns the content. This row holds a REFERENCE
+ *   'notion'   } (`external_task_id`) plus OUR OWN intelligence state, and the
+ *              content columns MUST stay NULL — detail is read through to that
+ *              system at request time.
  *
  * The rule is enforced by the CHECK constraint below, not by convention, because
  * ClickUp is expected to be replaced and a cached title that drifts is exactly
@@ -49,14 +67,24 @@ export const trackedItem = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
 
     // Which system owns the content of this item.
-    sourceSystem: sourceSystemEnum('source_system').notNull().default('clickup'),
+    sourceSystem: text('source_system').notNull().default('internal'),
 
-    // The reference into ClickUp. NULL when source_system = 'internal', because
-    // there is no ClickUp task to point at.
-    clickupTaskId: text('clickup_task_id'),
+    /**
+     * The id of this item IN ITS SOURCE SYSTEM. NULL for 'internal' rows,
+     * because Command Center owns them and there is nothing to point at.
+     *
+     * ⚠️ Renamed from `clickup_task_id`. Vendor-neutral naming per CLAUDE.md —
+     * a column named after one vendor is a migration, a backfill and a rename
+     * across every query the day the vendor changes, and the vendor already
+     * changed once mid-project. Verified safe: nothing wrote the old column
+     * (the table was empty and had no writers outside its own schema file).
+     */
+    externalTaskId: text('external_task_id'),
 
     // ── Content columns: populated ONLY when source_system = 'internal' ───────
-    // For 'clickup' rows these stay NULL and the CHECK constraint enforces it.
+    // Every other source keeps these NULL; tracked_item_content_by_source_ck
+    // enforces it as an ALLOW-list, so a new source system is excluded by
+    // default rather than needing to be remembered.
     title: text('title'),
     description: text('description'),
 
@@ -72,6 +100,24 @@ export const trackedItem = pgTable(
     ownerPersonId: uuid('owner_person_id').references(() => person.id, {
       onDelete: 'set null'
     }),
+
+    /** The tracker board's grouping. Nullable: an item can exist unfiled. */
+    projectId: uuid('project_id').references(() => project.id, { onDelete: 'set null' }),
+
+    /**
+     * The reviewed candidate this item was promoted FROM, when it came from one.
+     *
+     * Carries provenance the board needs — chiefly the owner_confidence that was
+     * accepted, so a row promoted from a 'fuzzy' or 'unresolved' guess can be
+     * marked as such rather than presenting a reviewed guess as settled fact.
+     * Also the path Day 4's review-queue promotion writes.
+     *
+     * onDelete: 'set null' — the tracked item outlives its candidate.
+     */
+    candidateActionItemId: uuid('candidate_action_item_id').references(
+      () => candidateActionItem.id,
+      { onDelete: 'set null' }
+    ),
 
     sourceType: sourceTypeEnum('source_type').notNull(),
 
@@ -98,11 +144,49 @@ export const trackedItem = pgTable(
       .$onUpdate(() => new Date())
   },
   (table) => [
-    // Makes the system-of-record rule structural instead of a comment. A future
-    // refactor cannot quietly start caching ClickUp titles.
+    index('tracked_item_project_idx').on(table.projectId),
+
+    /**
+     * ⚠️ ONE tracked_item per candidate. PARTIAL — most tracked items have no
+     * candidate, and NULLs are distinct in a unique index anyway.
+     *
+     * The promotion path already guards with SELECT ... FOR UPDATE plus a
+     * pending-status check, which is what produces a good error message on a
+     * double-click. This index is the BACKSTOP: procedural guards live in one
+     * code path and the next caller has to remember them, while a constraint
+     * cannot be forgotten. Structural over procedural, as everywhere else here.
+     */
+    uniqueIndex('tracked_item_candidate_key')
+      .on(table.candidateActionItemId)
+      .where(sql`${table.candidateActionItemId} IS NOT NULL`),
+    index('tracked_item_owner_idx').on(table.ownerPersonId),
+    index('tracked_item_status_idx').on(table.status),
+
+    check(
+      'tracked_item_source_system_ck',
+      sql`${table.sourceSystem} IN ('internal','notion','clickup')`
+    ),
+
+    /**
+     * Content columns belong to 'internal' rows ONLY.
+     *
+     * ⚠️ Rewritten from `source_system <> 'clickup' OR ...` to an allow-list.
+     * The old form was a DENY-list of one, so the moment 'notion' was added it
+     * silently started permitting mirrored Notion titles — exactly the drift the
+     * constraint exists to prevent, and it would have passed review because the
+     * constraint was still there and still named the same thing.
+     */
     check(
       'tracked_item_content_by_source_ck',
-      sql`${table.sourceSystem} <> 'clickup' OR (${table.title} IS NULL AND ${table.description} IS NULL)`
+      sql`${table.sourceSystem} = 'internal' OR (${table.title} IS NULL AND ${table.description} IS NULL)`
+    ),
+
+    // An external row must say WHERE it is external to, and an internal row has
+    // nothing to point at. Mirrors project_external_pair_ck.
+    check(
+      'tracked_item_external_ref_ck',
+      sql`(${table.sourceSystem} = 'internal' AND ${table.externalTaskId} IS NULL)
+          OR (${table.sourceSystem} <> 'internal' AND ${table.externalTaskId} IS NOT NULL)`
     )
   ]
 );
@@ -124,12 +208,16 @@ export const TRACKED_ITEM_STATUSES = [
 
 export type TrackedItemStatus = (typeof TRACKED_ITEM_STATUSES)[number];
 
-// status has a Postgres default ('open'), so it stays optional on INSERT.
+// ⚠️ Both `status` and `source_system` have Postgres defaults, so their
+// overrides MUST carry .optional() — overriding a defaulted column otherwise
+// makes it required on insert (see CLAUDE.md; this bit three columns already).
 export const insertTrackedItemSchema = createInsertSchema(trackedItem, {
-  clickupTaskId: (s) => s.min(1, 'A ClickUp task id is required'),
+  externalTaskId: (s) => s.min(1, 'An external task id is required').nullish(),
+  sourceSystem: z.enum(TASK_SOURCE_SYSTEMS).optional(),
   status: z.enum(TRACKED_ITEM_STATUSES).optional()
 });
 
 export const selectTrackedItemSchema = createSelectSchema(trackedItem, {
+  sourceSystem: z.enum(TASK_SOURCE_SYSTEMS),
   status: z.enum(TRACKED_ITEM_STATUSES)
 });

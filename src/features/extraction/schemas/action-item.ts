@@ -58,8 +58,11 @@ export const AUTO_LINKABLE_OWNER_CONFIDENCE = ['exact', 'email'] as const;
 export const REVIEW_STATUS = ['pending', 'approved', 'rejected', 'auto_approved'] as const;
 export type ReviewStatus = (typeof REVIEW_STATUS)[number];
 
-export const EXTERNAL_SYSTEMS = ['notion', 'internal'] as const;
-export type ExternalSystem = (typeof EXTERNAL_SYSTEMS)[number];
+// ⚠️ Re-exported, NOT redeclared. This file previously held its own
+// ['notion','internal'] literal; once tracked_item.source_system and
+// project.external_system joined the same value space, two lists meant two
+// places to forget. The DB CHECK constraints are generated from the shared one.
+export { EXTERNAL_SYSTEMS, type ExternalSystem } from '@/db/schema/external-system';
 
 // ── What the LLM must return ────────────────────────────────────────────────
 

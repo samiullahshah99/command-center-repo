@@ -19,6 +19,7 @@
 import * as z from 'zod';
 import {
   firefliesTranscriptSchema,
+  graphqlEnvelope,
   transcriptQuerySchema,
   transcriptsQuerySchema,
   type FirefliesTranscript
@@ -414,6 +415,65 @@ export async function getTranscript(
     );
   }
   return firefliesTranscriptSchema.parse(t);
+}
+
+/**
+ * The four fields a meeting LIST needs, and nothing else.
+ *
+ * ⚠️ Deliberately not TRANSCRIPT_FIELDS. That pulls `sentences` — every line of
+ * every meeting — plus speakers and the AI summary. For a 25-row picker that is
+ * megabytes of payload to render four columns, and it makes the page's latency
+ * scale with how much people talked rather than with how many meetings there
+ * are. The full fetch happens once, later, for the one meeting chosen.
+ */
+const TRANSCRIPT_LIST_FIELDS = `
+  id
+  title
+  date
+  duration
+`;
+
+const LIST_TRANSCRIPTS = `
+  query TranscriptsList($limit: Int, $skip: Int) {
+    transcripts(limit: $limit, skip: $skip) {${TRANSCRIPT_LIST_FIELDS}}
+  }
+`;
+
+export const firefliesTranscriptListItemSchema = z.object({
+  id: z.string(),
+  title: z.string().nullish(),
+  date: z.union([z.number(), z.string()]).nullish(),
+  duration: z.number().nullish()
+});
+
+export type FirefliesTranscriptListItem = z.infer<typeof firefliesTranscriptListItemSchema>;
+
+const listTranscriptsSchema = graphqlEnvelope(
+  z.object({ transcripts: z.array(firefliesTranscriptListItemSchema).nullish() })
+);
+
+/**
+ * List recent meetings — id, title, date, duration only.
+ *
+ * Note this succeeds for meetings whose FULL transcript is not retrievable on
+ * the current plan: the list endpoint is not plan-gated, `transcript(id:)` is.
+ * That asymmetry is why the picker can show a meeting it cannot yet open, and
+ * why the UI has a dedicated "not available on the current Fireflies plan" state
+ * rather than a generic error.
+ */
+export async function listTranscripts(
+  limit = 25,
+  skip = 0,
+  opts: FirefliesClientOptions = {}
+): Promise<FirefliesTranscriptListItem[]> {
+  const body = await graphql(
+    'transcripts',
+    LIST_TRANSCRIPTS,
+    { limit, skip },
+    listTranscriptsSchema,
+    opts
+  );
+  return body.data?.transcripts ?? [];
 }
 
 /** Backfill / reconciliation. Also the recovery path for webhooks we never received. */

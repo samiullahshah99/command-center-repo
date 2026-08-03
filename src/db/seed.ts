@@ -11,16 +11,19 @@
  * real upsert.
  *
  * Scope: role_profile, person, recurring_task.
- *   - tracked_item is deliberately NOT seeded. It requires a real
- *     clickup_task_id, and ClickUp is the system of record — an invented id
- *     would reference nothing and 404 the moment code resolved it.
+ *   - tracked_item and project ARE seeded, via ./seed-tracker. This changed
+ *     when the tracker board shipped: the board must render populated on first
+ *     demo. Rows are source_system='internal' with a NULL external_task_id, so
+ *     nothing references a task that does not exist — the original objection
+ *     (an invented clickup_task_id that 404s) still stands and is respected.
  *   - completion_event and raw_event are left empty; they are produced by
  *     ingestion, not by seeding.
  */
 
 import { eq } from 'drizzle-orm';
 import { db, pool } from './index';
-import { person, recurringTask, roleProfile } from './schema';
+import { person, project, recurringTask, roleProfile, trackedItem } from './schema';
+import { seedTracker } from './seed-tracker';
 
 // ── Role profiles (PRD §5.3) ─────────────────────────────────────────────────
 // quota_config is left {} wherever the PRD states "vs quota" without giving a
@@ -292,11 +295,18 @@ async function seed() {
   });
 
   // Report
+  // ⚠️ AFTER the transaction above commits — seedTracker looks people up by
+  // name, so the person rows must be visible to it.
+  const tracker = await seedTracker();
+  console.log(`\n  Tracker: ${tracker.projects} projects, ${tracker.items} tracked items`);
+
   const counts = await Promise.all(
     [
       ['role_profile', roleProfile],
       ['person', person],
-      ['recurring_task', recurringTask]
+      ['recurring_task', recurringTask],
+      ['project', project],
+      ['tracked_item', trackedItem]
     ].map(async ([label, table]) => {
       const rows = await db.select({ id: (table as typeof roleProfile).id }).from(table as never);
       return [label as string, rows.length] as const;

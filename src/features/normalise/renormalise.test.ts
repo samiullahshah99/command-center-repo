@@ -10,8 +10,14 @@
  * Rows are namespaced by RUN and removed afterwards.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { sql } from 'drizzle-orm';
+
+// The default 5s is not enough against Railway over the public proxy: these
+// cases run several statements each and the batched-ClickUp one intermittently
+// timed out at exactly 5000ms — a flake that reads like a normaliser bug rather
+// than latency. Same reason extract.test.ts raises it.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const HAS_DB = Boolean(process.env.DATABASE_URL ?? process.env.DATABASE_PUBLIC_URL);
 const describeDb = HAS_DB ? describe : describe.skip;

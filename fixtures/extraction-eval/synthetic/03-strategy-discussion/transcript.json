@@ -1,0 +1,97 @@
+{
+  "id": "synthetic-03-strategy-discussion",
+  "origin": "synthetic",
+  "title": "Retro and Open Discussion",
+  "meeting_date": "2026-07-31",
+  "speakers": [{ "name": "Priya Raman" }, { "name": "Yusuf Bahri" }, { "name": "Dana Okonkwo" }],
+  "sentences": [
+    {
+      "speaker_name": "Priya Raman",
+      "text": "This one's deliberately unstructured. No agenda, no actions, just talking through where we think things are going."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Good, because I've been chewing on something for a couple of weeks."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Go on."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "I think our onboarding is the wrong shape. It optimises for the customer who already knows what they want."
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "That matches what I hear on calls. People get to step three and stall."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "So the fix would be what, a guided path? Or just fewer steps?"
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Maybe both. It might be worth prototyping a guided version and putting it in front of five customers."
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "That's a decent amount of work though. Two weeks of design at least."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Sure. I'm not proposing we start it, I'm saying it's the direction I'd argue for."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Understood. What else is on people's minds?"
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "Honestly? Hiring. We've been saying we need another designer since March."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "We have. That one's stuck above my head, unfortunately."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Is there anything we can do to unstick it?"
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Not really. It's a budget conversation and budget reopens in October."
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "Then there's not much point relitigating it today."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Agreed. Different topic — did anyone read the postmortem the platform team published?"
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "Skimmed it. The bit about alert fatigue felt very familiar."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Very. We should probably think about our own alerting at some point, though I don't know what good looks like yet."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Let's leave that as a thought rather than a plan."
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "Works for me."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Right, I think that's a natural end. Nothing to action out of this one, which was the intent. Have a good weekend."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "You too."
+    }
+  ]
+}

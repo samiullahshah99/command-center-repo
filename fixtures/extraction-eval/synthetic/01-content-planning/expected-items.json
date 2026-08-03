@@ -1,0 +1,101 @@
+{
+  "case_id": "synthetic-01-content-planning",
+  "origin": "synthetic",
+  "meeting_date": "2026-08-03",
+  "notes": "2026-08-03 is a Monday. Two people named Chris are present, which is the point of the last item.",
+
+  "label_corrections": "The reciprocal-commitment item and the unaccepted-request trap were added after the FIRST run of this harness, which flagged both as model errors when they were mine: I had not labelled Marcus's commitment at all, and I had written the pricing-page case so that nobody ever accepted the work — conflating 'ambiguous owner' with 'unaccepted request'. Recorded here rather than quietly fixed, because a fixture edited to make a score go up is worth being suspicious of.",
+
+  "items": [
+    {
+      "label": "explicit-absolute-date",
+      "difficulty": "easy",
+      "description": "Send Marcus the June campaign numbers",
+      "owner_name": "Dana Okonkwo",
+      "owner_acceptable": ["Dana Okonkwo", "Dana"],
+      "due_date": "2026-08-07",
+      "anchor": "I'll send Marcus the June campaign numbers on August 7th",
+      "why": "A named person, a specific deliverable, and a date stated outright. If this fails, something is badly wrong rather than subtly wrong."
+    },
+    {
+      "label": "reciprocal-commitment",
+      "difficulty": "medium",
+      "description": "Finish the September brief",
+      "owner_name": "Marcus Ellery",
+      "owner_acceptable": ["Marcus Ellery", "Marcus"],
+      "due_date": "2026-08-07",
+      "due_date_acceptable": ["2026-08-07", null],
+      "anchor": "I can turn the brief around same week then",
+      "why": "Phrased as 'I can' rather than 'I will', which is how people actually accept work. A named person committing to a specific deliverable once unblocked. Distinguishing this from 'we should probably' is the judgement the extractor is for.",
+      "date_note": "'same week' as a delivery landing Friday 2026-08-07. Either that Friday or an honest null is defensible, so both are accepted — encoding one as THE answer would measure conformity to my guess."
+    },
+    {
+      "label": "implicit-commitment",
+      "difficulty": "hard",
+      "description": "Edit the four outstanding podcast episodes",
+      "owner_name": "Chris Aldabra",
+      "owner_acceptable": ["Chris Aldabra"],
+      "due_date": "2026-08-31",
+      "anchor": "I'll take that one",
+      "why": "The commitment is four words long and carries no subject. WHAT was taken on comes from Priya's previous line, and WHO took it comes from the speaker label. A model reading line-by-line will either miss this or attribute it to Priya.",
+      "date_note": "'before the end of the month' resolves to the last day of the meeting's month per prompt rule 4."
+    },
+    {
+      "label": "ambiguous-owner",
+      "difficulty": "hard",
+      "description": "Write the pricing page copy",
+      "owner_name": "Chris",
+      "owner_acceptable": [
+        "Chris",
+        "Chris Vandermolen and Chris Aldabra",
+        "unspecified",
+        "unclear",
+        "both Chrises"
+      ],
+      "owner_must_not_be": ["Chris Aldabra"],
+      "due_date": "2026-08-07",
+      "anchor": "We'll sort it out between us. It'll be done by Friday",
+      "why": "The work IS accepted — 'we'll sort it out between us, it'll be done by Friday' — but by 'we', with two Chrises in the room and Priya explicitly declining to pick one. Correct behaviour is to carry the ambiguity forward so a reviewer resolves it. Silently narrowing it to one person is the failure: it looks confident, reads as settled, and assigns one person's work to another.",
+      "owner_note": "Chris Vandermolen is the SPEAKER of the accepting line, so naming him is a defensible reading and is not penalised. Chris Aldabra is not — he asked 'which Chris?' and never accepted, so attributing it to him means the model followed the name rather than the commitment.",
+      "identity_note": "At the identity layer resolveOwner() must return 'unresolved' on a two-way tie. That is covered by owner.test.ts against a real roster; this fixture scores the MODEL layer only."
+    }
+  ],
+
+  "must_not_extract": [
+    {
+      "label": "trap-idea-parked",
+      "anchor": "It might be worth restructuring the whole content calendar",
+      "why": "An idea, floated and then explicitly parked two lines later. Sounds strategic and important, which is exactly why a model reaches for it."
+    },
+    {
+      "label": "trap-suggestion",
+      "anchor": "We should probably look at what the competitors are doing",
+      "why": "'We should' with no owner and no commitment. The single most common false positive shape."
+    },
+    {
+      "label": "trap-unowned-need",
+      "anchor": "Someone needs to get through those before the end of the month",
+      "why": "A real need with no owner. It becomes an action item only when Chris Aldabra claims it, and it must be counted ONCE — attributed to him, not to Priya who voiced the need. Emitting both is double-counting."
+    },
+    {
+      "label": "trap-unaccepted-request",
+      "anchor": "somebody should refresh the brand style guide",
+      "why": "A direct request, aimed at nobody, that nobody answers before the meeting ends. Subtly different from the unowned need above: there the work was later claimed, here it never is. Added after the first run showed the extractor already handles this correctly — worth pinning down so a future prompt change cannot start capturing unaccepted requests without the eval noticing."
+    },
+    {
+      "label": "trap-agreement",
+      "anchor": "Yeah, that makes sense to me",
+      "why": "Agreement is not commitment."
+    },
+    {
+      "label": "trap-question",
+      "anchor": "How long has that been outstanding",
+      "why": "A question about status."
+    },
+    {
+      "label": "trap-observation",
+      "anchor": "The engagement numbers on the long pieces have been flat since April",
+      "why": "An observation. No verb anyone owns."
+    }
+  ]
+}

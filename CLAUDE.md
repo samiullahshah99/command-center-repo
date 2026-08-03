@@ -15,6 +15,7 @@ AGENTS.md content here; the two files drift the moment they overlap.
 - **[docs/themes.md](./docs/themes.md)** — Theme system: OKLCH colors, adding themes, font config
 - **[docs/clerk_setup.md](./docs/clerk_setup.md)** — Clerk auth setup
 - **[docs/access-status.md](./docs/access-status.md)** — Integration credential status
+- **[fixtures/extraction-eval/README.md](./fixtures/extraction-eval/README.md)** — Eval harness: metric definitions, why `real/` is empty, fixture scrub rules
 - **docs/prd.md** — *Not yet committed.* Product requirements.
 
 ## Removed from this template
@@ -161,11 +162,16 @@ From PRD §6:
 - **Singular** entity names: `person`, `role_profile`, `tracked_item`,
   `recurring_task`, `completion_event`, `raw_event`.
 
-> **ClickUp is the system of record for tasks.** `tracked_item` holds a
-> `clickup_task_id` reference and **must not duplicate ClickUp task data** —
-> no mirrored title, status, assignee, or due date beyond what is needed for a
-> join. Duplicating it guarantees drift, and there is no reconciliation story.
-> If a view needs task detail, read it from ClickUp.
+> ⚠️ **SUPERSEDED in Week 2 — the task destination is NOTION (Ocean).**
+> Leadership mandated Notion as the single home for task tracking. See
+> [Task destination](#task-destination-notion-ocean-not-clickup). ClickUp stays
+> a **read-only** transitional source for content-team outputs; there is no
+> ClickUp write path and none is to be built.
+>
+> **Whatever the destination, do not duplicate its task data.** `tracked_item`
+> holds a reference and no mirrored title, status, assignee or due date beyond
+> what a join needs. Duplicating it guarantees drift and there is no
+> reconciliation story. If a view needs task detail, read it from the source.
 
 ---
 
@@ -267,31 +273,68 @@ These are crawler *requests*, not access control. Actual protection is Clerk on
 
 ---
 
-## LLM access (OpenRouter)
+## LLM access
 
-- **All LLM traffic goes through OpenRouter**, not the Anthropic API directly.
-  OpenAI-compatible schema at `https://openrouter.ai/api/v1`.
+- **Every LLM call goes through `src/lib/ai/client.ts`. No inline `fetch`,
+  anywhere, for any reason.** One module is the only place that knows about
+  retries, timeouts, cost logging and model slugs.
+  > **Why it is a hard rule and not a preference:** the provider behind that
+  > module is expected to change — OpenRouter today, possibly a direct Anthropic
+  > key later. Nothing outside `src/lib/ai/` may know which. One inline `fetch`
+  > in feature code turns a one-file swap into a hunt, and the call it skips is
+  > also the one that is not logging its cost, so the first symptom is a bill
+  > that does not reconcile rather than a compile error.
+- **The vendor is named in exactly ONE file: `src/lib/ai/provider.ts`.**
+  It owns the base URL, the slugs, the pricing table and `PROVIDER_NAME`.
+  `client.ts` exposes `complete()` in terms of TIERS (`fast` / `default` /
+  `heavy`), never slugs. Feature code asks for a tier.
 - **`OPENROUTER_API_KEY` is server-side only.** Never prefix it `NEXT_PUBLIC_` —
   that inlines the key into the client bundle and leaks it to every visitor.
-- **Every LLM call must go through a single `src/lib/ai/client.ts` module.**
-  No inline `fetch` to OpenRouter inside feature code. One module means one
-  place for retries, timeouts, cost logging, and model-slug changes.
-  *(Not written yet — Week 2 work.)*
+- **`createProviderClient()` is a FUNCTION, never a module-level constant.**
+  A constant is evaluated at import time, which during `next build` means no
+  env vars — the same mistake that once broke the Docker build via `src/db`.
 
-### Model slugs
+### Model slugs are PINNED — never a `~latest` alias
 
 Verified against the live OpenRouter catalog. Slugs move; re-check with
 `curl -s https://openrouter.ai/api/v1/models` before pinning new ones.
 
 | Tier | Slug | $/M in | $/M out |
 | --- | --- | --- | --- |
-| Haiku | `anthropic/claude-haiku-4.5` | 1.00 | 5.00 |
-| Sonnet | `anthropic/claude-sonnet-5` | 2.00 | 10.00 |
-| Opus | `anthropic/claude-opus-5` | 5.00 | 25.00 |
+| `fast` | `anthropic/claude-haiku-4.5` | 1.00 | 5.00 |
+| `default` | `anthropic/claude-sonnet-5` | 2.00 | 10.00 |
+| `heavy` | `anthropic/claude-opus-5` | 5.00 | 25.00 |
+
+> ⚠️ **A floating alias changes prompt behaviour with no code change.** The
+> extraction prompt is tuned against a specific model; when the alias moves, the
+> output shifts underneath a diff nobody wrote, on a deploy nobody made. Git
+> blame shows nothing, the eval was last green, and the regression looks like
+> data drift. Pin the exact slug and change it deliberately, with
+> `pnpm eval:extraction` run either side of the change.
 
 A `:batch` variant exists for most slugs at ~50% cost with async delivery —
 worth using for scheduled work (nightly role monitors, Control Tower recompute)
 where latency does not matter.
+
+### JSON mode is NOT reliable through OpenRouter
+
+**Do not pass `response_format` / rely on JSON mode.** OpenRouter's support for
+structured output varies by model *and* by which upstream provider the request
+is routed to. The flag is accepted and silently ignored on some routes.
+
+Instead, and in this order:
+
+1. Ask for **bare JSON explicitly** in the prompt — "no markdown fences, the
+   first character must be `{`".
+2. **Strip fences defensively** anyway (`stripFences` in
+   `src/features/extraction/prompt.ts`) — handles ` ```json `, bare fences, and
+   prose either side.
+3. **Zod is the actual guarantee.** A malformed response THROWS.
+
+> **Why not just set the flag and see:** it works in testing and fails in
+> production, because the routing decision is not ours and is not stable. The
+> failure is a fenced reply that a strict parser rejects — indistinguishable
+> from the model having a bad day, on a code path that has not changed.
 
 ---
 
@@ -470,6 +513,151 @@ inline. ClickUp is the only source that carries the actor email inline
 backfill call. Its `user.id` is a JSON **number**; `external_id` is text
 everywhere else.
 
+---
+
+## Week 2 Day 1 — the extraction service
+
+### Task destination: NOTION (Ocean), not ClickUp
+
+**Leadership mandated Notion as the single home for task tracking.** This is a
+product decision, not an engineering preference, and it overrides PRD §3.2 and
+§5.1, which both still name ClickUp.
+
+- **No ClickUp write path exists, and none is to be built.** The ClickUp client
+  is read-only.
+- **ClickUp remains a transitional READ source** for content-team outputs only.
+- Approved action items will be written to Notion (Day 2 work).
+
+> **Why this is called out this loudly:** the repo still contains a ClickUp
+> client, `TASK_SOURCE_OF_RECORD`, `tracked_item.source_system = 'clickup'` and
+> a PRD that names ClickUp as system of record. Every one of those reads like
+> permission to build a ClickUp write path. It is not.
+
+### Field naming: `external_task_id` / `external_system` — NEVER a vendor name
+
+`candidate_action_item` names the destination generically. There is no
+`notion_page_id` column and there must not be one.
+
+> **Why:** a full day of ClickUp-shaped work had to be retargeted when the
+> destination changed. A column called `clickup_task_id` is a migration, a
+> backfill and a rename across every query the day the vendor changes — and the
+> vendor changed once already, mid-project, by a decision made above this repo.
+> Generic naming made the second change a config concern instead of a schema
+> one. `external_system` is CHECK-constrained to `('notion','internal')`, and
+> `external_task_id`/`external_system` are constrained to be set together.
+
+### ONE extraction path, shared between meetings and Slack
+
+**The action-item contract is shared.** One worker, one schema, one prompt:
+
+| | |
+| --- | --- |
+| Queue | `extract.action-items` (**not** a `parse.*` queue — it runs after normalisation and belongs to no connector) |
+| Input | a `unified_event` id |
+| Schema | `src/features/extraction/schemas/action-item.ts` |
+| Output | `candidate_action_item` rows, all `review_status='pending'` |
+
+> ⚠️ **A second extraction path is a design failure, not a shortcut.** Slack
+> (Day 3) reuses this worker and this schema. Two paths means two prompts to
+> keep in sync, two sets of scores that cannot be compared, two idempotency
+> stories, and a review queue whose rows mean different things depending on
+> where they came from. The eval harness would then measure only one of them
+> while appearing to cover extraction as a whole.
+
+**Extraction runs per MEETING, not per message.** Slack batches per **thread**.
+
+> **Why:** cost and quality both scale with the unit. A per-message call on a
+> busy workspace is thousands of calls a day, nearly all on messages containing
+> no commitment — and each one is judging a single line stripped of the
+> conversation that gives it meaning. `"I'll take that one"` is unresolvable
+> alone and obvious in a thread. Per-thread keeps call volume proportional to
+> **conversations**, which is the unit a commitment actually lives in.
+
+### `source_span` is MANDATORY
+
+Every extracted item carries a verbatim quote from its source. Not optional, not
+nullable, minimum 10 characters.
+
+> **Why it is load-bearing rather than nice-to-have:** the entire design rests on
+> a human reviewing proposals before anything is written to Notion. A reviewer
+> confronted with "Dana will send the numbers by Friday" and no quote has to
+> re-listen to the meeting to check it — so they will not check it, they will
+> approve on vibes, and the review step becomes a rubber stamp that adds latency
+> and no safety. The quote is also what makes hallucination measurable at all:
+> `pnpm eval:extraction` checks each span against the transcript mechanically,
+> with no labels needed.
+
+### `content_hash` gives idempotency on re-extraction
+
+`candidate_action_item.content_hash` is a **global** UNIQUE index; writes are
+`ON CONFLICT DO UPDATE`. Re-running extraction on the same transcript updates in
+place instead of duplicating.
+
+- The hash is over **`owner_name` + `source_span`**, deliberately **not** the
+  description. Models paraphrase — a real re-run produced "Email the updated
+  slide deck" for a commitment it had previously called "Send the revised deck".
+  Hashing the description would file the same commitment twice on every re-run.
+- ⚠️ **`review_status`, `reviewed_by`, `reviewed_at`, `edited_fields` and
+  `external_task_id` are EXCLUDED from the update set.** A re-extraction must
+  never undo a human decision. Without this, re-running would return an approved
+  item to the queue — or clear `external_task_id` and push it to Notion twice.
+
+### Owner resolution: names are NEVER an auto-match
+
+Order is **exact** → **email** → **fuzzy** → **unresolved**.
+
+| Confidence | Meaning | Auto-linkable |
+| --- | --- | --- |
+| `exact` | an already-linked `person_identity` for this display name | ✅ |
+| `email` | roster email match, where the local part resembles the spoken name | ✅ |
+| `fuzzy` | a name **suggestion** | ❌ mandatory human confirmation |
+| `unresolved` | no confident answer, including ties | ❌ |
+
+- **`fuzzy` may only ever appear on `candidate_action_item`**, which is a review
+  queue. `person_identity`'s CHECK has no such value and rejects it — verified
+  by a test. On approval the link is created as `'manual'`, because by then a
+  human really did confirm it.
+- **Ambiguity resolves to `unresolved`, not to the better score.** Two roster
+  names within 0.08 of each other produce no suggestion at all.
+  > A reviewer skimming a queue tends to accept whatever is pre-filled, so a
+  > coin-flip suggestion launders a guess into an approval.
+- **An email is only trusted when its local part resembles the spoken name**,
+  never by position in `participants[]`. Fireflies' `speakers[]` is `{id, name}`
+  with no email and nothing links a speaker to a participant entry.
+
+> ⚠️ **Email is the ONLY automatic cross-system key**, because Vision, UGC and
+> Command Centre are **three separate Clerk instances** — ids are not comparable
+> between them and may collide. Identity is always the pair
+> `(source, external_id)`. Two people can share a display name, and a wrong
+> auto-link silently attributes one person's work to another; nobody goes
+> looking for that, because nothing looks broken.
+
+### `pnpm eval:extraction` is the regression gate
+
+**Run it before AND after any prompt change**, and on any model-slug change. It
+scores owner accuracy, recall, precision and hallucination rate against
+hand-labelled fixtures and exits non-zero below threshold.
+
+> ⚠️ **The synthetic fixtures test the HARNESS, not real-world accuracy.** They
+> were authored knowing what the prompt says, they are far cleaner than real
+> Fireflies output (no crosstalk, no ASR errors, correct speaker attribution),
+> and n = 3. `fixtures/extraction-eval/real/` is **empty** and real accuracy is
+> **unmeasured** — Fireflies returns a paid-plan error for transcripts the token
+> holder does not own, and the dedicated test account has no meeting history.
+> **Never report a synthetic score as a real one.** The runner prints real and
+> synthetic separately and refuses to blend them.
+
+> ⚠️ **Known weakness, measured:** deleting rule 1, inverting it, and removing
+> the entire `Do NOT extract:` block from the prompt each changed the score by
+> **nothing**. These cases cannot currently catch a precision regression on
+> Sonnet 5. Forcing a wrong `owner_name` and forcing a fabricated `source_span`
+> both DO fail the gate, so the harness works — but a green run means "the
+> pipeline is intact", not "the prompt is good". Details in
+> `fixtures/extraction-eval/README.md`.
+
+The eval calls the live model (~$0.04/run), so it is a deliberate gate, not a
+per-commit CI step.
+
 ## Connectors and webhooks
 
 ### Webhook handler pattern — mandatory for every new connector
@@ -625,12 +813,15 @@ shape change fails loudly instead of looking healthy.
 ### ClickUp is TRANSITIONAL
 
 - Per the lead, ClickUp is **temporary**, for content team outputs. In-platform
-  brief creation plus studio stats APIs will replace it. PRD §3.2 still keeps it
-  as system of record and §5.1 requires meeting action items to sync into it, so
-  both have to work at once.
-- **Do not build deeper ClickUp coupling.** The client is a thin typed wrapper;
-  person→ClickUp user mapping, list selection, and status taxonomy mapping are
-  deliberately absent and TODO-marked.
+  brief creation plus studio stats APIs will replace it.
+- ⚠️ **READ-ONLY as of Week 2.** PRD §3.2 names ClickUp as system of record and
+  §5.1 requires meeting action items to sync into it. **Both are superseded** —
+  leadership mandated Notion as the single home for task tracking. Action items
+  go to Notion; ClickUp is only a source of content-team events.
+- **Do not build deeper ClickUp coupling, and do not build a write path at all.**
+  The client is a thin typed wrapper; person→ClickUp user mapping, list
+  selection, and status taxonomy mapping are deliberately absent and TODO-marked
+  — those TODOs are now **dead**, not a backlog.
 - **`TASK_SOURCE_OF_RECORD` controls behaviour — read it only via
   `src/config/env.ts`.** Never `process.env` it inline.
 - **`tracked_item.source_system`** discriminates, and a CHECK constraint
@@ -661,6 +852,20 @@ being fixed.
   downstream on `payload->>'channel'`. An event never stored cannot be replayed;
   a wrong downstream filter is one WHERE clause away from being fixed. There is a
   test asserting an unrelated channel is still persisted.
+- **DMs work with `chat:write` alone — `im:write` is NOT needed** (verified).
+  `conversations.open` returns a DM channel id, and `chat.postMessage` to that id
+  succeeds on `chat:write`.
+  > **Why it matters that this was checked rather than assumed:** requesting an
+  > unnecessary scope means a **reinstall**, and new scopes do not apply to an
+  > existing installation — the `users:read.email` reinstall already cost a round
+  > trip in Week 1. Asking for scopes you do not need also makes the consent
+  > screen harder to get approved.
+- **The bot user id is `U0BLNND61QR`. Use it as the loop guard.**
+  > Every message the bot posts comes straight back as an `event_callback`. With
+  > no guard, a bot that replies to messages replies to its own reply — an
+  > infinite loop that is billed per LLM call and looks, from the outside, like a
+  > runaway worker rather than a missing `if`. Compare against the bot **user
+  > id**, not the app id and not the display name.
 
 ### Shopify is NOT integrated — internal backend endpoints replace it
 
@@ -709,10 +914,13 @@ each convention is encoded once in its own connector and never hand-written.
 Each `authHeaders()` **throws** on a missing env var rather than sending
 `Bearer undefined`, which produces the same ambiguous 401.
 
-## Notion (PRD §5.8 — later phase)
+## Notion — the task destination, and the AI-search source
 
-Source for the company AI search feature. **Not on this week's critical path** —
-the PRD marks §5.8 as possibly phased separately.
+⚠️ **Promoted from "later phase" in Week 2.** The PRD files Notion under §5.8 as
+possibly phased separately; that is out of date. Notion (Ocean) is now the
+**destination for approved action items** — see
+[Task destination](#task-destination-notion-ocean-not-clickup) — as well as the
+source for company AI search. It is on the critical path.
 
 - Base URL `https://api.notion.com/v1`, `Authorization: Bearer <token>`.
 - **`Notion-Version` is mandatory on every request** (currently `2022-06-28`).
@@ -726,15 +934,45 @@ the PRD marks §5.8 as possibly phased separately.
   Sharing a *parent* page cascades to its children.
   > A `404 object_not_found` here almost always means "not shared", **not**
   > "wrong ID". Chasing the ID is the standard wasted hour.
-- **Rate limit ≈ 3 requests/second** average. Bursts get `429`.
+- **Rate limit ≈ 3 requests/second** average. Bursts get `429`. A batch of
+  approved items must be paced; pushing a meeting's worth in a loop will 429.
 - **Cursor pagination on every list endpoint** — `has_more` / `next_cursor`.
   Reading only the first page silently under-reports.
+- ⚠️ **A `people` property accepts ONLY Notion workspace members.** An owner who
+  is not one fails the write — and it fails at the API, per item, after the
+  human has already approved it.
+  > This is why `owner_confidence` has to carry enough information for the
+  > review UI to catch it first. `ownerIsPushable(personId, 'notion')` in
+  > `src/features/extraction/owner.ts` answers the question up front so a
+  > missing workspace member surfaces as a **review item**, not as a job that
+  > retries forever against an error that will never clear.
 
 Verify the credential and list shared databases with `pnpm verify:notion`
 (`scripts/verify-notion.ts`). That script is read-only and is not the client.
 
 The client will live at `src/features/connectors/notion/` **once the shared
 connector interface exists** (Day 3). It is deliberately not written yet.
+
+---
+
+## Third-party integrations: develop against DUMMY accounts first
+
+**Security requirement.** Any new third-party integration is built and tested
+against a dedicated dummy/test account. Real workspace credentials are swapped
+in only after the integration works.
+
+> **Why this is a rule and not caution:** early integration code sends malformed
+> requests, retries too fast, and occasionally writes. Against the production
+> workspace that means real tasks created in front of the team, a real webhook
+> registered against a real channel, or a rate-limit strike on the credential
+> everything else depends on. Test traffic is also indistinguishable from real
+> traffic once it is in the same account.
+
+> ⚠️ **The cost lands on evaluation, and it is a real trade.** A fresh test
+> account has **no history** — which is exactly why
+> `fixtures/extraction-eval/real/` is empty and real extraction accuracy is
+> unmeasured. When an integration needs historical data to be evaluated, raise
+> the account question early rather than discovering it at eval time.
 
 ## Commands
 
@@ -753,6 +991,20 @@ Ignore any `bun run` references still in AGENTS.md.
 | `pnpm format` | oxfmt |
 | `pnpm format:check` | Verify formatting |
 | `CI=1 pnpm build` | Build with Sentry source-map upload logs visible |
+
+### Extraction & LLM commands
+
+All of these spend real OpenRouter credit except `--review` and `--dry`.
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm eval:extraction` | **The regression gate.** Run before and after any prompt or model-slug change. Exits non-zero below threshold. ~$0.04 |
+| `pnpm eval:extraction --review` | Print every fixture's retained content in full, for PII review. No model call |
+| `pnpm eval:extraction --verbose` | Per-item detail: which owner and date were actually returned, which traps tripped |
+| `pnpm extract:run --list` | Meetings with a stored transcript, and how many items each has |
+| `pnpm extract:run --dry <id>` | Size a transcript in tokens without calling the model |
+| `pnpm extract:run <unifiedEventId>` | Extract one meeting and print items + cost |
+| `pnpm ai:smoke` | Verify the OpenRouter credential. Distinguishes auth failure, exhausted credit and an unknown slug — an empty balance otherwise reads exactly like a bad key |
 
 ### Database commands
 
@@ -832,6 +1084,10 @@ verbatim before any parser exists.
 - **Forms** — use `useAppForm` + `useFormFields<T>()` from `@/components/ui/tanstack-form`
 - **Page headers** — use `PageContainer` props (`pageTitle`, `pageDescription`, `pageHeaderAction`), never import `<Heading>` manually
 - **Formatting** — single quotes, JSX single quotes, no trailing comma, 2-space indent. Tooling is **oxfmt + oxlint** (`pnpm format`, `pnpm lint`), not Prettier/ESLint
+- **LLM calls** — always `complete()` from `@/lib/ai/client`, requested by TIER, never an inline `fetch` and never a slug in feature code
+- **Tasks go to Notion**, not ClickUp. Columns are `external_task_id` / `external_system` — never a vendor name
+- **One extraction path** for meetings and Slack. A second one is a design failure
+- **Prompt changes** — `pnpm eval:extraction` before and after, every time
 
 ## Day-1 notes
 

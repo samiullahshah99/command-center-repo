@@ -1,5 +1,12 @@
 import { PgBoss, type Db as PgBossDb } from 'pg-boss';
-import { ALL_QUEUE_NAMES, DEAD_LETTER_QUEUE, queueNameFor, type ParseJobData } from './types';
+import {
+  ALL_QUEUE_NAMES,
+  DEAD_LETTER_QUEUE,
+  EXTRACTION_QUEUE,
+  queueNameFor,
+  type ExtractJobData,
+  type ParseJobData
+} from './types';
 import type { RawEventSource } from '@/db/schema';
 
 /**
@@ -200,5 +207,28 @@ export async function stopBoss(
   g.commandCenterBossReady = undefined;
 }
 
-export { DEAD_LETTER_QUEUE, queueNameFor, ALL_QUEUE_NAMES };
-export type { ParseJobData };
+/**
+ * Enqueue an action-item extraction.
+ *
+ * Separate from sendParseJob because the queue and payload differ — extraction
+ * runs after normalisation and is keyed on a unified_event, not a raw_event.
+ */
+export async function sendExtractionJob(
+  data: ExtractJobData,
+  options: ParseJobOptions = {}
+): Promise<string | null> {
+  const boss = await getBoss();
+  return boss.send(EXTRACTION_QUEUE, data, {
+    // A smaller budget than the parse queues on purpose: every retry is a paid
+    // LLM call, so six attempts on a transcript the model cannot parse is real
+    // money spent relearning the same answer.
+    retryLimit: Number(process.env.EXTRACTION_RETRY_LIMIT ?? 2),
+    retryDelay: Number(process.env.EXTRACTION_RETRY_DELAY_SECONDS ?? 30),
+    retryBackoff: true,
+    retryDelayMax: RETRY_DELAY_MAX_SECONDS,
+    ...options
+  });
+}
+
+export { DEAD_LETTER_QUEUE, queueNameFor, ALL_QUEUE_NAMES, EXTRACTION_QUEUE };
+export type { ParseJobData, ExtractJobData };

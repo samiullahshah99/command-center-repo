@@ -8,6 +8,7 @@ export * from './role-profile';
 export * from './person';
 export * from './person-identity';
 export * from './unified-event';
+export * from './candidate-action-item';
 export * from './tracked-item';
 export * from './recurring-task';
 export * from './completion-event';

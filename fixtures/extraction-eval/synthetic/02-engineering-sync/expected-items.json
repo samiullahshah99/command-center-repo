@@ -1,0 +1,87 @@
+{
+  "case_id": "synthetic-02-engineering-sync",
+  "origin": "synthetic",
+  "meeting_date": "2026-07-28",
+  "notes": "2026-07-28 is a Tuesday. This case is about DATES: one relative, one conditional, one deliberately unresolvable.",
+  "items": [
+    {
+      "label": "relative-date-end-of-week",
+      "difficulty": "medium",
+      "description": "Merge the ingest rewrite branch",
+      "owner_name": "Elena Vasquez",
+      "owner_acceptable": ["Elena Vasquez", "Elena"],
+      "due_date": "2026-07-31",
+      "anchor": "I want to get it merged by end of week",
+      "why": "'by end of week' has to be resolved against the meeting date. Tuesday 2026-07-28 -> Friday 2026-07-31. A model that returns null here is under-confident; one that returns a date in the wrong week has anchored on today rather than the meeting."
+    },
+    {
+      "label": "relative-date-first-thing-monday",
+      "difficulty": "medium",
+      "description": "Fix the failing staging deploy",
+      "owner_name": "Tomasz Wierzbicki",
+      "owner_acceptable": ["Tomasz Wierzbicki", "Tomasz"],
+      "due_date": "2026-08-03",
+      "anchor": "I'll fix the staging deploy and have it green first thing Monday",
+      "why": "'first thing Monday' is the NEXT Monday after a Tuesday meeting, which crosses a month boundary — 2026-08-03, not 2026-07-27. Also a reversal: Tomasz declines the work once before committing, so the model must score the second statement and not the first."
+    },
+    {
+      "label": "conditional-commitment",
+      "difficulty": "hard",
+      "description": "Ship the rate-limit retry logic",
+      "owner_name": "Elena Vasquez",
+      "owner_acceptable": ["Elena Vasquez", "Elena"],
+      "due_date": "2026-07-30",
+      "anchor": "I'll ship the retry logic on Thursday",
+      "why": "Hedged on a vendor dependency, but still a commitment with a named owner and a stated day. Dropping it because of the 'assuming' clause is a recall failure; a real reviewer wants to see it.",
+      "date_note": "Thursday after Tuesday 2026-07-28 is 2026-07-30."
+    },
+    {
+      "label": "unconditional-side-commitment",
+      "difficulty": "medium",
+      "description": "Chase the vendor for the sandbox key",
+      "owner_name": "Elena Vasquez",
+      "owner_acceptable": ["Elena Vasquez", "Elena"],
+      "due_date": null,
+      "anchor": "But I'll chase them either way",
+      "why": "Sits inside a discussion about what happens if a dependency slips, which is why it is easy to read as hedging rather than as work. It is not hedged: 'either way' makes it unconditional. A second, smaller commitment buried in the answer to a question about a first one."
+    },
+    {
+      "label": "unresolvable-date",
+      "difficulty": "medium",
+      "description": "Write up the incident from last Tuesday",
+      "owner_name": "Elena Vasquez",
+      "owner_acceptable": ["Elena Vasquez", "Elena"],
+      "due_date": null,
+      "why": "A real commitment with a genuinely unknowable date — 'when I get a chance', said in as many words. due_date MUST be null. Inventing one here is the quiet failure mode: a fabricated deadline propagates into a task system and someone is chased for a date nobody agreed to.",
+      "anchor": "I'll do the write-up"
+    }
+  ],
+  "must_not_extract": [
+    {
+      "label": "trap-someday-refactor",
+      "anchor": "We might want to refactor the whole connector layer at some point",
+      "why": "'might want to' plus 'at some point'. An idea wearing engineering clothes."
+    },
+    {
+      "label": "trap-declined-then-superseded",
+      "anchor": "I could take a look at it sometime this week if nobody else is on it",
+      "why": "'I could ... if nobody else is' is not a commitment, and it is superseded two lines later by a real one. Emitting BOTH this and the Monday commitment double-counts one piece of work. Only the later, firm statement is the action item."
+    },
+    {
+      "label": "trap-question-status",
+      "anchor": "Is anyone actually looking at that",
+      "why": "A question. Reads urgent, commits nobody."
+    },
+    {
+      "label": "trap-observation-metrics",
+      "anchor": "The error rates on the webhook endpoint have doubled this month",
+      "why": "An observation, and one the speaker immediately downgrades to 'still tiny'. Nobody agreed to do anything."
+    },
+    {
+      "label": "trap-unowned-should",
+      "anchor": "Someone should write up the incident from last Tuesday",
+      "why": "Unowned when voiced; becomes an item only when Elena claims it. Counted once, against Elena."
+    }
+  ],
+  "label_corrections": "The 'chase the vendor' item was added after the FIRST run of this harness flagged it as a false positive. It was not — \"But I'll chase them either way\" is the prompt's own canonical commitment form, stated unconditionally by a named person. I had written the line as colour for the conditional-commitment case and failed to label it. Recorded rather than quietly fixed, because a fixture edited to raise a score deserves suspicion."
+}

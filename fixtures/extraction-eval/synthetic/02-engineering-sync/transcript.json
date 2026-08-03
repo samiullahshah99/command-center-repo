@@ -1,0 +1,97 @@
+{
+  "id": "synthetic-02-engineering-sync",
+  "origin": "synthetic",
+  "title": "Platform Sync",
+  "meeting_date": "2026-07-28",
+  "speakers": [
+    { "name": "Yusuf Bahri" },
+    { "name": "Elena Vasquez" },
+    { "name": "Tomasz Wierzbicki" }
+  ],
+  "sentences": [
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Let's keep this short. Where are we on the ingest rewrite?"
+    },
+    {
+      "speaker_name": "Elena Vasquez",
+      "text": "Branch is up. Two reviewers already looked at it. I want to get it merged by end of week."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Any blockers?"
+    },
+    {
+      "speaker_name": "Elena Vasquez",
+      "text": "Only the migration ordering, and I think I've got that sorted."
+    },
+    {
+      "speaker_name": "Tomasz Wierzbicki",
+      "text": "We might want to refactor the whole connector layer at some point, it's getting unwieldy."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Noted, but not this sprint. Tomasz, the staging deploy has been failing since Thursday. Is anyone actually looking at that?"
+    },
+    {
+      "speaker_name": "Tomasz Wierzbicki",
+      "text": "I could take a look at it sometime this week if nobody else is on it."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "That's not really an answer. Can you own it?"
+    },
+    {
+      "speaker_name": "Tomasz Wierzbicki",
+      "text": "Fine, yes. I'll fix the staging deploy and have it green first thing Monday."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Thank you. Elena, the rate-limit thing you mentioned last week?"
+    },
+    {
+      "speaker_name": "Elena Vasquez",
+      "text": "Still on my list. Assuming the vendor gets us the sandbox key, I'll ship the retry logic on Thursday."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "And if they don't?"
+    },
+    {
+      "speaker_name": "Elena Vasquez",
+      "text": "Then it slips. But I'll chase them either way."
+    },
+    {
+      "speaker_name": "Tomasz Wierzbicki",
+      "text": "The error rates on the webhook endpoint have doubled this month, by the way."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Doubled from what to what?"
+    },
+    {
+      "speaker_name": "Tomasz Wierzbicki",
+      "text": "From about point one percent to point two. So still tiny, just worth watching."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Okay. Someone should write up the incident from last Tuesday at some point, soon ideally."
+    },
+    {
+      "speaker_name": "Elena Vasquez",
+      "text": "I'll do the write-up."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "When?"
+    },
+    {
+      "speaker_name": "Elena Vasquez",
+      "text": "Honestly, when I get a chance. It's not urgent."
+    },
+    {
+      "speaker_name": "Yusuf Bahri",
+      "text": "Fair. That's everything from me."
+    }
+  ]
+}

@@ -15,7 +15,15 @@ import { RAW_EVENT_SOURCES, type RawEventSource } from '@/db/schema';
 import { getBoss, RETRY_LIMIT } from './index';
 import { HANDLERS } from './registry';
 import { registerShutdownHandlers } from './shutdown';
-import { isParseJobData, isPermanentJobError, queueNameFor, type ParseJobData } from './types';
+import {
+  EXTRACTION_QUEUE,
+  isExtractJobData,
+  isParseJobData,
+  isPermanentJobError,
+  queueNameFor,
+  type ExtractJobData,
+  type ParseJobData
+} from './types';
 
 /** Jobs fetched per poll, per queue. Modest: this shares the web container. */
 const BATCH_SIZE = Number(process.env.QUEUE_BATCH_SIZE ?? 2);
@@ -55,8 +63,18 @@ export async function startWorkers(): Promise<void> {
     );
   }
 
+  // ── Extraction ────────────────────────────────────────────────────────────
+  // Same options as the parse queues, and for the same reason: perJobResults
+  // plus a per-job try/catch is what stops one poison transcript failing its
+  // batch-mate. See makeExtractionBatchHandler.
+  await boss.work(
+    EXTRACTION_QUEUE,
+    { batchSize: BATCH_SIZE, includeMetadata: true, perJobResults: true },
+    makeExtractionBatchHandler()
+  );
+
   console.warn(
-    `[queue] workers started for ${RAW_EVENT_SOURCES.length} queues ` +
+    `[queue] workers started for ${RAW_EVENT_SOURCES.length + 1} queues ` +
       `(batchSize=${BATCH_SIZE}, retryLimit=${RETRY_LIMIT})`
   );
 }
@@ -81,6 +99,112 @@ export async function startWorkers(): Promise<void> {
 export function makeBatchHandler(source: RawEventSource) {
   return async (jobs: JobWithMetadata<ParseJobData>[]): Promise<JobResult[]> =>
     Promise.all(jobs.map((job) => runOne(source, job)));
+}
+
+/**
+ * The extraction queue's batch handler.
+ *
+ * ⚠️ Identical isolation guarantees to makeBatchHandler, and for the same
+ * reason: batchSize=2 means work() receives an ARRAY, and a handler that throws
+ * fails EVERY job in it. One transcript whose model response will not parse
+ * must not drag an unrelated meeting through the retry ladder with it.
+ *
+ * Two mechanisms, both required — `perJobResults: true` at the work() call, and
+ * this function never throwing.
+ */
+export function makeExtractionBatchHandler() {
+  return async (jobs: JobWithMetadata<ExtractJobData>[]): Promise<JobResult[]> =>
+    Promise.all(jobs.map((job) => runExtraction(job)));
+}
+
+/**
+ * The extractor module, imported once.
+ *
+ * Deferred rather than imported at the top of this file because extract.ts pulls
+ * in the AI client and the extraction schemas, and nothing else in the worker
+ * boot path needs them.
+ *
+ * ⚠️ Memoised, not re-imported per job. A batch calls runExtraction concurrently,
+ * and two simultaneous `import()` calls of the same specifier are two separate
+ * module resolutions until one settles — which surfaced as a test where the
+ * second job in a batch bypassed a mocked module entirely. One shared promise
+ * makes every job in the batch see the same module, always.
+ *
+ * The rejection is NOT cached, for the same reason getBoss() does not cache one:
+ * a transient failure must cost one job, not the process lifetime.
+ */
+let extractorModule: Promise<typeof import('@/features/extraction/extract')> | null = null;
+
+function loadExtractor(): Promise<typeof import('@/features/extraction/extract')> {
+  if (extractorModule) return extractorModule;
+
+  const loading = import('@/features/extraction/extract');
+  extractorModule = loading;
+  loading.catch(() => {
+    if (extractorModule === loading) extractorModule = null;
+  });
+  return loading;
+}
+
+async function runExtraction(job: JobWithMetadata<ExtractJobData>): Promise<JobResult> {
+  const attempt = job.retryCount ?? 0;
+  const label = `${attempt + 1}/${RETRY_LIMIT + 1}`;
+
+  if (!isExtractJobData(job.data)) {
+    // Malformed data will not improve on retry.
+    console.error(
+      `[queue:extract] job=${job.id} attempt=${label} MALFORMED job data — dead-lettering without retry`
+    );
+    return { id: job.id, status: 'deadletter', output: { reason: 'malformed_job_data' } };
+  }
+
+  const startedAt = Date.now();
+  console.warn(
+    `[queue:extract] job=${job.id} attempt=${label} start unifiedEventId=${job.data.unifiedEventId}`
+  );
+
+  try {
+    const { extractActionItems } = await loadExtractor();
+    const result = await extractActionItems(job.data.unifiedEventId);
+
+    if (result.skippedReason) {
+      // Not an error: a meeting with no stored transcript is a normal state, and
+      // retrying will not conjure one.
+      console.warn(
+        `[queue:extract] job=${job.id} attempt=${label} skipped — ${result.skippedReason}`
+      );
+      return { id: job.id, status: 'completed', output: { skipped: result.skippedReason } };
+    }
+
+    console.warn(
+      `[queue:extract] job=${job.id} attempt=${label} ok in ${Date.now() - startedAt}ms — ` +
+        `${result.itemsExtracted} item(s), $${result.usage.estimatedCostUsd.toFixed(5)}`
+    );
+    return {
+      id: job.id,
+      status: 'completed',
+      output: {
+        items: result.itemsExtracted,
+        written: result.itemsWritten,
+        updated: result.itemsUpdated,
+        costUsd: result.usage.estimatedCostUsd
+      }
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+
+    if (isPermanentJobError(err)) {
+      console.error(
+        `[queue:extract] job=${job.id} attempt=${label} PERMANENT failure — dead-lettering: ${message}`
+      );
+      return { id: job.id, status: 'deadletter', output: { message, permanent: true } };
+    }
+
+    console.error(
+      `[queue:extract] job=${job.id} attempt=${label} FAILED after ${Date.now() - startedAt}ms: ${message}`
+    );
+    return { id: job.id, status: 'failed', output: { message, attempt } };
+  }
 }
 
 async function runOne(

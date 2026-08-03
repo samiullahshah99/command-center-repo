@@ -22,7 +22,33 @@ export function queueNameFor(source: RawEventSource): string {
   return `${QUEUE_PREFIX}.${source}`;
 }
 
-export const ALL_QUEUE_NAMES = RAW_EVENT_SOURCES.map(queueNameFor);
+/**
+ * Action-item extraction.
+ *
+ * ⚠️ NOT a `parse.*` queue. Those are one-per-raw-event-source and are derived
+ * from RAW_EVENT_SOURCES; extraction is a different stage that runs AFTER
+ * normalisation and is not tied to any one connector. Squeezing it into
+ * queueNameFor() would have meant inventing a fake source.
+ *
+ * Same dot separator — pg-boss v12 rejects `:`.
+ */
+export const EXTRACTION_QUEUE = 'extract.action-items';
+
+/** What an extraction job carries: which unified_event to extract from. */
+export type ExtractJobData = {
+  unifiedEventId: string;
+};
+
+export function isExtractJobData(v: unknown): v is ExtractJobData {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as { unifiedEventId?: unknown }).unifiedEventId === 'string' &&
+    (v as { unifiedEventId: string }).unifiedEventId.length > 0
+  );
+}
+
+export const ALL_QUEUE_NAMES = [...RAW_EVENT_SOURCES.map(queueNameFor), EXTRACTION_QUEUE];
 
 /**
  * Dead-letter queue. pg-boss moves a job here after `retryLimit` is exhausted;

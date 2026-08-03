@@ -1,0 +1,43 @@
+{
+  "case_id": "synthetic-03-strategy-discussion",
+  "origin": "synthetic",
+  "meeting_date": "2026-07-31",
+  "notes": "THE ZERO CASE. A full meeting of substantive discussion containing no commitments at all. The correct output is an empty array.",
+
+  "why_this_case_exists": "Every other fixture measures whether the extractor finds what is there. This one measures whether it can find NOTHING and be comfortable — which is the behaviour that decides whether anyone trusts the review queue. A model rewarded for looking useful will manufacture two or three plausible items here, and each one costs a reviewer's attention and a little more of their willingness to read the next batch. It is also the only case where precision and hallucination rate are measurable in isolation, because with zero true items every emitted item is a false positive by definition.",
+
+  "items": [],
+
+  "must_not_extract": [
+    {
+      "label": "trap-directional-proposal",
+      "anchor": "It might be worth prototyping a guided version and putting it in front of five customers",
+      "why": "The most tempting line in the set: concrete, scoped, a number in it. And explicitly disowned two lines later — 'I'm not proposing we start it.' A model that extracts this is pattern-matching on shape rather than reading for commitment."
+    },
+    {
+      "label": "trap-blocked-need",
+      "anchor": "We've been saying we need another designer since March",
+      "why": "A real, long-standing need that the meeting concludes nobody can act on. Need is not commitment."
+    },
+    {
+      "label": "trap-vague-should",
+      "anchor": "We should probably think about our own alerting at some point",
+      "why": "'should probably ... at some point', immediately parked by the chair. The classic false positive."
+    },
+    {
+      "label": "trap-question",
+      "anchor": "Is there anything we can do to unstick it",
+      "why": "A question, answered 'not really'."
+    },
+    {
+      "label": "trap-observation",
+      "anchor": "People get to step three and stall",
+      "why": "An observation from customer calls. No owner, no verb anyone took on."
+    },
+    {
+      "label": "trap-reading-not-doing",
+      "anchor": "did anyone read the postmortem the platform team published",
+      "why": "Past-tense question about something already done."
+    }
+  ]
+}

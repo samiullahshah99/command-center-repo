@@ -1,0 +1,121 @@
+{
+  "id": "synthetic-01-content-planning",
+  "origin": "synthetic",
+  "title": "Q3 Content Planning",
+  "meeting_date": "2026-08-03",
+  "speakers": [
+    {
+      "name": "Priya Raman"
+    },
+    {
+      "name": "Marcus Ellery"
+    },
+    {
+      "name": "Dana Okonkwo"
+    },
+    {
+      "name": "Chris Vandermolen"
+    },
+    {
+      "name": "Chris Aldabra"
+    }
+  ],
+  "sentences": [
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Right, let's get going. Three things today: the September brief, the podcast backlog, and whatever's left of the site refresh."
+    },
+    {
+      "speaker_name": "Marcus Ellery",
+      "text": "Morning everyone. Sorry, my camera's being weird."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "No worries. September brief first. Marcus, where did that land?"
+    },
+    {
+      "speaker_name": "Marcus Ellery",
+      "text": "It's about eighty percent there. I still need the numbers from the June campaign to finish the performance section."
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "I have those in a sheet somewhere. I'll send Marcus the June campaign numbers on August 7th, that's when the finance export refreshes."
+    },
+    {
+      "speaker_name": "Marcus Ellery",
+      "text": "Perfect, that works. I can turn the brief around same week then."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Good. Now, the thing I keep coming back to is whether we should be doing long-form at all next quarter."
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "I've wondered that too. The engagement numbers on the long pieces have been flat since April."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Right. It might be worth restructuring the whole content calendar around short-form and seeing what happens."
+    },
+    {
+      "speaker_name": "Marcus Ellery",
+      "text": "Yeah, that makes sense to me. Big change though."
+    },
+    {
+      "speaker_name": "Dana Okonkwo",
+      "text": "We should probably look at what the competitors are doing before we commit to anything that big."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Agreed, let's park it for now and revisit next quarter. Okay, podcast backlog. There are four episodes sitting unedited."
+    },
+    {
+      "speaker_name": "Chris Vandermolen",
+      "text": "Four? I thought it was two."
+    },
+    {
+      "speaker_name": "Chris Aldabra",
+      "text": "It was two, then we recorded the founder series."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Someone needs to get through those before the end of the month or we'll be publishing stale content."
+    },
+    {
+      "speaker_name": "Chris Aldabra",
+      "text": "I'll take that one."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Thanks. Last thing, the site refresh. The copy for the pricing page still isn't done and it's blocking design."
+    },
+    {
+      "speaker_name": "Marcus Ellery",
+      "text": "How long has that been outstanding?"
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Three weeks. Chris, can you pick up the pricing page copy?"
+    },
+    {
+      "speaker_name": "Chris Aldabra",
+      "text": "Which Chris?"
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Ha. Either of you, honestly, whoever gets to it first."
+    },
+    {
+      "speaker_name": "Chris Vandermolen",
+      "text": "We'll sort it out between us. It'll be done by Friday, one way or another."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Oh, and somebody should refresh the brand style guide, it's a year out of date."
+    },
+    {
+      "speaker_name": "Priya Raman",
+      "text": "Great. Anything else? No? Let's wrap."
+    }
+  ]
+}

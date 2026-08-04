@@ -50,10 +50,7 @@ export default function PersonForm({
   const form = useAppForm({
     defaultValues: {
       name: initialData?.name ?? '',
-      roleProfileId: initialData?.roleProfileId ?? '',
-      slackId: initialData?.slackId ?? '',
-      clickupId: initialData?.clickupId ?? '',
-      portalId: initialData?.portalId ?? ''
+      roleProfileId: initialData?.roleProfileId ?? ''
     } as PersonFormValues,
     validators: {
       // Reused from the DB-level insertPersonSchema — see schemas/person.ts.
@@ -62,10 +59,7 @@ export default function PersonForm({
     onSubmit: ({ value }) => {
       const payload = {
         name: value.name.trim(),
-        roleProfileId: orNull(value.roleProfileId),
-        slackId: orNull(value.slackId),
-        clickupId: orNull(value.clickupId),
-        portalId: orNull(value.portalId)
+        roleProfileId: orNull(value.roleProfileId)
       };
 
       if (isEdit) {
@@ -100,26 +94,16 @@ export default function PersonForm({
               />
             </div>
 
-            <div className='grid grid-cols-1 gap-6 md:grid-cols-3'>
-              <FormTextField
-                name='slackId'
-                label='Slack ID'
-                placeholder='U01ABC2DEF3'
-                description='Leave blank if not yet linked.'
-              />
-              <FormTextField
-                name='clickupId'
-                label='ClickUp ID'
-                placeholder='12345678'
-                description='Leave blank if not yet linked.'
-              />
-              <FormTextField
-                name='portalId'
-                label='Portal ID'
-                placeholder='internal-portal id'
-                description='Leave blank if not yet linked.'
-              />
-            </div>
+            {/*
+              Identity fields intentionally absent.
+
+              They wrote person.slack_id / clickup_id / portal_id, which cannot
+              express WHICH system an id belongs to and cannot hold two accounts
+              for one source. `person_identity` supersedes them on the PAIR
+              (source, external_id) with a confidence tier, and linking happens at
+              /dashboard/identities where that provenance is recorded. Typing an
+              id here would have created a second, unreconciled representation.
+            */}
 
             <div className='flex justify-end gap-2'>
               <Button type='button' variant='outline' onClick={() => router.back()}>

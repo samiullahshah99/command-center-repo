@@ -1,7 +1,7 @@
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
 import { searchParamsCache } from '@/lib/searchparams';
-import { peopleQueryOptions, roleProfileOptionsQuery } from '../api/queries';
+import { peopleBoardQueryOptions, roleProfileOptionsQuery } from '../api/queries';
 import { PeopleTable } from './people-table';
 
 // Server component. Mirrors src/features/products/components/product-listing.tsx.
@@ -24,7 +24,7 @@ export default function PeopleListingPage() {
 
   const queryClient = getQueryClient();
 
-  void queryClient.prefetchQuery(peopleQueryOptions(filters));
+  void queryClient.prefetchQuery(peopleBoardQueryOptions(filters));
   // Prefetched too, so the role-profile filter dropdown is populated on first paint.
   void queryClient.prefetchQuery(roleProfileOptionsQuery());
 

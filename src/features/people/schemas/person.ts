@@ -32,10 +32,14 @@ export const personFormSchema = insertPersonSchema
   });
 
 // Form state uses strings throughout — '' is the empty value the inputs produce.
+/**
+ * ⚠️ `slackId` / `clickupId` / `portalId` removed. They are superseded by
+ * `person_identity`, which keys on the PAIR (source, external_id) — a bare
+ * `slack_id` column cannot say which system an id belongs to and cannot hold two
+ * accounts for one source. Identities are linked at /dashboard/identities, not
+ * typed into this form. The DB columns still exist and are NOT dropped.
+ */
 export type PersonFormValues = {
   name: string;
   roleProfileId: string;
-  slackId: string;
-  clickupId: string;
-  portalId: string;
 };

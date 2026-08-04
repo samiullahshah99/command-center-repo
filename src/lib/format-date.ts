@@ -111,3 +111,43 @@ export function formatDueDate(
     absent: false
   };
 }
+
+/**
+ * Relative time — "4h ago", "3d ago". `now` is a REQUIRED PARAMETER, never read
+ * from the clock inside.
+ *
+ * ⚠️ Same reasoning as `formatDueDate`, and it is the reason this takes `now`
+ * rather than calling `new Date()`: the server clock and the browser clock are
+ * never the same instant, so a string computed during render mismatches by
+ * construction the moment it ticks over ("2m ago" → "3m ago"). React then
+ * discards the subtree, which presents as a table with a toolbar, a row count,
+ * and no rows. Resolve `now` once above the tree and thread it down.
+ *
+ * ⚠️ No `Intl.RelativeTimeFormat` here. It is locale-aware and would need the
+ * same pinning as everything else in this file for no benefit — the output is
+ * four fixed English shapes, and hand-formatting keeps it provably identical on
+ * both sides of hydration.
+ */
+export function formatRelativeTime(iso: string | null, now: Date): string {
+  if (!iso) return '—';
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return '—';
+
+  const seconds = Math.floor((now.getTime() - then.getTime()) / 1000);
+  // A clock skew between the app server and Postgres can put an event a few
+  // seconds in the future. "in 3 seconds" reads as a bug; "just now" is true
+  // enough and does not invite a support ticket.
+  if (seconds < 60) return 'just now';
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  // Beyond a month, an absolute date is more useful than "9w ago" — and it is
+  // already locale- and timezone-pinned.
+  return formatDateOnly(then.toISOString().slice(0, 10));
+}

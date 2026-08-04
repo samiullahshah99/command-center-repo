@@ -6,12 +6,19 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { getSortingStateParser } from '@/lib/parsers';
-import { useMemo } from 'react';
-import { peopleQueryOptions, roleProfileOptionsQuery } from '../../api/queries';
+import { useMemo, useState } from 'react';
+import { peopleBoardQueryOptions, roleProfileOptionsQuery } from '../../api/queries';
+import type { PersonBoardRow } from '../../api/types';
+import { PersonDrawer } from '../person-drawer';
 import { buildColumns } from './columns';
 
 // Sortable/filterable ids must match the column ids in buildColumns().
-const COLUMN_IDS = ['name', 'role', 'slackId', 'clickupId'];
+/**
+ * ⚠️ Sortable ids only. `slackId`/`clickupId` are gone with their columns, and the
+ * three widget columns are deliberately NOT sortable: sorting by activity would
+ * turn a seven-person visibility tool into a leaderboard.
+ */
+const COLUMN_IDS = ['name', 'role'];
 
 export function PeopleTable() {
   const [params] = useQueryStates({
@@ -32,10 +39,22 @@ export function PeopleTable() {
     ...(params.sort.length > 0 && { sort: JSON.stringify(params.sort) })
   };
 
-  const { data } = useSuspenseQuery(peopleQueryOptions(filters));
+  const { data } = useSuspenseQuery(peopleBoardQueryOptions(filters));
   const { data: roleProfileOptions } = useSuspenseQuery(roleProfileOptionsQuery());
 
-  const columns = useMemo(() => buildColumns(roleProfileOptions), [roleProfileOptions]);
+  const [openPerson, setOpenPerson] = useState<PersonBoardRow | null>(null);
+
+  /**
+   * ⚠️ ONE `now` for the whole table, taken from the SERVER's value rather than
+   * `new Date()`. Every relative label in every row derives from it — see the
+   * note on buildColumns.
+   */
+  const now = useMemo(() => new Date(data.now), [data.now]);
+
+  const columns = useMemo(
+    () => buildColumns(roleProfileOptions, now, setOpenPerson),
+    [roleProfileOptions, now]
+  );
 
   const pageCount = Math.ceil(data.total_people / params.perPage);
 
@@ -51,8 +70,18 @@ export function PeopleTable() {
   });
 
   return (
-    <DataTable table={table}>
-      <DataTableToolbar table={table} />
-    </DataTable>
+    <>
+      <DataTable table={table}>
+        <DataTableToolbar table={table} />
+      </DataTable>
+
+      {/* Panel data loads on OPEN, not with the table — see PersonDrawer. */}
+      <PersonDrawer
+        person={openPerson}
+        open={Boolean(openPerson)}
+        onOpenChange={(next) => !next && setOpenPerson(null)}
+        editHref={openPerson ? `/dashboard/people/${openPerson.id}` : undefined}
+      />
+    </>
   );
 }

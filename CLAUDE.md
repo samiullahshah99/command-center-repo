@@ -155,6 +155,49 @@ export const productKeys = {
   **singleton** in the browser. Never hoist it to module scope in a server
   component.
 
+### ⚠️ The client/server boundary: a client component may NEVER import `@/db`
+
+DB access lives behind `'use server'` functions, callable as RPC from the
+browser. A `'use client'` component consumes them through a TanStack `queryFn`
+— never by importing a DB module. `src/features/people/api/service.ts` documents
+the contract at the top of the file.
+
+> **The failure mode is why this is stated so loudly.** A client component
+> imported a *constant* from a module that also imported `db`, which dragged `pg`
+> into the browser bundle. The build failed with **seven** Turbopack errors
+> naming `dns`, `net`, `tls`, `fs` and `util/types` **inside pg internals** —
+> not one of which mentions the import that caused it. It reads as a broken
+> dependency, so the search starts in `node_modules` instead of at the boundary.
+
+**Two guards, and they cover different halves:**
+
+1. **`import 'server-only'`** at the top of any shared module that touches the
+   DB — currently `src/lib/brief-fold.ts` and `src/lib/nav-counts.ts`. A client
+   import then fails the build with *"This module cannot be imported from a
+   Client Component module"*, naming the actual rule.
+2. **`pnpm lint:boundaries`** (`scripts/check-client-boundaries.ts`) scans every
+   `'use client'` file for forbidden specifiers.
+
+> ⚠️ **`server-only` CANNOT be applied to `src/db/index.ts`**, which is the module
+> that actually pulls in `pg`. It resolves to a module that **throws** under
+> Node's default condition, and 14 tsx scripts (`db:seed`, `events:attribute`,
+> `renormalise`, `eval:extraction`, …) plus the node-env vitest suites import
+> `@/db` directly. Marking it would break every one of them. That gap is exactly
+> what `lint:boundaries` exists to cover.
+
+> ⚠️ **`@/db/schema/*` IS client-safe and must stay allowed.** Schema modules pull
+> in `drizzle-orm/pg-core` — a query builder with no driver — so importing a
+> constant like `TRACKED_ITEM_STATUSES` or `IDENTITY_SOURCES` into a client
+> component is fine, and two components already do it. A first version of the
+> check forbade all of `@/db/*` and flagged both as errors. **A gate that fails on
+> working code gets switched off**, so the rule is scoped to `@/db` exactly (the
+> pool) and `drizzle-orm/node-postgres` (the driver adapter).
+
+**Splitting a shared module when a client needs part of it:** keep the
+client-safe half in its own file with no DB import. `src/lib/brief-states.ts`
+(states, labels, event→state map) is the client-safe half of
+`src/lib/brief-fold.ts` (the query) for exactly this reason.
+
 ### Data model & naming
 
 From PRD §6:

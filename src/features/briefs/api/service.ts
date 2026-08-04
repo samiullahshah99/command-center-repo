@@ -13,15 +13,9 @@
 import { auth } from '@clerk/nextjs/server';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { LIFECYCLE_EVENT_STATE, quotaConfigSchema } from '../constants/brief-states';
-import type {
-  BriefBoard,
-  BriefCard,
-  BriefQuota,
-  BriefState,
-  BriefTimeline,
-  QuotaRow
-} from './types';
+import { foldBriefs, PRODUCTION_BRIEF } from '@/lib/brief-fold';
+import { quotaConfigSchema } from '../constants/brief-states';
+import type { BriefBoard, BriefCard, BriefQuota, BriefTimeline, QuotaRow } from './types';
 
 /**
  * `db.execute` returns a result object on node-postgres and a bare array on some
@@ -39,33 +33,6 @@ async function requireUser(): Promise<void> {
 }
 
 /**
- * ⚠️ THE PRODUCTION FILTER, applied in EVERY query in this file.
- *
- * ⚠️ EVERY COLUMN IS QUALIFIED `ue.`, and every consumer MUST alias
- * `unified_event` as `ue`. Unqualified `source = 'vision'` looked fine in
- * isolation and threw `column reference "source" is ambiguous` the moment the
- * `person_identity` join landed — that table has its own `source` (and `email`)
- * column. A shared SQL fragment cannot rely on there being only one table in
- * scope.
- *
- * 12 of 186 Vision events are `development`. `control_center.test` is excluded by
- * requiring `subject_type = 'brief'` — the test envelope carries no brief
- * subject. `coalesce(...,'production')` treats a missing environment as
- * production so an older event predating the field is not silently dropped.
- */
-const PRODUCTION_BRIEF = sql`
-  ue.source = 'vision'
-  and ue.subject_type = 'brief'
-  and coalesce(ue.metadata->>'environment', 'production') = 'production'
-`;
-
-const LIFECYCLE_TYPES = sql.raw(
-  `(${Object.keys(LIFECYCLE_EVENT_STATE)
-    .map((t) => `'${t}'`)
-    .join(',')})`
-);
-
-/**
  * The board.
  *
  * ⚠️ TWO QUERIES FOR THE WHOLE BOARD, never one per brief. Query A folds each
@@ -80,83 +47,27 @@ const LIFECYCLE_TYPES = sql.raw(
 export async function getBriefBoard(): Promise<BriefBoard> {
   await requireUser();
 
-  const now = new Date();
+  // The SHARED fold — the same function the overview page calls, so the two
+  // surfaces can never disagree about a brief's state.
+  const folded = await foldBriefs();
 
-  // ── A. Last LIFECYCLE event per brief → the derived state. ────────────────
-  const stateRes = await db.execute(sql`
-    select distinct on (ue.subject_id)
-      ue.subject_id,
-      ue.event_type,
-      ue.occurred_at::text as state_entered_at,
-      pi.person_id,
-      coalesce(pi.editor_name, pi.display_name, pi.email) as actor_name
-    from unified_event ue
-    left join person_identity pi on pi.id = ue.person_identity_id
-    where ${PRODUCTION_BRIEF} and ue.event_type in ${LIFECYCLE_TYPES}
-    order by ue.subject_id, ue.occurred_at desc
-  `);
+  const cards: BriefCard[] = folded.map((b) => ({
+    id: b.id,
+    label: b.label,
+    // Enough to tell colliding "#4 — Untitled brief" cards apart, short enough to
+    // stay secondary to the label it disambiguates.
+    idFragment: b.id.slice(0, 8),
+    state: b.state,
+    stateEnteredAt: b.stateEnteredAt,
+    strategist: b.actorName
+      ? { personId: b.actorPersonId, name: b.actorName, linked: Boolean(b.actorPersonId) }
+      : null,
+    firstObservedAt: b.firstObservedAt,
+    lastActivityAt: b.lastActivityAt,
+    eventCount: b.eventCount
+  }));
 
-  // ── B. Aggregates per brief, over ALL its events (comments included). ─────
-  const aggRes = await db.execute(sql`
-    select
-      ue.subject_id,
-      count(*)::int as event_count,
-      min(ue.occurred_at)::text as first_observed_at,
-      max(ue.occurred_at)::text as last_activity_at,
-      (array_agg(ue.subject_label order by ue.occurred_at desc))[1] as label
-    from unified_event ue
-    where ${PRODUCTION_BRIEF}
-    group by ue.subject_id
-  `);
-
-  type StateRow = {
-    subject_id: string;
-    event_type: string;
-    state_entered_at: string;
-    person_id: string | null;
-    actor_name: string | null;
-  };
-  type AggRow = {
-    subject_id: string;
-    event_count: number;
-    first_observed_at: string;
-    last_activity_at: string;
-    label: string | null;
-  };
-
-  const stateRows = rowsOf<StateRow>(stateRes);
-  const aggByBrief = new Map(rowsOf<AggRow>(aggRes).map((r) => [r.subject_id, r]));
-
-  const cards: BriefCard[] = [];
-  for (const s of stateRows) {
-    const agg = aggByBrief.get(s.subject_id);
-    if (!agg) continue;
-
-    cards.push({
-      id: s.subject_id,
-      label: agg.label,
-      // Enough to tell colliding "#4 — Untitled brief" cards apart, short enough
-      // to stay a secondary element rather than competing with the label.
-      idFragment: s.subject_id.slice(0, 8),
-      state: LIFECYCLE_EVENT_STATE[s.event_type] as BriefState,
-      stateEnteredAt: new Date(s.state_entered_at).toISOString(),
-      strategist: s.actor_name
-        ? { personId: s.person_id, name: s.actor_name, linked: Boolean(s.person_id) }
-        : null,
-      firstObservedAt: new Date(agg.first_observed_at).toISOString(),
-      lastActivityAt: new Date(agg.last_activity_at).toISOString(),
-      eventCount: agg.event_count
-    });
-  }
-
-  /**
-   * ⚠️ A brief whose ONLY events are comments/script-saves has no lifecycle event
-   * and so no derivable state — it is absent from query A and therefore from the
-   * board. Not observed in current data (every brief has at least one lifecycle
-   * event), but recorded because it would present as a missing card rather than
-   * an error.
-   */
-  return { cards, total: aggByBrief.size, now: now.toISOString() };
+  return { cards, total: cards.length, now: new Date().toISOString() };
 }
 
 /** Full event timeline for one brief — comments and script saves included. */

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LIFECYCLE_EVENT_STATE, type BriefState } from '@/lib/brief-fold';
+import { LIFECYCLE_EVENT_STATE, type BriefState } from '@/lib/brief-states';
 
 /**
  * Brief lifecycle, DERIVED — Vision has no status field.
@@ -19,7 +19,7 @@ import { LIFECYCLE_EVENT_STATE, type BriefState } from '@/lib/brief-fold';
  * shared behaviour to src/lib rather than a cross-feature import. Re-exported so
  * this file stays the one import site for brief presentation.
  */
-export { BRIEF_STATES, LIFECYCLE_EVENT_STATE, type BriefState } from '@/lib/brief-fold';
+export { BRIEF_STATES, LIFECYCLE_EVENT_STATE, type BriefState } from '@/lib/brief-states';
 
 /** Every brief event we recognise, lifecycle or not — used for the timeline. */
 export const BRIEF_EVENT_TYPES = [

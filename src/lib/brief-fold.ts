@@ -1,5 +1,28 @@
+import 'server-only';
+
+/**
+ * ⚠️ `import 'server-only'` above is the BOUNDARY GUARD, not decoration.
+ *
+ * This module imports `db`, so a `'use client'` component importing anything
+ * from it drags `pg` into the browser bundle. That failed as SEVEN Turbopack
+ * errors naming `dns`, `net`, `tls`, `fs` and `util/types` inside pg internals —
+ * which reads as a broken dependency rather than as the boundary violation it
+ * is. With this marker the build instead says "This module cannot be imported
+ * from a Client Component module", naming the actual rule.
+ *
+ * ⚠️ The client-safe half of this contract lives in `./brief-states` — states,
+ * labels and the event→state map, with NO db import. Client components import
+ * from there.
+ *
+ * ⚠️ NOT applied to `src/db/index.ts`, deliberately: `server-only` resolves to a
+ * module that THROWS under Node's default condition, and 14 tsx scripts
+ * (db:seed, events:attribute, renormalise, eval:extraction …) plus the node-env
+ * vitest suites import `@/db` directly. Guarding it there would break every one
+ * of them. `pnpm lint:boundaries` covers that case instead.
+ */
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { LIFECYCLE_EVENT_STATE, type BriefState } from './brief-states';
 
 /**
  * THE brief state fold. One implementation, app-wide.
@@ -10,6 +33,10 @@ import { db } from '@/db';
  * an import between them". Overview calling briefs' service would be exactly the
  * cross-feature service import that rule forbids.
  *
+ * ⚠️ SERVER-ONLY — it imports `db`. The client-safe state contract lives in
+ * `./brief-states`; a client component importing from THIS file pulls `pg` into
+ * the browser bundle and the build fails on missing Node built-ins.
+ *
  * ⚠️ NOT `'use server'`. This is a plain module called BY Server Actions, not a
  * Server Action itself — it has no auth check of its own, so every caller must
  * do its own `auth()` before invoking it.
@@ -19,34 +46,6 @@ import { db } from '@/db';
  * disagree with the log it came from, and the only way to check would be
  * re-deriving it — which is this function.
  */
-
-/** Column/lifecycle order. Not alphabetical. */
-export const BRIEF_STATES = ['in_progress', 'in_review', 'sent_back', 'approved'] as const;
-export type BriefState = (typeof BRIEF_STATES)[number];
-
-/**
- * Events that MOVE a brief. Last one wins.
- *
- * ⚠️ `brief.commented` and `brief.script_saved` are deliberately absent — they
- * update last-activity only. Verified against real data: `#2 — Ronin Launch` is
- * `submitted > commented > commented > sent_back > commented` and its state is
- * "Sent back". The trailing comment must not drag it back to In review.
- *
- * ⚠️ `brief.updated → in_progress` is what makes RESUBMISSION work with no
- * special-casing: a sent-back brief that gets edited returns to In progress, and
- * a later submit puts it back in review. The fold only ever asks "what was the
- * last lifecycle event".
- *
- * ⚠️ `brief.approved` has never been observed (0 of 165 events) but is mapped so
- * the day it arrives the board just works instead of filing it as In progress.
- */
-export const LIFECYCLE_EVENT_STATE: Record<string, BriefState> = {
-  'brief.created': 'in_progress',
-  'brief.updated': 'in_progress',
-  'brief.submitted': 'in_review',
-  'brief.sent_back': 'sent_back',
-  'brief.approved': 'approved'
-};
 
 /**
  * ⚠️ THE PRODUCTION FILTER. Every brief query must use it.

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LIFECYCLE_EVENT_STATE, type BriefState } from '@/lib/brief-fold';
 
 /**
  * Brief lifecycle, DERIVED — Vision has no status field.
@@ -12,36 +13,13 @@ import { z } from 'zod';
  * feature observes. There are no mutations here and there must never be one.
  */
 
-/** Column order on the board — lifecycle order, not alphabetical. */
-export const BRIEF_STATES = ['in_progress', 'in_review', 'sent_back', 'approved'] as const;
-export type BriefState = (typeof BRIEF_STATES)[number];
-
 /**
- * Events that MOVE a brief. Last one wins.
- *
- * ⚠️ `brief.commented` and `brief.script_saved` are deliberately ABSENT. They
- * update last-activity and nothing else. Verified against real data: brief
- * `#2 — Ronin Launch` reads
- * `submitted > commented > commented > sent_back > commented`, and its state is
- * "Sent back" — the trailing comment must not drag it back to In review.
- *
- * ⚠️ `brief.updated` maps to in_progress, which is what makes RESUBMISSION work:
- * a sent-back brief that gets edited returns to In progress, and a later
- * `brief.submitted` puts it back into In review. No special-casing needed — the
- * fold handles the cycle because it only ever asks "what was the last lifecycle
- * event".
- *
- * ⚠️ `brief.approved` is in Usama's doc but has NEVER been observed (0 of 165
- * events). It is mapped anyway so the day it arrives the board just works
- * instead of silently filing it as In progress.
+ * ⚠️ The state contract and the fold itself live in `src/lib/brief-fold.ts`, not
+ * here — two features consume them (briefs board, overview), and CLAUDE.md sends
+ * shared behaviour to src/lib rather than a cross-feature import. Re-exported so
+ * this file stays the one import site for brief presentation.
  */
-export const LIFECYCLE_EVENT_STATE: Record<string, BriefState> = {
-  'brief.created': 'in_progress',
-  'brief.updated': 'in_progress',
-  'brief.submitted': 'in_review',
-  'brief.sent_back': 'sent_back',
-  'brief.approved': 'approved'
-};
+export { BRIEF_STATES, LIFECYCLE_EVENT_STATE, type BriefState } from '@/lib/brief-fold';
 
 /** Every brief event we recognise, lifecycle or not — used for the timeline. */
 export const BRIEF_EVENT_TYPES = [

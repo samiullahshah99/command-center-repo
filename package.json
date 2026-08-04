@@ -37,6 +37,7 @@
     "fireflies:fixture": "tsx scripts/fetch-fireflies-fixture.ts",
     "identities:backfill": "tsx scripts/backfill-identities.ts",
     "identities:relink": "tsx scripts/relink-identities.ts",
+    "events:attribute": "tsx scripts/attribute-events.ts",
     "people:email": "tsx scripts/set-person-email.ts",
     "webhook:send": "tsx scripts/send-test-webhook.ts",
     "webhook:ugc": "tsx scripts/send-test-webhook.ts ugc",

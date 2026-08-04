@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -43,22 +44,60 @@ export function ProjectCards() {
   );
 }
 
+/**
+ * ⚠️ THE CARD IS NOT AN ANCHOR. THE TITLE IS.
+ *
+ * A card-wrapping <Link> makes every interactive child invalid HTML. It shipped
+ * that way and produced a real hydration error — `<a> cannot be a descendant of
+ * <a>` — because `PersonBadge` renders its own link to the lead's profile. React
+ * discards the mismatched subtree, so the symptom is a card that renders wrong
+ * rather than an obvious error at the call site.
+ *
+ * It also swallowed text selection and forced the `aria-label` workaround below,
+ * because the a11y linter could not see the heading through <Card>.
+ *
+ * So: the TITLE is a real <a> with a real href — middle-click, copy-link and
+ * keyboard navigation all work, and it is the accessible name for the
+ * destination. The card carries onClick + cursor-pointer for the
+ * whole-surface affordance.
+ *
+ * ⚠️ Deliberately NO role='link' and NO tabIndex on the wrapper. That would
+ * announce a SECOND link to the same destination and add a redundant tab stop.
+ *
+ * The onClick ignores clicks that originated on an interactive element, so the
+ * lead's profile link wins over the card's own destination.
+ */
 function ProjectCard({ project: p }: { project: ProjectRollup }) {
   const status = PROJECT_STATUS_META[p.status];
+  const router = useRouter();
+  const href = `/dashboard/tracker/${p.id}`;
 
   return (
-    <Link
-      href={`/dashboard/tracker/${p.id}`}
-      className='group'
-      // The link's text lives inside <Card>, which the a11y rule cannot see
-      // through — an explicit label satisfies it and gives screen readers the
-      // project name rather than announcing an unlabelled link.
-      aria-label={`Open project ${p.name}`}
+    /* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
+       Deliberate. Both rules want a role + keyboard handler on any clickable
+       element; here that would be WRONG. The title below is already a real <a>
+       with a real href — it is the keyboard path and the accessible name.
+       Giving this wrapper role='link' + tabIndex would announce a duplicate
+       link and add a redundant tab stop. The onClick is a mouse-only
+       convenience over an already-accessible control, which is the one case
+       these rules cannot distinguish. */
+    <div
+      className='group cursor-pointer'
+      onClick={(e) => {
+        // Let genuine interactive children win — PersonBadge's profile link.
+        if ((e.target as HTMLElement).closest('a,button,input,[role="button"]')) return;
+        router.push(href);
+      }}
     >
       <Card className='hover:border-primary/40 h-full transition-colors'>
         <CardHeader className='gap-2 pb-3'>
           <div className='flex items-start justify-between gap-3'>
-            <h2 className='font-medium group-hover:underline'>{p.name}</h2>
+            <h2 className='font-medium'>
+              {/* The accessible name for this destination comes from here. */}
+              <Link href={href} className='hover:underline group-hover:underline'>
+                {p.name}
+              </Link>
+            </h2>
             <Badge variant='outline' className={cn('shrink-0 text-[11px]', status.badge)}>
               {status.label}
             </Badge>
@@ -99,7 +138,7 @@ function ProjectCard({ project: p }: { project: ProjectRollup }) {
           )}
         </CardContent>
       </Card>
-    </Link>
+    </div>
   );
 }
 

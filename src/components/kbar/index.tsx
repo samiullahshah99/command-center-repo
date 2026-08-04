@@ -16,7 +16,12 @@ export default function KBar({ children }: { children: React.ReactNode }) {
       router.push(url);
     };
 
-    const allItems = navGroups.flatMap((group) => group.items);
+    // Carry the group label through so Cmd+K sections mirror the sidebar's
+    // grouping. Previously every command landed under a single 'Navigation'
+    // heading, which stopped matching the sidebar the moment it gained sections.
+    const allItems = navGroups.flatMap((group) =>
+      group.items.map((item) => ({ ...item, section: group.label }))
+    );
 
     return allItems.flatMap((navItem) => {
       // Only include base action if the navItem has a real URL and is not just a container

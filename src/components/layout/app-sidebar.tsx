@@ -19,13 +19,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarRail
 } from '@/components/ui/sidebar';
 import { UserAvatarProfile } from '@/components/user-avatar-profile';
 import { navGroups } from '@/config/nav-config';
+import { NavBadge, useNavBadges } from './nav-badge';
+import type { NavGroup, NavItem } from '@/types';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { SignOutButton, useUser } from '@clerk/nextjs';
 import Link from 'next/link';
@@ -64,60 +63,7 @@ export default function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className='overflow-x-hidden'>
         {navGroups.map((group) => (
-          <SidebarGroup key={group.label || 'ungrouped'} className='py-0'>
-            {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
-            <SidebarMenu>
-              {group.items.map((item) => {
-                const Icon = item.icon ? Icons[item.icon] : Icons.logo;
-                return item?.items && item?.items?.length > 0 ? (
-                  <Collapsible
-                    key={item.title}
-                    defaultOpen={item.isActive}
-                    render={<SidebarMenuItem />}
-                  >
-                    <CollapsibleTrigger
-                      render={
-                        <SidebarMenuButton
-                          tooltip={item.title}
-                          isActive={pathname === item.url}
-                          className='group/collapsible'
-                        />
-                      }
-                    >
-                      {item.icon && <Icon />}
-                      <span>{item.title}</span>
-                      <Icons.chevronRight className='ml-auto transition-transform duration-200 group-data-panel-open/collapsible:rotate-90' />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {item.items?.map((subItem) => (
-                          <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton
-                              render={<Link href={subItem.url} aria-label={subItem.title} />}
-                              isActive={pathname === subItem.url}
-                            >
-                              <span>{subItem.title}</span>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </Collapsible>
-                ) : (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      render={<Link href={item.url} aria-label={item.title} />}
-                      tooltip={item.title}
-                      isActive={pathname === item.url}
-                    >
-                      <Icon />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroup>
+          <NavZone key={group.id} group={group} pathname={pathname} />
         ))}
       </SidebarContent>
       <SidebarFooter>
@@ -170,5 +116,81 @@ export default function AppSidebar() {
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/**
+ * One nav section. Collapsible when `defaultOpen === false`.
+ *
+ * ⚠️ COLLAPSIBLE GROUPS ARE SUPPORTED, via the existing `Collapsible` primitive
+ * wrapping a `SidebarGroup` — no new component was needed.
+ *
+ * ⚠️ `SidebarGroupLabel` MUST render as a native <button> here. It defaults to a
+ * <div>, and base-ui's Collapsible.Trigger defaults `nativeButton` to true, so
+ * composing the trigger onto a div throws "A component that acts as a button
+ * expected a native <button>" and silently drops native button semantics for
+ * forms and assistive tech. `type='button'` is separate and also required: an
+ * unspecified <button> defaults to type="submit".
+ */
+function NavZone({ group, pathname }: { group: NavGroup; pathname: string }) {
+  const rows = (
+    <SidebarMenu>
+      {group.items.map((item) => (
+        <NavRow key={item.title} item={item} pathname={pathname} />
+      ))}
+    </SidebarMenu>
+  );
+
+  if (group.defaultOpen === false) {
+    return (
+      <SidebarGroup className='py-0'>
+        <Collapsible defaultOpen={false} className='group/zone'>
+          <CollapsibleTrigger
+            render={
+              <SidebarGroupLabel
+                render={
+                  // aria-label on the RENDERED button: the a11y rule inspects the
+                  // element inside `render` and cannot see that its text arrives
+                  // as CollapsibleTrigger's children.
+                  <button type='button' aria-label={`${group.label} section, expand or collapse`} />
+                }
+                className='w-full cursor-pointer'
+              />
+            }
+          >
+            {group.label}
+            <Icons.chevronRight className='ml-auto size-3.5 transition-transform duration-200 group-data-panel-open/zone:rotate-90' />
+          </CollapsibleTrigger>
+          <CollapsibleContent>{rows}</CollapsibleContent>
+        </Collapsible>
+      </SidebarGroup>
+    );
+  }
+
+  return (
+    <SidebarGroup className='py-0'>
+      {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+      {rows}
+    </SidebarGroup>
+  );
+}
+
+function NavRow({ item, pathname }: { item: NavItem; pathname: string }) {
+  const Icon = item.icon ? Icons[item.icon] : Icons.logo;
+  // Shares ONE cache entry across every badge on the rail — see useNavBadges.
+  const { data: badges } = useNavBadges();
+
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        render={<Link href={item.url} aria-label={item.title} />}
+        tooltip={item.title}
+        isActive={pathname === item.url}
+      >
+        <Icon />
+        <span>{item.title}</span>
+        {item.badge && <NavBadge count={badges?.[item.badge]} />}
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }

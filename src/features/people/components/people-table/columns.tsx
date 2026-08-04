@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { DataTableColumnHeader } from '@/components/ui/table/data-table-column-header';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { PersonBoardRow, RoleProfileOption } from '../../api/types';
+import { BriefQuotaBar } from '@/features/briefs/components/brief-quota-bar';
 import { ActivitySparkline } from '../activity-sparkline';
 import { IdentityBadges } from '../identity-badges';
 import { Column, ColumnDef } from '@tanstack/react-table';
@@ -118,6 +119,18 @@ export function buildColumns(
           now={now}
         />
       )
+    },
+    {
+      id: 'quota',
+      enableSorting: false,
+      header: () => <span className='text-xs font-medium'>Briefs · wk</span>,
+      /*
+        Renders NOTHING until role_profile.quota_config carries a briefsPerWeek.
+        Cross-feature import of a self-fetching COMPONENT, not of briefs' service
+        — the people service never learns about briefs, and all rows share one
+        cache entry so this is one request for the page, not one per row.
+      */
+      cell: ({ row }) => <BriefQuotaBar personId={row.original.id} />
     },
     {
       id: 'items',

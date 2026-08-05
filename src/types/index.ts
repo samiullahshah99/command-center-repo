@@ -1,12 +1,12 @@
 import { Icons } from '@/components/icons';
+import type { RoleCode } from '@/db/schema/role';
 
 /**
  * Which count from GET /api/nav-badges this item displays, if any.
  *
  * ⚠️ The endpoint returns EVERY count regardless of whether a nav item claims
- * it. `reviewPending` is returned today with nothing rendering it, because
- * /dashboard/review does not exist yet — when it ships, the nav item is added
- * with `badge: 'reviewPending'` and inherits the badge with no endpoint change.
+ * it. Both are now rendered: `reviewPending` on Capture queue, and
+ * `identitiesUnlinked` on Identities.
  */
 export type NavBadgeKey = 'reviewPending' | 'identitiesUnlinked';
 
@@ -22,6 +22,28 @@ export interface NavItem {
   isActive?: boolean;
   items?: NavItem[];
   badge?: NavBadgeKey;
+  /**
+   * Which ACCESS roles may see this item. Filtered SERVER-SIDE against
+   * `getCurrentActor().roleCode` before the markup reaches the browser.
+   *
+   * ⚠️ DENY BY DEFAULT WHEN PRESENT. An item carrying `roles` is hidden from an
+   * actor whose `roleCode` is null — a signed-in user not yet linked to a roster
+   * person, or a person with no `role_id`. Falling back to "show it" would leak
+   * founder screens to anyone whose row was not filled in, and that failure does
+   * not look like a failure.
+   *
+   * Omitting `roles` means ungated: visible to every signed-in user.
+   *
+   * ⚠️ NOT `access`. The removed `NavItem.access` was powered by Clerk
+   * Organizations (`has({ plan })` / `<Protect>`), which were deliberately
+   * stripped from this template along with Billing. This is our own role table —
+   * see src/db/schema/role.ts. Do not reintroduce the org-based mechanism.
+   *
+   * ⚠️ HIDING IS NOT AUTHORISATION. This controls what renders in the nav; the
+   * page or Server Action behind it still does its own `requireUser()` check. A
+   * hidden item whose URL is typed must be refused by the route, not by the nav.
+   */
+  roles?: RoleCode[];
 }
 
 export interface NavGroup {

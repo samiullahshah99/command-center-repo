@@ -71,6 +71,18 @@ const FORBIDDEN = [
   {
     pattern: /from\s+'@\/lib\/nav-counts'/,
     why: "'@/lib/nav-counts' imports db — fetch it through /api/nav-badges"
+  },
+  {
+    pattern: /from\s+'@\/lib\/dept-nav'/,
+    why:
+      "'@/lib/dept-nav' imports db — the server sidebar resolves it and passes " +
+      'DeptNavRow[] down as props. Pure helpers are in @/lib/dept-health and @/lib/dept-accent'
+  },
+  {
+    pattern: /from\s+'@\/lib\/current-actor'/,
+    why:
+      "'@/lib/current-actor' imports db — the server layout resolves the actor " +
+      'and passes the parts a client needs down as props'
   }
 ];
 

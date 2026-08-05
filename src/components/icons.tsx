@@ -5,7 +5,9 @@ import {
   IconArrowRight,
   IconBell,
   IconBold,
+  IconBolt,
   IconBox,
+  IconChartBar,
   IconBrandGithub,
   IconBrandTwitter,
   IconBrightness,
@@ -43,6 +45,7 @@ import {
   IconFolder,
   IconGripVertical,
   IconHelpCircle,
+  IconInbox,
   IconInfoCircle,
   IconItalic,
   IconLayoutDashboard,
@@ -103,6 +106,15 @@ export const Icons = {
   ellipsis: IconDotsVertical,
   externalLink: IconExternalLink,
   help: IconHelpCircle,
+  // ── App-shell nav icons ───────────────────────────────────────────────────
+  // Added for the roles-mockup sidebar. The spec named lucide icons; these are
+  // the closest Tabler equivalents, which is the set this catalogue wraps:
+  //   inbox    <- lucide inbox      (Capture queue)
+  //   zap      <- lucide zap        (Automations) — Tabler calls it Bolt
+  //   barChart <- lucide bar-chart  (Reporting)
+  inbox: IconInbox,
+  zap: IconBolt,
+  barChart: IconChartBar,
   info: IconInfoCircle,
   spinner: IconLoader2,
   search: IconSearch,

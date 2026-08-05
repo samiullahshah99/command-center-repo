@@ -24,18 +24,28 @@ export const sourceTypeEnum = pgEnum('source_type', ['meeting', 'slack', 'manual
 /**
  * Which system owns this item's CONTENT.
  *
- * ClickUp is explicitly TEMPORARY (lead's direction: in-platform brief creation
- * and studio stats APIs are expected to replace it), while PRD §3.2 keeps it as
- * system of record for now and §5.1 still requires meeting action items to sync
- * INTO it. This column lets both be true at once, so the swap is a data change
- * rather than a migration.
+ * ⚠️ THE COMMAND CENTRE IS THE TASK SYSTEM OF RECORD (amendment 2026-08-04,
+ * docs/prd-amendments.md). Approved action items are native rows here with
+ * `source_system='internal'`, and NO EXTERNAL TASK TOOL IS WRITTEN TO.
+ *
+ * ClickUp remains a READ-ONLY, transitional source of content-team events, and
+ * its content columns stay NULL — a `'clickup'` row is a reference plus our own
+ * intelligence state, never a mirrored title. This column is what lets a
+ * mirrored row and a native row coexist in one table.
+ *
+ * ── Superseded, for anyone reading an older diff ─────────────────────────────
+ * This header used to say PRD §3.2 keeps ClickUp as system of record and §5.1
+ * requires meeting action items to sync INTO it. **Both are superseded.** The
+ * later claim that "Notion is now the mandated task destination" is superseded
+ * too — that position was never built. The CHECK constraints below were always
+ * correct; only this prose was stale.
  */
 /**
  * ⚠️ Was a pgEnum of ('clickup','internal'); now TEXT + CHECK over the shared
- * EXTERNAL_SYSTEMS list. The enum made adding 'notion' an ALTER TYPE — which
- * cannot run inside a transaction and whose values can never be removed — and
- * Notion is now the mandated task destination. Converted while the table was
- * empty, so the change cost nothing.
+ * EXTERNAL_SYSTEMS list. The enum made adding a value an ALTER TYPE, which
+ * cannot run inside a transaction and whose values can never be removed.
+ * Converted while the table was empty, so the change cost nothing. Same
+ * reasoning as `status` below and `project.status`.
  */
 export const TASK_SOURCE_SYSTEMS = EXTERNAL_SYSTEMS;
 

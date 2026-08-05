@@ -19,13 +19,28 @@ import { unifiedEvent } from './unified-event';
  * An action item the extractor believes it found — pending human review.
  *
  * ⚠️ CANDIDATE, not fact. Nothing here has been confirmed by a person until
- * `review_status` says so, and nothing reaches Notion before that. The whole
- * table exists so an LLM's output has somewhere to sit that is clearly NOT the
- * system of record.
+ * `review_status` says so, and nothing becomes a tracked task before that. The
+ * whole table exists so an LLM's output has somewhere to sit that is clearly NOT
+ * the system of record.
  *
- * ⚠️ THE DESTINATION IS NOTION (Ocean), and no column says so. `external_task_id`
- * and `external_system` are generic on purpose: naming a column after one vendor
- * is how a whole day of ClickUp work had to be retargeted.
+ * ⚠️ THERE IS NO EXTERNAL DESTINATION. Per the 2026-08-04 amendment
+ * (docs/prd-amendments.md) the COMMAND CENTRE is the task system of record:
+ * `approveCandidate()` promotes an approved item to a native `tracked_item` row
+ * with `source_system='internal'` and a NULL `external_task_id`, and no
+ * connector, client or job writes to any external task system.
+ *
+ * ⚠️ `external_task_id` / `external_system` therefore hold NOTHING today. They
+ * are retained, and deliberately vendor-neutral, for a possible phase-2
+ * READ-ONLY mirror (Notion/Ocean) — not for an outbound sync. Naming a column
+ * after one vendor is how a whole day of ClickUp-shaped work had to be
+ * retargeted when the destination changed mid-project; generic naming made the
+ * second change a config concern instead of a schema one.
+ *
+ * ── Superseded, for anyone reading an older diff ─────────────────────────────
+ * This header used to state "THE DESTINATION IS NOTION (Ocean)". That was the
+ * intermediate Week 2 position and it was NEVER BUILT — no Notion write path,
+ * client or sync ever existed. The constraints below were always correct; only
+ * this prose was stale.
  */
 export const candidateActionItem = pgTable(
   'candidate_action_item',

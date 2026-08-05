@@ -4,12 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ClickUpApiError,
   ClickUpSchemaError,
-  createTask,
   getLists,
   getTask,
   getTasks,
-  normaliseCustomFields,
-  updateTaskStatus
+  normaliseCustomFields
 } from './client';
 
 const TOKEN = 'pk_test_token_not_real';
@@ -232,34 +230,12 @@ describe('ClickUp client', () => {
   });
 
   describe('request shapes', () => {
-    it('createTask POSTs to the list endpoint with the payload as JSON', async () => {
-      const f = mockFetch([{ body: fixture('api-task.json') }]);
-      await createTask(
-        '901820032439',
-        { name: 'New task', description: 'body', status: 'to do' },
-        { fetchImpl: f.impl }
-      );
-
-      const { url, init } = f.calls[0];
-      expect(url).toBe('https://api.clickup.com/api/v2/list/901820032439/task');
-      expect(init.method).toBe('POST');
-      expect(JSON.parse(init.body as string)).toEqual({
-        name: 'New task',
-        description: 'body',
-        status: 'to do'
-      });
-    });
-
-    it('updateTaskStatus PUTs only the status field', async () => {
-      const f = mockFetch([{ body: fixture('api-task.json') }]);
-      await updateTaskStatus('86eyf1rk7', 'in progress', { fetchImpl: f.impl });
-
-      const { url, init } = f.calls[0];
-      expect(url).toBe('https://api.clickup.com/api/v2/task/86eyf1rk7');
-      expect(init.method).toBe('PUT');
-      // Nothing else is sent — a wider PUT could clobber fields we did not read.
-      expect(JSON.parse(init.body as string)).toEqual({ status: 'in progress' });
-    });
+    // ⚠️ The createTask / updateTaskStatus tests were DELETED with the methods
+    // they covered (2026-08-04 amendment: no external task tool is written to).
+    // Do not restore them — a passing test for a write path is what made the
+    // dormant capability look sanctioned. See the note in ./client.ts.
+    //
+    // Every remaining assertion here is on a READ.
 
     it('getTasks serialises array filters as repeated keys', async () => {
       const f = mockFetch([{ body: { tasks: [] } }]);

@@ -7,7 +7,7 @@ so the rebuild can decide, per component, whether to **port**, **rebuild**, or
 **Method.** Written by reading every schema, connector, route handler and service
 in the repo, and by querying the live database read-only for row counts and
 distributions. Nothing was changed. Claims marked **⚠️ MEASURED** were verified
-against the live system on 2026-08-05; claims marked *(per code comment)* are
+against the live system on 2026-08-05; claims marked _(per code comment)_ are
 reported from in-repo documentation and were not independently re-verified.
 
 **No PII in this file.** Person names, email addresses and meeting identifiers are
@@ -22,20 +22,20 @@ deliberately described by shape and count only — this repo is public, and
 spanning 2026-07-29 → 2026-08-04, six real meeting transcripts, and a small
 amount of human review work that cannot be regenerated.
 
-| Table | Rows | Origin | Reproducible? |
-| --- | --- | --- | --- |
-| `raw_event` | **578** | 🔴 **REAL** — live webhook deliveries | ❌ **NO.** Senders got their 2xx and will never redeliver |
-| `unified_event` | **578** | 🟡 Derived from `raw_event` | ✅ Yes — `pnpm renormalise` |
-| `transcript` | **6** | 🔴 **REAL** — fetched from Fireflies, 13–1060 sentences each | ⚠️ Only while Fireflies retains them, and refetch costs quota |
-| `candidate_action_item` | **19** | 🟡 LLM output over real transcripts | ⚠️ Regenerable at ~$0.04/run, but **wording will differ** (see §6.3) |
-| `person_identity` | **21** | 🟠 Mixed — 4 human-confirmed links, 17 automatic/unresolved | ⚠️ The 4 `manual` links are human decisions; the rest replay |
-| `tracked_item` | **26** | 🟠 25 seeded + **1 promoted from a real human approval** | ⚠️ The promoted row is a real review decision |
-| `ai_summary` | 2 | 🟢 Cache | ✅ Regenerates on demand |
-| `person` | 7 | 🟢 Seeded roster | ✅ `pnpm db:seed` |
-| `role_profile` | 7 | 🟢 Seeded | ✅ `pnpm db:seed` |
-| `project` | 4 | 🟢 Seeded + auto-created `Inbox` | ✅ |
-| `recurring_task` | 5 | 🟢 Seeded | ✅ |
-| `completion_event` | **0** | — | Never written by anything |
+| Table                   | Rows    | Origin                                                       | Reproducible?                                                        |
+| ----------------------- | ------- | ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `raw_event`             | **578** | 🔴 **REAL** — live webhook deliveries                        | ❌ **NO.** Senders got their 2xx and will never redeliver            |
+| `unified_event`         | **578** | 🟡 Derived from `raw_event`                                  | ✅ Yes — `pnpm renormalise`                                          |
+| `transcript`            | **6**   | 🔴 **REAL** — fetched from Fireflies, 13–1060 sentences each | ⚠️ Only while Fireflies retains them, and refetch costs quota        |
+| `candidate_action_item` | **19**  | 🟡 LLM output over real transcripts                          | ⚠️ Regenerable at ~$0.04/run, but **wording will differ** (see §6.3) |
+| `person_identity`       | **21**  | 🟠 Mixed — 4 human-confirmed links, 17 automatic/unresolved  | ⚠️ The 4 `manual` links are human decisions; the rest replay         |
+| `tracked_item`          | **26**  | 🟠 25 seeded + **1 promoted from a real human approval**     | ⚠️ The promoted row is a real review decision                        |
+| `ai_summary`            | 2       | 🟢 Cache                                                     | ✅ Regenerates on demand                                             |
+| `person`                | 7       | 🟢 Seeded roster                                             | ✅ `pnpm db:seed`                                                    |
+| `role_profile`          | 7       | 🟢 Seeded                                                    | ✅ `pnpm db:seed`                                                    |
+| `project`               | 4       | 🟢 Seeded + auto-created `Inbox`                             | ✅                                                                   |
+| `recurring_task`        | 5       | 🟢 Seeded                                                    | ✅                                                                   |
+| `completion_event`      | **0**   | —                                                            | Never written by anything                                            |
 
 ### What is genuinely irreplaceable
 
@@ -61,13 +61,13 @@ amount of human review work that cannot be regenerated.
 **⚠️ MEASURED.** Identity resolution is working for some sources and not at all
 for others:
 
-| Source | Events | Attributed to a person | Rate |
-| --- | --- | --- | --- |
-| `slack` | 11 | 10 | **90.9%** |
-| `clickup` | 2 | 1 | 50.0% |
-| `vision` | 427 | 182 | **42.6%** |
-| `ugc` | 128 | 0 | **0.0%** |
-| `fireflies` | 10 | 0 | **0.0%** |
+| Source      | Events | Attributed to a person | Rate      |
+| ----------- | ------ | ---------------------- | --------- |
+| `slack`     | 11     | 10                     | **90.9%** |
+| `clickup`   | 2      | 1                      | 50.0%     |
+| `vision`    | 427    | 182                    | **42.6%** |
+| `ugc`       | 128    | 0                      | **0.0%**  |
+| `fireflies` | 10     | 0                      | **0.0%**  |
 
 The two zeroes are the finding. UGC delivers 128 events — including 81
 `creator.rejected`, 18 `creator.approved`, 11 `order.placed` — and **not one is
@@ -87,15 +87,15 @@ on 24% of all traffic.
 
 **⚠️ MEASURED** — `pgboss.job`:
 
-| Queue | completed | failed / other |
-| --- | --- | --- |
-| `parse.vision` | 435 | — |
-| `parse.ugc` | 137 | — |
-| `parse.slack` | 17 | — |
-| `parse.clickup` | 6 | — |
-| `parse.fireflies` | 5 | **2 failed** |
-| `extract.action-items` | 1 | **1 failed** |
-| `parse.dead-letter` | — | 3 created (unconsumed) |
+| Queue                  | completed | failed / other         |
+| ---------------------- | --------- | ---------------------- |
+| `parse.vision`         | 435       | —                      |
+| `parse.ugc`            | 137       | —                      |
+| `parse.slack`          | 17        | —                      |
+| `parse.clickup`        | 6         | —                      |
+| `parse.fireflies`      | 5         | **2 failed**           |
+| `extract.action-items` | 1         | **1 failed**           |
+| `parse.dead-letter`    | —         | 3 created (unconsumed) |
 
 Three dead-lettered jobs are sitting unconsumed. The pipeline is otherwise clean.
 
@@ -103,18 +103,18 @@ Three dead-lettered jobs are sitting unconsumed. The pipeline is otherwise clean
 
 ## 1. Stack and topology
 
-| Layer | Choice |
-| --- | --- |
-| Runtime | Next.js 16.2.6, React 19.2.4, Node (`output: 'standalone'`), long-lived container |
-| Host | Railway; Postgres 18 |
-| ORM | Drizzle 0.45 + `node-postgres`, connection `Pool` |
-| Queue | pg-boss 12.26 **in the same Postgres**, dedicated `pgboss` schema |
-| Workers | **In-process**, booted from `src/instrumentation.ts` |
-| Auth | Clerk (authentication only — Organizations and Billing removed) |
-| Validation | Zod 4 + `drizzle-zod` |
-| LLM | OpenRouter (OpenAI SDK shape) → Anthropic models |
-| Errors | Sentry |
-| Migrations | 11 files, `drizzle/0000_*` → `0010_*`, applied **manually from a laptop** |
+| Layer      | Choice                                                                            |
+| ---------- | --------------------------------------------------------------------------------- |
+| Runtime    | Next.js 16.2.6, React 19.2.4, Node (`output: 'standalone'`), long-lived container |
+| Host       | Railway; Postgres 18                                                              |
+| ORM        | Drizzle 0.45 + `node-postgres`, connection `Pool`                                 |
+| Queue      | pg-boss 12.26 **in the same Postgres**, dedicated `pgboss` schema                 |
+| Workers    | **In-process**, booted from `src/instrumentation.ts`                              |
+| Auth       | Clerk (authentication only — Organizations and Billing removed)                   |
+| Validation | Zod 4 + `drizzle-zod`                                                             |
+| LLM        | OpenRouter (OpenAI SDK shape) → Anthropic models                                  |
+| Errors     | Sentry                                                                            |
+| Migrations | 11 files, `drizzle/0000_*` → `0010_*`, applied **manually from a laptop**         |
 
 **Two database URLs, deliberately:** `DATABASE_URL` (private network, used by the
 app) and `DATABASE_PUBLIC_URL` (proxy host, used by drizzle-kit and the tsx
@@ -156,12 +156,12 @@ worker  → normalise → unified_event + resolve identity
 
 **`raw_event`** — the landing zone and the source of truth.
 
-| Column | Notes |
-| --- | --- |
-| `source` | `text` + app-level list, **not** a PG enum — adding a source needs no migration |
-| `payload` | `jsonb`, verbatim. Zod is deliberately `z.unknown()` |
-| `external_id` | The provider's own id. **Nullable** |
-| `processed` | Means "mapped into `unified_event`" |
+| Column        | Notes                                                                           |
+| ------------- | ------------------------------------------------------------------------------- |
+| `source`      | `text` + app-level list, **not** a PG enum — adding a source needs no migration |
+| `payload`     | `jsonb`, verbatim. Zod is deliberately `z.unknown()`                            |
+| `external_id` | The provider's own id. **Nullable**                                             |
+| `processed`   | Means "mapped into `unified_event`"                                             |
 
 Idempotency is a **partial unique index** on `(source, external_id) WHERE
 external_id IS NOT NULL`, combined with `ON CONFLICT DO NOTHING` in a single
@@ -222,7 +222,7 @@ Details that are easy to lose and expensive to rediscover:
 
 - **`person.email` is the ONLY automatic cross-system join key.** Case-insensitive
   uniqueness is a **functional partial index** on `lower(email) WHERE email IS
-  NOT NULL` rather than the `citext` extension — no `CREATE EXTENSION` needed on
+NOT NULL` rather than the `citext` extension — no `CREATE EXTENSION` needed on
   Railway, the stored value stays exactly as entered for display, and the index
   is the same expression the resolver matches on.
 - **The upsert uses `COALESCE`, not assignment.** A later event carrying
@@ -255,7 +255,7 @@ UGC and Fireflies traffic.
 **`transcript`** is separate from `raw_event` because a transcript is **pulled**,
 not pushed: the webhook carries only `{ event, meeting_id, timestamp }`, and the
 content is fetched over GraphQL. Keeping them apart means `raw_event` stays a
-faithful record of what *arrived* while a transcript can be re-fetched
+faithful record of what _arrived_ while a transcript can be re-fetched
 independently. `fireflies_id` is UNIQUE, which is what makes the fetch idempotent.
 The full GraphQL response is stored whole in `payload` — Postgres TOASTs it out of
 the main row, so it costs nothing until read.
@@ -265,14 +265,14 @@ the main row, so it costs nothing until read.
 
 Constraints worth porting individually:
 
-| Constraint | What it prevents |
-| --- | --- |
-| `source_span` NOT NULL, min 10 chars (Zod) | A reviewer with no quote cannot verify the item, so they approve on vibes and review becomes a rubber stamp |
-| `content_hash` UNIQUE (global) | Re-extraction upserts instead of duplicating |
-| `owner_coherent_ck` | `owner_confidence='unresolved'` ⟺ `owner_person_id IS NULL` |
-| `review_provenance_ck` | `pending` has no reviewer; `approved`/`rejected` require both `reviewed_by` and `reviewed_at`; `auto_approved` requires `reviewed_at` only |
-| `external_pair_ck` | `external_task_id` and `external_system` are set together or not at all |
-| `confidence_range_ck` | `0 ≤ confidence ≤ 1` |
+| Constraint                                 | What it prevents                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `source_span` NOT NULL, min 10 chars (Zod) | A reviewer with no quote cannot verify the item, so they approve on vibes and review becomes a rubber stamp                                |
+| `content_hash` UNIQUE (global)             | Re-extraction upserts instead of duplicating                                                                                               |
+| `owner_coherent_ck`                        | `owner_confidence='unresolved'` ⟺ `owner_person_id IS NULL`                                                                                |
+| `review_provenance_ck`                     | `pending` has no reviewer; `approved`/`rejected` require both `reviewed_by` and `reviewed_at`; `auto_approved` requires `reviewed_at` only |
+| `external_pair_ck`                         | `external_task_id` and `external_system` are set together or not at all                                                                    |
+| `confidence_range_ck`                      | `0 ≤ confidence ≤ 1`                                                                                                                       |
 
 - **`owner_confidence` allows `'fuzzy'` — and this is the ONLY table where it
   exists.** `person_identity`'s CHECK rejects it. A name match is tolerable on a
@@ -304,7 +304,7 @@ Constraints worth porting individually:
 > 19 candidate rows are distinct commitments; no duplicate pair is currently
 > visible. The pipeline has only run a handful of times.
 >
-> **The rebuild should fix this rather than port it.** Do *not* hash the
+> **The rebuild should fix this rather than port it.** Do _not_ hash the
 > description (it varies far more). Match on span **overlap** against existing
 > candidates for the same `unified_event_id` — which is what the eval scorer
 > already does.
@@ -315,10 +315,10 @@ Constraints worth porting individually:
 the task system of record (amendment 2026-08-04). Its central rule is enforced by
 CHECK constraints rather than convention:
 
-| `source_system` | Owns content? | `external_task_id` | `title`/`description` |
-| --- | --- | --- | --- |
-| `internal` | ✅ Command Centre | must be NULL | populated |
-| `notion`, `clickup` | ❌ the source system | **required** | **must be NULL** |
+| `source_system`     | Owns content?        | `external_task_id` | `title`/`description` |
+| ------------------- | -------------------- | ------------------ | --------------------- |
+| `internal`          | ✅ Command Centre    | must be NULL       | populated             |
+| `notion`, `clickup` | ❌ the source system | **required**       | **must be NULL**      |
 
 - **`tracked_item_content_by_source_ck` is an ALLOW-list**
   (`source_system = 'internal' OR (title IS NULL AND description IS NULL)`), not
@@ -344,11 +344,11 @@ CHECK constraints rather than convention:
 
 Three columns share the `EXTERNAL_SYSTEMS` set and **do not mean the same thing**:
 
-| Column | Meaning |
-| --- | --- |
-| `tracked_item.source_system` / `.external_task_id` | where the row **CAME FROM** |
+| Column                                                        | Meaning                                  |
+| ------------------------------------------------------------- | ---------------------------------------- |
+| `tracked_item.source_system` / `.external_task_id`            | where the row **CAME FROM**              |
 | `candidate_action_item.external_system` / `.external_task_id` | where an approved item was **PUSHED TO** |
-| `project.external_system` / `.external_id` | where the project **MIRRORS FROM** |
+| `project.external_system` / `.external_id`                    | where the project **MIRRORS FROM**       |
 
 **There is no outbound sync and these columns are not for one.** Field naming is
 vendor-neutral because a full day of ClickUp-shaped work had to be retargeted
@@ -356,19 +356,19 @@ when the destination changed mid-project — a column called `clickup_task_id` i
 migration, a backfill and a rename across every query the day the vendor changes.
 
 **Port verdict: ✅ port the constraints and the vendor-neutral naming.** ⚠️ **Known
-accepted gap:** a *manually created* `tracked_item` has no candidate, so it has
+accepted gap:** a _manually created_ `tracked_item` has no candidate, so it has
 **no destination slot at all**. Fine while manual items are not synced outward;
 if that changes, add a destination pair to `tracked_item` rather than overloading
 `external_task_id`.
 
 ### 2.5 Supporting tables
 
-| Table | Shape | Verdict |
-| --- | --- | --- |
-| `role_profile` | `name` + three JSONB columns (`tracked_signals`, `quota_config`, `source_channels`) | 🟡 **Rebuild.** All three JSONB columns are effectively untyped; the shape has not settled |
-| `recurring_task` | `owner_person_id`, `cadence`, `auto_complete_rule` JSONB, `fallback_manual` | 🟡 **Rebuild.** 5 seeded rows, no consumer writes to it |
-| `completion_event` | FK to `recurring_task`, `completed_at`, `evidence_source`/`evidence_ref` | 🔴 **Drop or redesign.** **0 rows, never written by any code path.** The auto-completion feature it exists for does not exist |
-| `ai_summary` | Per-`person_id` cache: `summary`, `input_hash`, `item_count`, `event_count`, `model`, token counts, `cost_usd` | ✅ **Port the caching design** — see §6.4 |
+| Table              | Shape                                                                                                          | Verdict                                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `role_profile`     | `name` + three JSONB columns (`tracked_signals`, `quota_config`, `source_channels`)                            | 🟡 **Rebuild.** All three JSONB columns are effectively untyped; the shape has not settled                                    |
+| `recurring_task`   | `owner_person_id`, `cadence`, `auto_complete_rule` JSONB, `fallback_manual`                                    | 🟡 **Rebuild.** 5 seeded rows, no consumer writes to it                                                                       |
+| `completion_event` | FK to `recurring_task`, `completed_at`, `evidence_source`/`evidence_ref`                                       | 🔴 **Drop or redesign.** **0 rows, never written by any code path.** The auto-completion feature it exists for does not exist |
+| `ai_summary`       | Per-`person_id` cache: `summary`, `input_hash`, `item_count`, `event_count`, `model`, token counts, `cost_usd` | ✅ **Port the caching design** — see §6.4                                                                                     |
 
 > `completion_event` being empty with no writer is worth calling out: PRD
 > auto-completion is unbuilt, and the table is a schema placeholder rather than a
@@ -383,13 +383,13 @@ outbound API clients, and two deliberately-unimplemented stubs.
 
 ### 3.1 The five inbound signature schemes
 
-| Source | Header | Prefix | Basestring | Replay window |
-| --- | --- | --- | --- | --- |
-| Slack | `X-Slack-Signature` | `v0=` | `v0:{ts}:{body}` | ✅ ±300s |
-| UGC | `X-LuckyFours-Signature` | `sha256=` | `{ts}.{body}` | ✅ ±300s |
-| Vision | `X-Vision-Signature` | `sha256=` | `{body}` | ❌ none |
-| ClickUp | `X-Signature` | *(none)* | `{body}` | ❌ none |
-| Fireflies | `X-Hub-Signature` | `sha256=` | `{body}` | ❌ none |
+| Source    | Header                   | Prefix    | Basestring       | Replay window |
+| --------- | ------------------------ | --------- | ---------------- | ------------- |
+| Slack     | `X-Slack-Signature`      | `v0=`     | `v0:{ts}:{body}` | ✅ ±300s      |
+| UGC       | `X-LuckyFours-Signature` | `sha256=` | `{ts}.{body}`    | ✅ ±300s      |
+| Vision    | `X-Vision-Signature`     | `sha256=` | `{body}`         | ❌ none       |
+| ClickUp   | `X-Signature`            | _(none)_  | `{body}`         | ❌ none       |
+| Fireflies | `X-Hub-Signature`        | `sha256=` | `{body}`         | ❌ none       |
 
 `src/features/connectors/verify-hmac.ts` exposes **two** functions —
 `verifyWithTimestamp()` and `verifyBodyOnly()` — rather than one with an optional
@@ -412,7 +412,7 @@ Traps, each of which fails as something else:
   Vision sends `event`. Both also send it as a header, which the handler prefers
   because it needs no payload-shape assumption.
 - **The replay window uses `Math.abs`.** A one-sided check would let a forged
-  *future* timestamp replay indefinitely.
+  _future_ timestamp replay indefinitely.
 - **`timingSafeEqual` sits behind a length guard** — it throws on length mismatch.
 
 > ⚠️⚠️ **Vision, ClickUp and Fireflies have NO replay protection.** None sends a
@@ -420,8 +420,8 @@ Traps, each of which fails as something else:
 > the sole defence on those three** — do not add side effects to those paths that
 > are unsafe to repeat.
 >
-> Fireflies' v2 body *does* carry a millisecond `timestamp`, and because the
-> signature covers the body an attacker cannot alter it, so it *could* bound
+> Fireflies' v2 body _does_ carry a millisecond `timestamp`, and because the
+> signature covers the body an attacker cannot alter it, so it _could_ bound
 > replay. It deliberately does not: the payoff of a replay is an idempotent
 > re-fetch, while a wrong window permanently drops a delayed retry from a sender
 > whose retry behaviour is undocumented.
@@ -480,7 +480,7 @@ account needs `users.info`/`users.list`, which return `profile.email` only with
 that scope.
 
 > ⚠️ **A missing scope is NOT an error.** `users.list` returns HTTP 200, `ok:
-> true`, and silently **omits** `profile.email` — measured at 30 humans / 0 emails
+true`, and silently **omits** `profile.email` — measured at 30 humans / 0 emails
 > while the scope was absent. A backfill reports success and links nobody.
 > `requireEmailScope()` turns that silence into an actionable error by asserting
 > that zero-out-of-N humans having an email is a scope problem, not data. It stays
@@ -507,7 +507,7 @@ Other Slack specifics:
 
 **Port verdict: ✅ port `requireEmailScope` and the pagination + `ok`-ordering
 logic.** The client itself is thin and rewriting it in another language is trivial;
-the *knowledge* is the asset.
+the _knowledge_ is the asset.
 
 ### 3.4 Fireflies
 
@@ -518,12 +518,12 @@ the *knowledge* is the asset.
 > DEPRECATED v1 webhook.** The live v2 payload is **snake_case** and differs on
 > every field. Confirmed from `Fireflies-Webhook/2.0` deliveries.
 
-| v1 — docs, deprecated | v2 — actual |
-| --- | --- |
-| `meetingId` | `meeting_id` |
-| `eventType` | `event` |
-| `clientReferenceId` | *does not exist* |
-| *not mentioned* | `timestamp` — epoch **milliseconds** |
+| v1 — docs, deprecated | v2 — actual                          |
+| --------------------- | ------------------------------------ |
+| `meetingId`           | `meeting_id`                         |
+| `eventType`           | `event`                              |
+| `clientReferenceId`   | _does not exist_                     |
+| _not mentioned_       | `timestamp` — epoch **milliseconds** |
 
 The handler was originally built against v1 and silently mis-parsed everything:
 three stored rows all had a null `external_id` and `processed=false`. The schema
@@ -546,7 +546,7 @@ shape change fails loudly instead of looking healthy.
 
 > ⚠️ **`audio_url` and `video_url` are the ONLY paid-gated fields**, and GraphQL
 > fails the **whole operation** for one unauthorised field. Requesting them
-> returned "You need to be subscribed to a paid plan" for *every* fetch, which
+> returned "You need to be subscribed to a paid plan" for _every_ fetch, which
 > reads exactly like the entire API being unavailable. It is not. With those two
 > removed, `sentences`, `speakers`, `summary`, `participants`, `host_email` and
 > `transcript_url` all work on the current plan — **including other people's
@@ -561,12 +561,12 @@ error classification:
 failure throws `PermanentJobError`, which the worker turns into pg-boss
 `deadletter` on the **first** attempt rather than burning the retry ladder.
 
-| Permanent | Transient |
-| --- | --- |
-| plan / subscription (`paid_required`) | 429 rate limit |
-| auth failure, 401/403 | 5xx |
-| response shape changed | network error |
-| non-429 4xx | "not found" **within** 30 min of the webhook |
+| Permanent                             | Transient                                    |
+| ------------------------------------- | -------------------------------------------- |
+| plan / subscription (`paid_required`) | 429 rate limit                               |
+| auth failure, 401/403                 | 5xx                                          |
+| response shape changed                | network error                                |
+| non-429 4xx                           | "not found" **within** 30 min of the webhook |
 
 > ⚠️ **"Transcript not found" is ambiguous and is resolved by AGE, not message.**
 > Fireflies can announce a meeting before the transcript is queryable. Inside
@@ -591,7 +591,7 @@ token; no OAuth flow.
 **Rate limits:** the only provider that exposes real headroom —
 `x-ratelimit-limit` / `-remaining` / `-reset` on every response, 100/min on this
 plan. **`-reset` is epoch SECONDS.** `src/features/connectors/rate-limit.ts` logs
-headroom per call and warns below 20% or 10 remaining. It deliberately does *not*
+headroom per call and warns below 20% or 10 remaining. It deliberately does _not_
 try to do the same for Slack: one shared "log remaining quota" helper would
 silently log nothing for Slack while looking like it worked.
 
@@ -633,15 +633,15 @@ self-designed spec (`X-CC-Signature`) that was **never adopted and dropped**.
 Shared handler factory: `createInternalWebhookHandler(platform)` +
 `createInternalWebhookGet(platform)`.
 
-| | UGC | Vision |
-| --- | --- | --- |
-| Signature | `x-luckyfours-signature` | `x-vision-signature` |
-| Timestamp header | `x-luckyfours-timestamp` ✅ | *(none)* |
-| Basestring | `{ts}.{body}` | `{body}` |
-| Replay window | ±300s | ❌ none |
-| Event-type field | `type` | `event` |
-| Sender timeout budget | 10s | 15s |
-| Test event | `test.ping`, id `evt_test` | `control_center.test`, all-zero id |
+|                       | UGC                         | Vision                             |
+| --------------------- | --------------------------- | ---------------------------------- |
+| Signature             | `x-luckyfours-signature`    | `x-vision-signature`               |
+| Timestamp header      | `x-luckyfours-timestamp` ✅ | _(none)_                           |
+| Basestring            | `{ts}.{body}`               | `{body}`                           |
+| Replay window         | ±300s                       | ❌ none                            |
+| Event-type field      | `type`                      | `event`                            |
+| Sender timeout budget | 10s                         | 15s                                |
+| Test event            | `test.ping`, id `evt_test`  | `control_center.test`, all-zero id |
 
 Both test events are stored with a **null `external_id`** so repeated setup pings
 all land and stay visible, and are logged as `TEST EVENT`.
@@ -660,12 +660,12 @@ from day one.
 
 ### 3.7 Not built — and deliberately so
 
-| Integration | State |
-| --- | --- |
-| **Shopify** | ❌ **No client, and none is to be built.** PRD §5.5/§7 list it, but per the team lead direct Shopify access is out; internal backend endpoints replace it. `SHOPIFY_*` must not reappear in `.env.example` |
-| **Internal backend** (`connectors/backend/client.ts`) | Typed stub, **5 methods all throwing `NotImplementedError`**. Point-lookup by design (order by number, inventory by SKU) — orders/inventory are never mirrored locally. Auth scheme unconfirmed |
-| **Studio** (`connectors/studio/client.ts`) | Typed stub, **3 methods throwing** |
-| **Notion** | **No client exists.** Pull-only (no webhook API for internal integrations), so it does not fit the `raw_event` pattern. `pnpm verify:notion` is a read-only credential check, not a client |
+| Integration                                           | State                                                                                                                                                                                                      |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Shopify**                                           | ❌ **No client, and none is to be built.** PRD §5.5/§7 list it, but per the team lead direct Shopify access is out; internal backend endpoints replace it. `SHOPIFY_*` must not reappear in `.env.example` |
+| **Internal backend** (`connectors/backend/client.ts`) | Typed stub, **5 methods all throwing `NotImplementedError`**. Point-lookup by design (order by number, inventory by SKU) — orders/inventory are never mirrored locally. Auth scheme unconfirmed            |
+| **Studio** (`connectors/studio/client.ts`)            | Typed stub, **3 methods throwing**                                                                                                                                                                         |
+| **Notion**                                            | **No client exists.** Pull-only (no webhook API for internal integrations), so it does not fit the `raw_event` pattern. `pnpm verify:notion` is a read-only credential check, not a client                 |
 
 The stubs throw rather than returning plausible data on purpose: a stub that
 compiles and is wrong survives review; one that throws cannot be mistaken for a
@@ -696,7 +696,7 @@ Integration secrets: `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_APP_ID`,
 
 > ⚠️ **`KLAVIYO_API_KEY`, `MIRO_ACCESS_TOKEN`, `ZENDESK_API_TOKEN`,
 > `ZENDESK_SUBDOMAIN` are reserved in `.env.example` but there is NO integration
-> code for any of them.** Grep confirms those names appear only as *tool labels*
+> code for any of them.** Grep confirms those names appear only as _tool labels_
 > in `role-profile-form.tsx` and `seed.ts`, never as clients. Do not carry them
 > into the rebuild's config as though integrations exist.
 
@@ -712,13 +712,13 @@ Integration secrets: `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, `SLACK_APP_ID`,
 
 ### 4.1 Inbound webhooks — the real backend surface
 
-| Endpoint | Methods | Notes |
-| --- | --- | --- |
-| `POST /api/webhooks/slack` | POST | HMAC + replay ±300s; `url_verification` handshake |
-| `POST /api/webhooks/clickup` | POST | HMAC body-only, no replay protection |
-| `POST /api/webhooks/fireflies` | POST | HMAC body-only; store-then-best-effort-enqueue |
-| `POST /api/webhooks/ugc` | POST, GET | HMAC + replay; GET is a reachability probe |
-| `POST /api/webhooks/vision` | POST, GET | HMAC body-only, no replay; GET probe |
+| Endpoint                       | Methods   | Notes                                             |
+| ------------------------------ | --------- | ------------------------------------------------- |
+| `POST /api/webhooks/slack`     | POST      | HMAC + replay ±300s; `url_verification` handshake |
+| `POST /api/webhooks/clickup`   | POST      | HMAC body-only, no replay protection              |
+| `POST /api/webhooks/fireflies` | POST      | HMAC body-only; store-then-best-effort-enqueue    |
+| `POST /api/webhooks/ugc`       | POST, GET | HMAC + replay; GET is a reachability probe        |
+| `POST /api/webhooks/vision`    | POST, GET | HMAC body-only, no replay; GET probe              |
 
 All are `runtime = 'nodejs'` + `dynamic = 'force-dynamic'` (the HMAC needs
 `node:crypto`) and **publicly reachable by design** — `src/proxy.ts` protects
@@ -728,13 +728,13 @@ All are `runtime = 'nodejs'` + `dynamic = 'force-dynamic'` (the HMAC needs
 
 ### 4.2 Application endpoints
 
-| Endpoint | Methods | Verdict |
-| --- | --- | --- |
-| `GET /api/nav-badges` | GET | 🟡 Sidebar counts; 60s `unstable_cache`. UI concern |
-| `POST /api/extraction/[id]/fetch` | POST | ✅ Triggers a transcript fetch + extraction for one meeting |
-| `GET/POST /api/products`, `/api/products/[id]` (GET/PUT/DELETE) | | 🔴 **Template leftover, mock data. Drop.** |
-| `GET/POST /api/users`, `/api/users/[id]` (PUT/DELETE) | | 🔴 **Template leftover, mock data. Drop.** |
-| `GET /api/sentry-check` | GET | 🔴 **DELETE THIS.** Temporary public throw-route, still deployed. Anyone with the URL can trigger a 500 and consume Sentry quota. Its own header says to remove it |
+| Endpoint                                                        | Methods | Verdict                                                                                                                                                            |
+| --------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/nav-badges`                                           | GET     | 🟡 Sidebar counts; 60s `unstable_cache`. UI concern                                                                                                                |
+| `POST /api/extraction/[id]/fetch`                               | POST    | ✅ Triggers a transcript fetch + extraction for one meeting                                                                                                        |
+| `GET/POST /api/products`, `/api/products/[id]` (GET/PUT/DELETE) |         | 🔴 **Template leftover, mock data. Drop.**                                                                                                                         |
+| `GET/POST /api/users`, `/api/users/[id]` (PUT/DELETE)           |         | 🔴 **Template leftover, mock data. Drop.**                                                                                                                         |
+| `GET /api/sentry-check`                                         | GET     | 🔴 **DELETE THIS.** Temporary public throw-route, still deployed. Anyone with the URL can trigger a 500 and consume Sentry quota. Its own header says to remove it |
 
 ### 4.3 Server Actions — the primary read path
 
@@ -750,7 +750,7 @@ Consequences that matter for a rebuild:
 - **Resource-based auth on EVERY export** (`const { userId } = await auth()`),
   never a reliance on the route matcher. A Server Action is its own reachable
   endpoint.
-- `queries.ts` runs on **both** sides of the SSR handoff, which is *why* the
+- `queries.ts` runs on **both** sides of the SSR handoff, which is _why_ the
   indirection exists: the server prefetches through it and the browser re-runs
   the same `queryFn` on invalidation, where Drizzle and `pg` cannot run.
 
@@ -769,7 +769,7 @@ data-access module per feature that is the only thing touching the DB.
 Not portable to a non-Next backend, but records a genuinely expensive lesson.
 
 **A client component may NEVER import `@/db`.** A client component once imported
-a *constant* from a module that also imported `db`, dragging `pg` into the
+a _constant_ from a module that also imported `db`, dragging `pg` into the
 browser bundle. The build failed with **seven** Turbopack errors naming `dns`,
 `net`, `tls`, `fs` and `util/types` **inside pg internals** — not one of which
 mentions the import that caused it. It reads as a broken dependency, so the search
@@ -797,7 +797,7 @@ Two guards covering different halves:
 **Splitting pattern:** keep the client-safe half in its own file with no DB
 import. `src/lib/brief-states.ts` is the client-safe half of `brief-fold.ts`.
 
-**Port verdict: ✅ port the *principle* of a mechanically enforced boundary,
+**Port verdict: ✅ port the _principle_ of a mechanically enforced boundary,
 scoped precisely enough that it never fires on working code.**
 
 ---
@@ -815,7 +815,7 @@ actor to resolve.
   `WHERE normaliser_version < n`.
 - **Five different wire time formats** collapse in `time.ts`, recording
   `occurred_at_source` when it has to fall back.
-- **An unmappable payload leaves `processed = false`** and is *not* an error — it
+- **An unmappable payload leaves `processed = false`** and is _not_ an error — it
   stays visible in the unprocessed queue for replay after the mapping is fixed.
 - Subject types observed: `channel` (Slack), `task` (ClickUp), `meeting`
   (Fireflies), `brief`/`moodboard` (Vision).
@@ -827,12 +827,12 @@ where provider-shape knowledge lives.
 
 Order: **exact → email → fuzzy → unresolved.**
 
-| Confidence | Auto-linkable |
-| --- | --- |
-| `exact` — already-linked identity for this display name | ✅ |
-| `email` — roster email whose local part resembles the spoken name | ✅ |
-| `fuzzy` — a name **suggestion** | ❌ mandatory human confirmation |
-| `unresolved` — no confident answer, **including ties** | ❌ |
+| Confidence                                                        | Auto-linkable                   |
+| ----------------------------------------------------------------- | ------------------------------- |
+| `exact` — already-linked identity for this display name           | ✅                              |
+| `email` — roster email whose local part resembles the spoken name | ✅                              |
+| `fuzzy` — a name **suggestion**                                   | ❌ mandatory human confirmation |
+| `unresolved` — no confident answer, **including ties**            | ❌                              |
 
 Two tuned constants: `FUZZY_THRESHOLD = 0.72`, `AMBIGUITY_MARGIN = 0.08`.
 
@@ -887,11 +887,11 @@ anywhere.** The vendor is named in exactly **one** file, `provider.ts`, which ow
 the base URL, slugs, pricing table and `PROVIDER_NAME`. Callers ask for a **tier**
 (`fast` | `default` | `heavy`), never a slug.
 
-| Tier | Slug | $/M in | $/M out |
-| --- | --- | --- | --- |
-| `fast` | `anthropic/claude-haiku-4.5` | 1.00 | 5.00 |
-| `default` | `anthropic/claude-sonnet-5` | 2.00 | 10.00 |
-| `heavy` | `anthropic/claude-opus-5` | 5.00 | 25.00 |
+| Tier      | Slug                         | $/M in | $/M out |
+| --------- | ---------------------------- | ------ | ------- |
+| `fast`    | `anthropic/claude-haiku-4.5` | 1.00   | 5.00    |
+| `default` | `anthropic/claude-sonnet-5`  | 2.00   | 10.00   |
+| `heavy`   | `anthropic/claude-opus-5`    | 5.00   | 25.00   |
 
 `provider.ts` documents the swap to a direct Anthropic key as a three-step edit to
 that one file. `createProviderClient()` is a **function, not a constant** — a
@@ -904,7 +904,7 @@ and the regression looks like data drift.
 **`temperature: 0` on every call — and that is NOT determinism.**
 
 > ⚠️ **MEASURED and uncomfortable:** temperature 0 is necessary but not
-> sufficient. The parameter *is* honoured (the distribution collapses), it is not
+> sufficient. The parameter _is_ honoured (the distribution collapses), it is not
 > greedy, OpenRouter is not routing between backends (4 identical calls all served
 > by Amazon Bedrock, output still differed), and `seed` does nothing (Anthropic
 > models have no seed parameter). **The variance is in the serving stack. There is
@@ -920,7 +920,7 @@ and the regression looks like data drift.
 > not** — see §2.3.
 
 **JSON mode is NOT reliable through OpenRouter.** Do not pass `response_format`:
-support varies by model *and* by which upstream provider the request is routed to,
+support varies by model _and_ by which upstream provider the request is routed to,
 and the flag is accepted and silently ignored on some routes. Instead: ask for
 bare JSON in the prompt, **strip fences defensively anyway**, and let **Zod be the
 actual guarantee** — a malformed response throws.
@@ -933,16 +933,16 @@ transferable lessons in the repo and each one cost real measurement.
 
 `ai_summary` is a **cache**, one row per person, upserted, no history.
 
-| Condition | Action |
-| --- | --- |
-| `input_hash` unchanged | serve cache, **whatever its age** |
-| hash changed, younger than TTL | serve cache — the rate cap wins |
-| hash changed, at or past TTL | regenerate |
-| manual regenerate | bypass both, **but still write the hash** |
+| Condition                      | Action                                    |
+| ------------------------------ | ----------------------------------------- |
+| `input_hash` unchanged         | serve cache, **whatever its age**         |
+| hash changed, younger than TTL | serve cache — the rate cap wins           |
+| hash changed, at or past TTL   | regenerate                                |
+| manual regenerate              | bypass both, **but still write the hash** |
 
 **Both gates are load-bearing and do different jobs.** The TTL (1 hour)
-*guarantees* at most one call per subject per hour — without it a refresh loop is
-a billing incident. The `input_hash` stops a *pointless* call when the hour lapses
+_guarantees_ at most one call per subject per hour — without it a refresh loop is
+a billing incident. The `input_hash` stops a _pointless_ call when the hour lapses
 and nothing moved, which on a seven-person roster is the common case. A manual
 regenerate that skipped writing the hash would leave the next automatic check
 comparing against a stale fingerprint and regenerate immediately.
@@ -1015,7 +1015,7 @@ filter.** The event-fold approach is the right call and the reasoning is sound.
 Included because they bit hard and the cause is invisible from the symptom.
 
 **Never pass `undefined` as the locale to `toLocale*`, and pin the timezone.**
-`undefined` resolves to the *host's* locale — Node's during SSR, the browser's
+`undefined` resolves to the _host's_ locale — Node's during SSR, the browser's
 during hydration. The same timestamp rendered `31 Jul 2026, 20:55` server-side and
 `Jul 31, 2026, 08:55 PM` client-side; React declared a hydration mismatch and
 **discarded the whole subtree**. The symptom was a data table showing its toolbar
@@ -1076,7 +1076,7 @@ stable run to run even though the model output is not**.
 >
 > ⚠️ **Measured weakness:** deleting rule 1 from the prompt, inverting it, and
 > removing the entire `Do NOT extract:` block each changed the score by
-> **nothing**. Forcing a wrong `owner_name` or a fabricated `source_span` *does*
+> **nothing**. Forcing a wrong `owner_name` or a fabricated `source_span` _does_
 > fail the gate — so the harness works, but **a green run means "the pipeline is
 > intact", not "the prompt is good".**
 >
@@ -1119,10 +1119,10 @@ the raw material for a real eval set exists (scrubbing required).
 ### 🟡 Rebuild — the idea is right, this implementation is not
 
 - **`role_profile`, `recurring_task`** — three untyped JSONB columns; shape unsettled.
-- **`content_hash` idempotency** — port the intent, fix it to span *overlap*.
+- **`content_hash` idempotency** — port the intent, fix it to span _overlap_.
 - **ClickUp client** — keep read methods and the rate-limit logging, **drop
   `createTask`/`updateTaskStatus`**.
-- **Queue** — the registry *seam* is good; pg-boss-in-app-Postgres and in-process
+- **Queue** — the registry _seam_ is good; pg-boss-in-app-Postgres and in-process
   workers are a small-team compromise worth revisiting.
 - **Migrations** — manual-from-a-laptop was a deliberate one-week single-developer
   choice, and its stated tradeoff (schema/code drift) applies from the second
@@ -1164,7 +1164,7 @@ breaking today; all are worth resolving deliberately rather than porting.
 3. **`candidate_action_item`'s header comment is superseded.** It states "⚠️ THE
    DESTINATION IS NOTION (Ocean)" and "nothing reaches Notion before that". The
    2026-08-04 amendment made the Command Centre the system of record with no
-   external task tool written to. The *code* is correct — `approveCandidate()`
+   external task tool written to. The _code_ is correct — `approveCandidate()`
    writes `source_system='internal'` with a null `external_task_id` — only the
    comment is stale.
 
@@ -1202,3 +1202,14 @@ decisions.
 6. **Scrub 2–3 real transcripts into `fixtures/extraction-eval/real/`** while the
    database still holds them. Real extraction accuracy has never been measured,
    and the rebuild will want a baseline it can compare against.
+
+7. **Delete `/api/sentry-check`** — public throw-route, currently deployed.
+   **STATUS 2026-08-05: deleted locally, NOT yet pushed/deployed — local deletion
+   protects nothing in production; the route is still live and publicly
+   reachable on Railway until this deploys. Push this deletion at the next
+   deploy, or sooner.**
+
+8. **Export `raw_event` and `transcript`** — ✅ DONE 2026-08-05 (584 + 6 rows,
+   custom-format dump, stored outside the repo as a PII artifact).
+9. **Record the human decisions** — ✅ DONE 2026-08-05 (4 identity links,
+   1 approved candidate, 1 promoted item, CSVs alongside the dump).

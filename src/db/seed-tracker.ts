@@ -19,6 +19,19 @@
  *    whenever it is re-seeded rather than only in the week it was written.
  * 5. Idempotent — keyed on (project_id, title), so re-running updates rather
  *    than duplicating.
+ *
+ * ⚠️ THIS FILE'S ITEMS FEED DEPARTMENT HEALTH, which it was written before.
+ * Health (src/lib/dept-health.ts) groups tracked items by their OWNER'S
+ * department, so an overdue or blocked item here changes a department card on the
+ * Control Tower. docs/seed-spec.md requires Engineering and Operations to land
+ * on `good`, and five items below were troubled in ways that made them `bad` and
+ * `needs_attention` respectively — each is marked `HEALTH-ADJUSTED` with what it
+ * was.
+ *
+ * The board still demonstrates overdue, blocked and at-risk work; that work now
+ * sits in Creative and CX / Support, which are the departments the spec wants
+ * troubled. If the health targets are ever dropped, the original values are in
+ * the marker comments.
  */
 
 import { and, eq } from 'drizzle-orm';
@@ -80,10 +93,12 @@ const ITEMS: Record<string, SeedItem[]> = {
       dueInDays: 6
     },
     {
+      // HEALTH-ADJUSTED: was dueInDays -2 (overdue 2d). Usama is Engineering,
+      // which docs/seed-spec.md requires to be `good`.
       title: 'Backfill identities for unresolved Slack accounts',
       ownerName: 'Usama',
       status: 'open',
-      dueInDays: -2
+      dueInDays: 11
     },
     {
       title: 'Per-person profile pages with AI summaries',
@@ -92,11 +107,14 @@ const ITEMS: Record<string, SeedItem[]> = {
       dueInDays: 9
     },
     {
+      // HEALTH-ADJUSTED: was status 'blocked', dueInDays -5, riskFlag true — all
+      // three triggers at once, on an Engineering owner the spec requires to be
+      // `good`. Blocked-with-a-reason is still demonstrated by the Creative and
+      // CX items in seed.ts.
       title: 'Harden webhook replay protection for Vision',
       ownerName: 'Sami',
-      status: 'blocked',
-      dueInDays: -5,
-      riskFlag: true,
+      status: 'in_progress',
+      dueInDays: 2,
       description: 'Waiting on a timestamp header from the Vision team.'
     },
     {
@@ -113,11 +131,11 @@ const ITEMS: Record<string, SeedItem[]> = {
       dueInDays: null
     },
     {
+      // HEALTH-ADJUSTED: was riskFlag true. Sami is Engineering (`good`).
       title: 'Deploy the extraction worker to Railway',
       ownerName: 'Sami',
       status: 'open',
-      dueInDays: 1,
-      riskFlag: true
+      dueInDays: 1
     },
     {
       title: 'Retire the temporary Sentry check route',
@@ -134,17 +152,21 @@ const ITEMS: Record<string, SeedItem[]> = {
       dueInDays: 5
     },
     {
+      // HEALTH-ADJUSTED: was dueInDays -1 (overdue 1d). Ardin is Operations,
+      // which docs/seed-spec.md requires to be `good`.
       title: 'Creator onboarding checklist in the portal',
       ownerName: 'Ardin',
       status: 'in_progress',
-      dueInDays: -1
+      dueInDays: 6
     },
     { title: 'Studio stats API contract review', ownerName: 'Ardin', status: 'open', dueInDays: 8 },
     {
+      // HEALTH-ADJUSTED: was dueInDays -4 (overdue 4d, past OVERDUE_BAD_DAYS),
+      // which alone made Engineering `bad`.
       title: 'Map portal actor ids to person records',
       ownerName: 'Sami',
       status: 'open',
-      dueInDays: -4
+      dueInDays: 7
     },
     {
       title: 'Weekly creator payout reconciliation',

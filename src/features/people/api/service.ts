@@ -72,6 +72,11 @@ const SELECTION = {
   // The resolver's only automatic cross-system join key — see person.email.
   email: person.email,
   roleProfileId: person.roleProfileId,
+  // ⚠️ TWO DIFFERENT AXES, both required by `PersonRow` (= `Person & …`).
+  // `roleProfileId` above is work config (tracked signals + quota); `roleId` is
+  // ACCESS. See the header on src/db/schema/role.ts — they must not be merged.
+  roleId: person.roleId,
+  departmentId: person.departmentId,
   slackId: person.slackId,
   clickupId: person.clickupId,
   portalId: person.portalId,

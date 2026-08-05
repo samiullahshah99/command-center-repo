@@ -277,57 +277,27 @@ export async function getTeams(opts: ClickUpClientOptions = {}): Promise<ClickUp
   return body.teams;
 }
 
-// ── Write methods ───────────────────────────────────────────────────────────
-
-/**
- * Thin pass-through. Every value is a parameter.
- *
- * TODO(out of scope): choosing `listId` is a product decision — list-selection
- * logic is not built here.
- * TODO(out of scope): `assignees` are ClickUp user ids; the person -> ClickUp
- * user mapping is not built here.
- * TODO(out of scope): no retry or partial-failure handling on writes. A failed
- * create throws and the caller decides.
- */
-export type CreateTaskPayload = {
-  name: string;
-  description?: string;
-  /** ClickUp user ids, not person ids. */
-  assignees?: number[];
-  /** Raw ClickUp status name, not our lifecycle status. */
-  status?: string;
-  /** Epoch millis. */
-  due_date?: number;
-  priority?: number;
-};
-
-export async function createTask(
-  listId: string,
-  payload: CreateTaskPayload,
-  opts: ClickUpClientOptions = {}
-): Promise<ClickUpTask> {
-  return request(
-    `/list/${listId}/task`,
-    clickUpTaskSchema,
-    { method: 'POST', body: JSON.stringify(payload) },
-    opts
-  );
-}
-
-/**
- * TODO(out of scope): `status` must be a status name that exists in the task's
- * list. Mapping our lifecycle status to a ClickUp status is not built here — the
- * caller passes the exact ClickUp string.
- */
-export async function updateTaskStatus(
-  taskId: string,
-  status: string,
-  opts: ClickUpClientOptions = {}
-): Promise<ClickUpTask> {
-  return request(
-    `/task/${taskId}`,
-    clickUpTaskSchema,
-    { method: 'PUT', body: JSON.stringify({ status }) },
-    opts
-  );
-}
+// ── There are NO write methods, and none is to be added ─────────────────────
+//
+// ⚠️ `createTask()` (POST /list/{id}/task), `updateTaskStatus()` (PUT /task/{id})
+// and their `CreateTaskPayload` type were DELETED here, along with their tests.
+//
+// Per the 2026-08-04 amendment (docs/prd-amendments.md), the Command Centre is
+// the task system of record and NO EXTERNAL TASK TOOL IS WRITTEN TO. ClickUp is
+// a read-only, transitional source of content-team events. Approved action items
+// become native `tracked_item` rows; every mockup "Synced to ClickUp" badge now
+// renders tracker-native state off `tracked_item.candidate_action_item_id`.
+//
+// ── Why deleting them mattered rather than leaving them unused ───────────────
+// They were fully implemented and unit-tested, and a backend audit found their
+// ONLY callers were those tests. So the no-write-path rule held in practice
+// while the capability sat one import away from being used — and the repo also
+// contains a ClickUp client, `tracked_item.source_system = 'clickup'`, and a PRD
+// that still names ClickUp as system of record. Every one of those reads like
+// permission to build a write path. A tested, working `createTask()` reads like
+// an invitation.
+//
+// The CHECK constraint on `candidate_action_item.external_system` still PERMITS
+// 'clickup' — that asymmetry is deliberate (one shared EXTERNAL_SYSTEMS constant
+// beats a narrowed CHECK that re-creates value drift). The rule is enforced by
+// the absence of write code. This comment is that absence, made explicit.

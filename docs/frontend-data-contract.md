@@ -37,10 +37,10 @@ These appear on multiple screens. Audit these first — a mismatch here fans out
 | `status` | enum `open \| in_progress \| blocked \| at_risk \| done \| dismissed` | all task tables (`item.status`, `item.state`, `item.stateLabel`) | mockup renders label + color from this; confirm exact enum values with team, then freeze |
 | `source` | enum `meeting_fireflies \| slack \| manual \| founder_offload` | Capture queue, CT capture stats (`item.source`) | |
 | `sourceRef` | object `{ channel?, meetingId?, timestamp, quote? }` | Capture queue (`item.quote`, `#proj-retention · 11:38`) | evidence of origin |
-| `completionType` | enum `auto_evidenced \| manual_checkoff` | My day, Auto-completion ledger | PRD core concept: "evidenced, not self-declared" |
+| `completionType` | enum `auto_evidenced \| manual_checkoff` | My day, Auto-completion ledger | PRD core concept: "evidenced, not self-declared". ⚠ depends on the completion engine — `completion_event` currently has 0 rows and no writer |
 | `evidence` | string / object | Auto-completion ledger (`item.evidence`, `item.ev`) | what activity proved completion |
-| `clickupSync` | object `{ synced: boolean, clickupTaskId?, syncedAt? }` | Capture queue "Synced to ClickUp", Person profile / My day "Action items → ClickUp" | ClickUp remains system of record (PRD non-goal) |
-| `confidence` | number | Capture queue (`item.conf`) | AI-extraction confidence for review UI |
+| `trackerState` | object `{ tracked: boolean, trackedItemId?, projectName?, promotedAt? }` | Renders wherever the mockup shows "Synced to ClickUp" / "Action items → ClickUp" | **SUPERSEDED MAPPING (amendment 2026-08-04):** the Command Centre is the task system of record; no external task tool is written to. Mockup ClickUp badges render as tracker-native state — approved items are `tracked_item` rows on `/dashboard/tracker` (landing in the `Inbox` project). Labels change to "Added to tracker" / "Action items → Tracker" |
+| `confidence` | number | Capture queue (`item.conf`) | AI-extraction confidence for review UI (exists: `candidate_action_item.confidence`) |
 
 ### 1.3 Department
 | Field | Type | Used on | Notes |
@@ -128,12 +128,12 @@ Tabs: Tasks / Meetings / Calendar (`person.tabTasks`, `person.tabMeetings`, `per
 ### 2.6 Capture queue
 | Element | Data needed |
 |---|---|
-| Incoming sources: Slack MCP card (`#proj-retention · 11:38`, quote, proposed item) and Fireflies transcript card ("Weekly CX sync · today 10:00") | CaptureItem: `{ id, source, sourceRef, quote, proposedTask, proposedOwner, due?, confidence, status }` |
-| Review queue (`queue`, `queueCount`, `queueEmpty`) with Approve / Dismiss (`item.approve`, `item.dismiss`) | `GET /capture-queue?status=pending`; `POST /capture-items/:id/approve` (→ creates ActionItem + ClickUp sync), `POST /:id/dismiss` |
-| "Synced to ClickUp" badge (`synced`, `hasSynced`) | sync result on approval |
-| Auto-completion ledger (`ledger`: Task, Owner, Evidence, When) | completed-by-evidence log: `{ task, owner, evidence, completedAt, signal }` |
+| Incoming sources: Slack MCP card (`#proj-retention · 11:38`, quote, proposed item) and Fireflies transcript card ("Weekly CX sync · today 10:00") | CaptureItem = existing `candidate_action_item`: `{ id, source, sourceRef (via unified_event), source_span (quote), description (proposedTask), owner + owner_confidence, due_date, confidence, review_status }` — **largely ✅ built** |
+| Review queue (`queue`, `queueCount`, `queueEmpty`) with Approve / Dismiss (`item.approve`, `item.dismiss`) | ✅ built: `review_status='pending'` list; `approveCandidate()` promotes to `tracked_item` (one transaction, `FOR UPDATE`, lands in `Inbox` project); dismiss = `review_status='rejected'` |
+| ~~"Synced to ClickUp" badge~~ → **"Added to tracker" badge** (`synced`, `hasSynced`) | tracker-native promotion state per amendment 2026-08-04: `tracked_item` exists for this candidate (`tracked_item.candidate_action_item_id`). **No ClickUp write path — none is to be built** |
+| Auto-completion ledger (`ledger`: Task, Owner, Evidence, When) | 🔴 depends on unbuilt completion engine — `completion_event` has 0 rows and no writer. Frontend mocks this panel until the engine exists |
 
-**Audit checkpoints:** ingestion pipelines (Slack events, Fireflies webhooks/transcripts) exist? Extraction step (AI) producing proposed items with confidence? Approve→ClickUp write path? Evidence ledger persisted?
+**Audit checkpoints:** ingestion (Slack, Fireflies) ✅ built; extraction with confidence ✅ built; promotion ✅ built; team-scoped queue filter (per §4.1 decision) 🔴 missing; completion ledger 🔴 unbuilt.
 
 ### 2.7 People & org
 | Element | Data needed |
@@ -276,27 +276,44 @@ AI search results are additionally **content-scoped** by role (§2.9), which is 
 
 | Integration | Direction | Screens depending on it | In PRD? |
 |---|---|---|---|
-| ClickUp | read + write (task creation, sync status) | Capture queue, My day, Person profile, My projects, My team | ✓ |
-| Slack | ingest (events/messages), post (alerts, copilot bot), deep links | Capture queue, CT, Agency reporting, My projects nudges | ✓ |
-| Fireflies (meetings) | ingest transcripts → items + summaries | Capture queue, CT stats, My day, Person profile | ✓ |
+| ClickUp | **read-only, transitional** (content-team events; amendment 2026-08-04: no write path, none to be built; dormant `createTask`/`updateTaskStatus` to be deleted) | origin of content-team signals only; all mockup "ClickUp sync" UI renders tracker-native state | ✓ built (read) |
+| Slack | ingest ✅ built (events/webhook, HMAC+replay); post (alerts, copilot bot) 🔴 not built; deep links | Capture queue, CT, Agency reporting, My projects nudges | ✓ |
+| Fireflies (meetings) | ingest ✅ built (v2 webhook + GraphQL transcript fetch + extraction) | Capture queue, CT stats, My day, Person profile | ✓ |
+| **UGC (internal)** | ingest ✅ built — 128 events, ⚠ 0% person attribution (no actor email) | per-person/dept metrics | ✓ (internal contract) |
+| **Vision (internal)** | ingest ✅ built — brief events; state derived by event folding (`brief-fold.ts`) | Briefs & quota, Department (creative) | ✓ (internal contract) |
 | Internal portal | signal source + AI-search corpus | AI search, automations signals | ✓ |
-| Notion | AI-search corpus | AI search | ✓ (read-only) |
-| Shopify | copilot source | CT copilot citation | ✓ |
-| Klaviyo | metrics read | Agency reporting | ✓ |
-| **Zendesk** | metrics read (tickets/CSAT) | Department, My team | ⚠ not listed |
-| **GitHub** | delivery signal | My projects | ⚠ not listed |
-| **Calendar** (Google?) | availability/blocks | Person profile tab, Briefs nudge | ⚠ not listed |
-| **Miro** (or embed) | org chart seed | People & org | ⚠ not listed |
-| Brief Tracker (internal) | briefs + quota feed | Briefs & quota, Department (creative) | ✓ (separate PRD) |
+| Notion | AI-search corpus only; **pull-only, no client built yet**; NOT a task destination | AI search | ✓ (read-only) |
+| ~~Shopify~~ → **Internal backend endpoints** | point-lookup stub exists (`connectors/backend/client.ts`, all methods throw `NotImplementedError`); awaiting backend engineer. **No Shopify client — none to be built** | CT copilot citations (orders/inventory) | superseded |
+| Klaviyo | metrics read — 🔴 **no code exists** (env var reserved only); confirmed in scope | Agency reporting | ✓ |
+| Zendesk | metrics read (tickets/CSAT) — 🔴 **no code exists**; confirmed in scope | Department, My team | confirmed 2026-08-05 |
+| GitHub | delivery signal — 🔴 **no code exists**; confirmed in scope | My projects | confirmed 2026-08-05 |
+| Calendar (Google?) | availability/blocks — 🔴 **no code exists**; confirmed in scope | Person profile tab, Briefs nudge | confirmed 2026-08-05 |
+| Miro (or embed) | org chart seed — 🔴 **no code exists**; confirmed in scope | People & org | confirmed 2026-08-05 |
+| Brief Tracker (internal) | briefs + quota feed — arrives via Vision events, folded to state | Briefs & quota, Department (creative) | ✓ (separate PRD) |
 
 ---
 
 ## 6. How to run the audit with this document
 
-1. Backend inventory → `docs/backend-inventory.md` (endpoints, models, integrations), read-only pass.
-2. For each table in §1–§3, mark every field ✅ / 🟡 (name/type/enum/aggregation mismatch — note the fix) / 🔴.
-3. For §2, additionally check the *endpoint shape*: rollups must arrive pre-aggregated (Control Tower, My day); per-scope filters must exist (person, team, dept, "me").
-4. For §5, mark each integration: built / partial / absent.
-5. Rate every 🟡/🔴 by effort: serializer tweak (minutes) < new query/aggregation (hours) < new integration or pipeline (days).
-6. Resolve all naming disputes in the frontend's favor (frontend is fixed); rename via serializers/DTOs, not client-side mapping.
-7. Output `docs/backend-audit.md`; the days-level items grouped by screen become the phase plan.
+**Precedence rule: `docs/prd-amendments.md` overrides this contract wherever they conflict.** This revision (2026-08-05) already folds in the 2026-08-04 amendment (Command Centre = task system of record) and the backend-inventory findings.
+
+**Contract ↔ existing schema map** (use these correspondences; do not re-derive):
+
+| Contract entity | Existing implementation |
+|---|---|
+| ActionItem | `tracked_item` (post-approval) + `candidate_action_item` (pre-approval) |
+| Capture queue | `candidate_action_item` review queue + `approveCandidate()` promotion — ✅ built |
+| Auto-completion ledger | `completion_event` — 🔴 0 rows, no writer; engine unbuilt |
+| RoleProfile / AutomationRule | `role_profile` / `recurring_task` — 🟡 exist, untyped JSONB, inventory says rebuild |
+| "Synced to ClickUp" (any screen) | tracker-native promotion state (`tracked_item.candidate_action_item_id`) |
+| Brief / brief status | Vision events folded by `brief-fold.ts` (derive, don't store) + production filter |
+| Meeting | `transcript` + fireflies `unified_event`s |
+
+1. Backend inventory → `docs/backend-inventory.md` (done 2026-08-05), read-only pass.
+2. For each table in §1–§3, mark every field: ✅ port as-is / 🟡 port with refactor (state the change) / 🔴 net-new. Inherit the inventory's §8 port verdicts where they apply.
+3. For §2, additionally check the *endpoint shape*: rollups must arrive pre-aggregated (Control Tower, My day); per-scope filters must exist (person, team, dept, "me"); the team-scoped capture queue filter (§4.1) is a named requirement.
+4. For §5, mark each integration: built / partial / absent (the table above is pre-marked from the inventory).
+5. Rate every 🟡/🔴 by effort: serializer/DTO tweak (minutes) < new query/aggregation (hours) < new integration or pipeline (days).
+6. Resolve all naming disputes in the frontend's favor **at the DTO layer** (feature `api/types.ts` + `service.ts`); DB naming (snake_case, singular) is unchanged.
+7. Add a "decisions required" section: email-less identity attribution (0% on UGC/Fireflies), `completion_event` engine design, and the inventory §9 discrepancies (dead `TASK_SOURCE_OF_RECORD` config, dormant ClickUp write methods, stale schema comments).
+8. Output `docs/backend-audit.md`; the days-level items grouped by screen become the phase plan.

@@ -1,29 +1,33 @@
-import React from 'react';
-import { SidebarTrigger } from '../ui/sidebar';
-import { Separator } from '../ui/separator';
-import { Breadcrumbs } from '../breadcrumbs';
-import SearchInput from '../search-input';
-import { ThemeSelector } from '../themes/theme-selector';
-import { ThemeModeToggle } from '../themes/theme-mode-toggle';
+/**
+ * Top bar — the SERVER half.
+ *
+ * Resolves the actor so the copilot affordance can be role-gated before any
+ * markup exists, then hands a plain `variant` to the client half. Same reasoning
+ * as ./app-sidebar.tsx, and `getCurrentActor()` is memoised per request, so the
+ * sidebar and this bar share ONE resolution.
+ */
 
-export default function Header() {
-  return (
-    <header className='bg-background/60 sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-2 backdrop-blur-md md:h-14'>
-      <div className='flex items-center gap-2 px-4'>
-        <SidebarTrigger className='-ml-1' />
-        <Separator orientation='vertical' className='mr-2 h-4' />
-        <Breadcrumbs />
-      </div>
+import { COPILOT_ROLES } from '@/config/nav-config';
+import { getCurrentActor } from '@/lib/current-actor';
+import { HeaderBar, type CopilotVariant } from './header-bar';
 
-      <div className='flex items-center gap-2 px-4'>
-        <div className='hidden md:flex'>
-          <SearchInput />
-        </div>
-        <ThemeModeToggle />
-        <div className='hidden sm:block'>
-          <ThemeSelector />
-        </div>{' '}
-      </div>
-    </header>
-  );
+export default async function Header() {
+  const actor = await getCurrentActor();
+  const roleCode = actor?.roleCode ?? null;
+
+  /**
+   * ⚠️ DENY BY DEFAULT, matching the nav. A null roleCode gets `none` — the same
+   * treatment as `agency` — because AI search is gated to the six non-agency
+   * roles and an unlinked actor holds none of them. An "Ask the AI brain" button
+   * routing somewhere the actor cannot open is a dead end that reads as a broken
+   * link rather than as a permission boundary.
+   */
+  const copilot: CopilotVariant =
+    roleCode === null || roleCode === 'agency'
+      ? 'none'
+      : (COPILOT_ROLES as readonly string[]).includes(roleCode)
+        ? 'input'
+        : 'button';
+
+  return <HeaderBar copilot={copilot} />;
 }

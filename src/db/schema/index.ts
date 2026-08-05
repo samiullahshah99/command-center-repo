@@ -5,6 +5,8 @@
 // Naming: snake_case table and column names, singular table names.
 
 export * from './role-profile';
+export * from './role';
+export * from './department';
 export * from './ai-summary';
 export * from './external-system';
 export * from './person';

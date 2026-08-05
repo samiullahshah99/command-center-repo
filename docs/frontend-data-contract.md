@@ -253,16 +253,22 @@ This screen is admin CRUD → needs full create/update/disable endpoints, not ju
 |---|---|---|---|---|---|---|---|
 | Control Tower | ✓ | ✓ | | | | | |
 | Department / People & org / Founder offload | ✓ | ✓ | | | | | |
-| Capture queue | ✓ | ✓ | ✓? | | | | |
+| Capture queue | ✓ | ✓ | ✓ (team-scoped) | | | | |
 | Automations | | ✓ | | | | | |
 | My day | | | ✓ | ✓ | ✓ | ✓ | |
 | My team | | | ✓ | | | | |
 | Briefs & quota | | | | | ✓ | | |
 | My projects | | | | | | ✓ | |
 | Agency reporting | | ✓ (all) | | | | | ✓ (own) |
-| AI search | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ? |
+| AI search | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ |
 
-“?” = ambiguous in mockup — resolve with team lead. AI search results are additionally **content-scoped** by role (§2.9), which is a retrieval-layer requirement beyond page access.
+AI search results are additionally **content-scoped** by role (§2.9), which is a retrieval-layer requirement beyond page access.
+
+### 4.1 Resolved decisions (2026-08-05)
+1. **Integrations** — Zendesk, GitHub, Calendar, and Miro are confirmed in scope; backend receives access/credentials. Treat all §5 rows as buildable.
+2. **Support manager Capture queue** — access granted, **team-scoped**: queue filtered to items whose proposed owner is on her team or whose source is her team's meetings/Slack channels. Basis: PRD groups her under Ops/leadership, grants agent-level visibility, and routes her Slack-issued action items through capture.
+3. **Agency AI search** — **excluded**. AI brain corpus is internal (portal, transcripts, Slack, Notion); PRD use case is internal staff; agencies are external vendors with reporting-capture needs only.
+4. **Retrieval-level role scoping for AI search** — confirmed as a hard backend requirement: the search index/retrieval layer must filter sources by the requesting user's role before answer generation, not merely hide UI.
 
 ---
 

@@ -15,9 +15,13 @@ AGENTS.md content here; the two files drift the moment they overlap.
 - **[docs/themes.md](./docs/themes.md)** — Theme system: OKLCH colors, adding themes, font config
 - **[docs/clerk_setup.md](./docs/clerk_setup.md)** — Clerk auth setup
 - **[docs/access-status.md](./docs/access-status.md)** — Integration credential status
+- **[docs/webhook-contract.md](./docs/webhook-contract.md)** — The five inbound signature schemes, field by field. Reference for what we RECEIVE; our own `X-CC-*` spec was never adopted
+- **[docs/frontend-data-contract.md](./docs/frontend-data-contract.md)** — ⚠️ **The mockup frontend is the fixed contract, per team-lead direction.** Every screen, every data-driven element, and the field-level schema it implies. The backend is audited against this document
+- **[docs/urls.md](./docs/urls.md)** — Production base URL, endpoints, Slack app + channel IDs
+- **[docs/week-1-exit-test.md](./docs/week-1-exit-test.md)** — Repeatable end-to-end ingest check with the exact SQL per step
 - **[fixtures/extraction-eval/README.md](./fixtures/extraction-eval/README.md)** — Eval harness: metric definitions, why `real/` is empty, fixture scrub rules
 - **[docs/prd-amendments.md](./docs/prd-amendments.md)** — Decisions that supersede the PRD. Authoritative while the PRD is absent
-- **docs/prd.md** — *Not yet committed.* Product requirements. Read the amendments file first: several of its sections are already superseded.
+- **docs/prd.md** — _Not yet committed._ Product requirements. Read the amendments file first: several of its sections are already superseded.
 
 ## Removed from this template
 
@@ -33,8 +37,14 @@ still in use.** Do not reintroduce `useOrganization`, `<Protect>`, `has({ plan }
 
 ### Feature folder anatomy
 
-`src/features/products/` is the canonical example. **New features replicate this
-shape exactly.** Actual structure:
+`src/features/products/` is the canonical example **of the folder shape**. New
+features replicate it exactly.
+
+> ⚠️ **Copy the shape from `products`, the service layer from `tracker`.**
+> `products` and `users` are template leftovers whose `service.ts` returns mock
+> data and is not `'use server'` — see
+> [Route-handler placement](#route-handler-placement). Copying that file wholesale
+> reintroduces the mock path into a real feature.
 
 ```
 src/features/products/
@@ -65,6 +75,32 @@ feature's listing component. See `src/app/dashboard/product/page.tsx`.
 **The dependency direction is one-way:** `types.ts` → `service.ts` →
 `queries.ts` → components. Components never import mock APIs directly.
 
+### Which features are real — three tiers, and they look identical from the tree
+
+`src/features/` has 17 folders. Knowing which tier one is in is not inferable
+from its name, and picking the wrong one to copy is the common mistake.
+
+| Tier | Folders |
+| --- | --- |
+| **Real, DB-backed** | `tracker`, `extraction`, `people`, `person-profile`, `briefs`, `home`, `connector-health`, `role-profiles`, `identities`, plus the non-UI `connectors`, `identity`, `normalise` |
+| **Template leftovers — mock data** | `products`, `users` |
+| **Mockups — screenshots, not features** | `tracker-mockups` |
+| **Clerk UI shells — no data layer** | `auth`, `profile` |
+
+> ⚠️⚠️ **`tracker-mockups` is NOT `tracker`, and it contains a rule-breaking
+> constant on purpose.** `MOCKUP_TODAY = '2026-08-12'` is hardcoded so the
+> today-line and overdue bars land where they were designed and screenshots stay
+> identical whenever reopened. **A live feature must never do this** — real
+> features resolve `now` once above the tree and thread it down
+> (`formatDueDate(due, now)`; see how `tracker/components/board-table.tsx` pins
+> it with `useMemo`). The file says so at the top; the risk is copying the
+> pattern out of it without reading that far.
+
+`design/mockup/*.dc.html` is the source those screens were built from and
+[docs/frontend-data-contract.md](./docs/frontend-data-contract.md) is the
+field-level contract derived from it — **the mockup is fixed, per team-lead
+direction, and the backend is audited against it.**
+
 ### Zod schema location
 
 Schemas live at `src/features/<feature>/schemas/<entity>.ts`. Verified:
@@ -77,23 +113,40 @@ boundary (forms, route handlers, external payloads).
 
 ### Route-handler placement
 
-Handlers live at `src/app/api/<resource>/route.ts`, with per-item handlers at
-`src/app/api/<resource>/[id]/route.ts`. Existing: `api/products`, `api/users`.
+**The data-access pattern is SETTLED: Pattern 1, Server Actions + ORM.** Eight
+features use it — `tracker`, `extraction`, `people`, `briefs`, `home`,
+`connector-health`, `role-profiles`, `identities`. Their `service.ts` is
+`'use server'` and imports `@/db` directly.
 
-> **There is no settled data-fetching pattern yet.** Those handlers are
-> scaffolding — they currently return mock data, and `service.ts` calls the
-> mocks directly rather than going through them. `service.ts` documents three
-> options (Server Actions + ORM, Route Handlers + ORM, BFF proxy) and the repo
-> has committed to none.
+> ⚠️ `api/products` and `api/users` are **template leftovers** — the only two
+> services still returning mock data and the only two without `'use server'`.
+> They are not the example to copy. `src/features/tracker/api/service.ts` and
+> `src/features/identities/api/service.ts` are.
 
-**Proposed convention** (decide before Day 2 data work): given the PRD specifies
-a Python/FastAPI backend, route handlers should be reserved for
+Two consequences that are easy to get wrong:
 
-1. **Inbound webhooks** — Slack events, Fireflies transcript-ready callbacks
-2. **BFF proxying** — where the browser must not hold a backend token
+1. **Every export in a `'use server'` file must be an async function.** That is
+   the Server Actions contract, and it is why types live in `./types.ts` and
+   constants in `./constants/` rather than beside the queries — a non-async
+   export there fails the build.
+2. **Resource-based auth on EVERY export**, never a reliance on `src/proxy.ts`:
+   `const { userId } = await auth(); if (!userId) …`. A Server Action is its own
+   reachable endpoint and the route matcher does not cover it.
 
-and *not* used as the primary read path. Feature reads go through `service.ts`,
-which calls either the backend API or Drizzle directly.
+Route handlers live at `src/app/api/<resource>/route.ts` (per-item at
+`[id]/route.ts`) and are reserved for
+
+1. **Inbound webhooks** — `api/webhooks/{slack,clickup,fireflies}` plus the
+   internal UGC/Vision handlers
+2. **Callers that are not a React query** — `api/nav-badges`, `api/extraction/[id]/fetch`
+3. **BFF proxying** — where the browser must not hold a backend token
+
+and _not_ as the primary read path.
+
+> **Why the indirection exists at all:** `queries.ts` is consumed on BOTH sides
+> of the SSR handoff. The server prefetches through it, and the browser re-runs
+> the same `queryFn` on invalidation after an inline edit — where Drizzle and
+> `pg` cannot run. The Server Action is what lets one `queryFn` serve both.
 
 ### Data fetching — the TanStack Query SSR pattern
 
@@ -109,7 +162,7 @@ import { searchParamsCache } from '@/lib/searchparams';
 import { productsQueryOptions } from '../api/queries';
 
 export default function ProductListingPage() {
-  const filters = { page: searchParamsCache.get('page'), /* … */ };
+  const filters = { page: searchParamsCache.get("page") /* … */ };
   const queryClient = getQueryClient();
 
   void queryClient.prefetchQuery(productsQueryOptions(filters)); // note: void, not await
@@ -134,9 +187,10 @@ in `api/queries.ts`, using a key factory:
 
 ```ts
 export const productKeys = {
-  all: ['products'] as const,
-  list: (filters: ProductFilters) => [...productKeys.all, 'list', filters] as const,
-  detail: (id: number) => [...productKeys.all, 'detail', id] as const
+  all: ["products"] as const,
+  list: (filters: ProductFilters) =>
+    [...productKeys.all, "list", filters] as const,
+  detail: (id: number) => [...productKeys.all, "detail", id] as const,
 };
 ```
 
@@ -163,7 +217,7 @@ browser. A `'use client'` component consumes them through a TanStack `queryFn`
 the contract at the top of the file.
 
 > **The failure mode is why this is stated so loudly.** A client component
-> imported a *constant* from a module that also imported `db`, which dragged `pg`
+> imported a _constant_ from a module that also imported `db`, which dragged `pg`
 > into the browser bundle. The build failed with **seven** Turbopack errors
 > naming `dns`, `net`, `tls`, `fs` and `util/types` **inside pg internals** —
 > not one of which mentions the import that caused it. It reads as a broken
@@ -173,8 +227,8 @@ the contract at the top of the file.
 
 1. **`import 'server-only'`** at the top of any shared module that touches the
    DB — currently `src/lib/brief-fold.ts` and `src/lib/nav-counts.ts`. A client
-   import then fails the build with *"This module cannot be imported from a
-   Client Component module"*, naming the actual rule.
+   import then fails the build with _"This module cannot be imported from a
+   Client Component module"_, naming the actual rule.
 2. **`pnpm lint:boundaries`** (`scripts/check-client-boundaries.ts`) scans every
    `'use client'` file for forbidden specifiers.
 
@@ -293,7 +347,7 @@ in three places and **all three must be kept**:
 > takes precedence over `src/app/robots.ts`. The one that used to live there
 > disallowed only four paths and implicitly allowed everything else.
 
-These are crawler *requests*, not access control. Actual protection is Clerk on
+These are crawler _requests_, not access control. Actual protection is Clerk on
 `/dashboard/*` via `src/proxy.ts`.
 
 ---
@@ -346,11 +400,11 @@ These are crawler *requests*, not access control. Actual protection is Clerk on
 Verified against the live OpenRouter catalog. Slugs move; re-check with
 `curl -s https://openrouter.ai/api/v1/models` before pinning new ones.
 
-| Tier | Slug | $/M in | $/M out |
-| --- | --- | --- | --- |
-| `fast` | `anthropic/claude-haiku-4.5` | 1.00 | 5.00 |
-| `default` | `anthropic/claude-sonnet-5` | 2.00 | 10.00 |
-| `heavy` | `anthropic/claude-opus-5` | 5.00 | 25.00 |
+| Tier      | Slug                         | $/M in | $/M out |
+| --------- | ---------------------------- | ------ | ------- |
+| `fast`    | `anthropic/claude-haiku-4.5` | 1.00   | 5.00    |
+| `default` | `anthropic/claude-sonnet-5`  | 2.00   | 10.00   |
+| `heavy`   | `anthropic/claude-opus-5`    | 5.00   | 25.00   |
 
 > ⚠️ **A floating alias changes prompt behaviour with no code change.** The
 > extraction prompt is tuned against a specific model; when the alias moves, the
@@ -386,27 +440,27 @@ a test asserts the default. **Do not raise it for extraction.**
 >
 > What was actually established, each by direct probe:
 >
-> | Question | Finding |
-> | --- | --- |
+> | Question                                | Finding                                                                                                                                                                       |
+> | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 > | Is `temperature: 0` reaching the model? | **Yes.** "Pick a random number 1–1000" × 6: temp 0 → 2 distinct answers, temp 1 → 3, with one value dominating at 0. The distribution collapses, so the parameter is honoured |
-> | Is it *greedy*? | **No.** Those 2 distinct answers at temp 0 (`742`/`487`) are a token-level flip, not a rewording |
-> | Is OpenRouter routing between backends? | **No.** 4 identical calls all served by `Amazon Bedrock`, same slug — and output still differed, 943→1346 completion tokens |
-> | Does `seed` help? | **No.** `seed: 12345` changed nothing, and no `system_fingerprint` is returned. Anthropic models have no seed parameter |
+> | Is it _greedy_?                         | **No.** Those 2 distinct answers at temp 0 (`742`/`487`) are a token-level flip, not a rewording                                                                              |
+> | Is OpenRouter routing between backends? | **No.** 4 identical calls all served by `Amazon Bedrock`, same slug — and output still differed, 943→1346 completion tokens                                                   |
+> | Does `seed` help?                       | **No.** `seed: 12345` changed nothing, and no `system_fingerprint` is returned. Anthropic models have no seed parameter                                                       |
 >
 > So the variance is in the serving stack, not in our parameters or our routing.
 > **There is no configuration that fixes this. Stop looking for one.**
 >
 > Across runs of the same fixture:
 >
-> | Field | Stable? |
-> | --- | --- |
-> | item count | ✅ always 4 |
-> | `owner_name` | ✅ identical |
-> | `due_date` | ⚠️ identical except the one genuinely ambiguous date |
+> | Field         | Stable?                                                   |
+> | ------------- | --------------------------------------------------------- |
+> | item count    | ✅ always 4                                               |
+> | `owner_name`  | ✅ identical                                              |
+> | `due_date`    | ⚠️ identical except the one genuinely ambiguous date      |
 > | `source_span` | ⚠️ same line, but the **quoted window widens or narrows** |
-> | `description` | ❌ reworded every run |
-> | `confidence` | ❌ 0.70 / 0.55 / 0.65 for the same item |
-> | `follow_ups` | ❌ reworded |
+> | `description` | ❌ reworded every run                                     |
+> | `confidence`  | ❌ 0.70 / 0.55 / 0.65 for the same item                   |
+> | `follow_ups`  | ❌ reworded                                               |
 >
 > **The design rule that follows: never key anything on model wording.** Judge
 > extraction on the fields that hold — owner, date, and which transcript line
@@ -427,7 +481,7 @@ a test asserts the default. **Do not raise it for extraction.**
 ### JSON mode is NOT reliable through OpenRouter
 
 **Do not pass `response_format` / rely on JSON mode.** OpenRouter's support for
-structured output varies by model *and* by which upstream provider the request
+structured output varies by model _and_ by which upstream provider the request
 is routed to. The flag is accepted and silently ignored on some routes.
 
 Instead, and in this order:
@@ -501,7 +555,7 @@ not `eventType`, no `clientReferenceId`, plus an undocumented millisecond
 `timestamp`. Confirmed from `Fireflies-Webhook/2.0` deliveries.
 
 - Real event value observed: **`meeting.transcribed`** (lowercase, dotted).
-- **Real events ARE signed** with `x-hub-signature`. Their *setup test* pings are
+- **Real events ARE signed** with `x-hub-signature`. Their _setup test_ pings are
   unsigned and are correctly rejected 401. A temporary bypass for those has been
   removed — do not reintroduce one; both its conditions were attacker-controlled
   on a public endpoint.
@@ -538,11 +592,11 @@ installation — a reinstall was required.
 
 Measured, not assumed:
 
-| Provider | Headroom headers | Signal |
-| --- | --- | --- |
-| ClickUp | ✅ `x-ratelimit-limit` / `-remaining` / `-reset` on every response | 100/min on our plan; `-reset` is epoch **SECONDS** |
-| Slack | ❌ **none at all** | Only `Retry-After` on a 429 — i.e. after the fact. Per-METHOD tiers. Does return `x-oauth-scopes`. |
-| Fireflies | ❌ none | Limit is per **DAY**, so a 429 matters far more |
+| Provider  | Headroom headers                                                   | Signal                                                                                             |
+| --------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| ClickUp   | ✅ `x-ratelimit-limit` / `-remaining` / `-reset` on every response | 100/min on our plan; `-reset` is epoch **SECONDS**                                                 |
+| Slack     | ❌ **none at all**                                                 | Only `Retry-After` on a 429 — i.e. after the fact. Per-METHOD tiers. Does return `x-oauth-scopes`. |
+| Fireflies | ❌ none                                                            | Limit is per **DAY**, so a 429 matters far more                                                    |
 
 `src/features/connectors/rate-limit.ts` logs ClickUp headroom per call and warns
 below 20% or 10 remaining. It cannot do the same for Slack — writing one shared
@@ -555,12 +609,12 @@ Do **not** retry a plan or auth failure six times. `classifyTranscriptFetchError
 splits them, and a permanent one throws `PermanentJobError`, which the worker
 turns into pg-boss's `deadletter` status on the **first** attempt.
 
-| Permanent | Transient |
-| --- | --- |
-| plan / subscription (`paid_required`) | 429 rate limit |
-| auth failure, 401/403 | 5xx |
-| response shape changed | network error |
-| non-429 4xx | "not found" **within** 30 min of the webhook |
+| Permanent                             | Transient                                    |
+| ------------------------------------- | -------------------------------------------- |
+| plan / subscription (`paid_required`) | 429 rate limit                               |
+| auth failure, 401/403                 | 5xx                                          |
+| response shape changed                | network error                                |
+| non-429 4xx                           | "not found" **within** 30 min of the webhook |
 
 > ⚠️ **"Transcript not found" is ambiguous** and is resolved by AGE, not by the
 > message: Fireflies can announce a meeting before the transcript is queryable.
@@ -582,7 +636,7 @@ turns into pg-boss's `deadletter` status on the **first** attempt.
 > ⚠️ **Name matching is NEVER auto-applied**, at any confidence level. There is
 > deliberately no `'name'` confidence tier. Two people can share a display name
 > and a wrong auto-link silently attributes one person's work to another —
-> nobody goes looking for that. Names may appear as an *unverified suggestion* in
+> nobody goes looking for that. Names may appear as an _unverified suggestion_ in
 > the admin UI requiring explicit confirmation, which lands as `'manual'`.
 
 Vision's `editor_name` is display-only and mutable. `unified_event` stores
@@ -678,12 +732,12 @@ statement that Notion is the task destination.
 
 **The action-item contract is shared.** One worker, one schema, one prompt:
 
-| | |
-| --- | --- |
-| Queue | `extract.action-items` (**not** a `parse.*` queue — it runs after normalisation and belongs to no connector) |
-| Input | a `unified_event` id |
-| Schema | `src/features/extraction/schemas/action-item.ts` |
-| Output | `candidate_action_item` rows, all `review_status='pending'` |
+|        |                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------ |
+| Queue  | `extract.action-items` (**not** a `parse.*` queue — it runs after normalisation and belongs to no connector) |
+| Input  | a `unified_event` id                                                                                         |
+| Schema | `src/features/extraction/schemas/action-item.ts`                                                             |
+| Output | `candidate_action_item` rows, all `review_status='pending'`                                                  |
 
 > ⚠️ **A second extraction path is a design failure, not a shortcut.** Slack
 > (Day 3) reuses this worker and this schema. Two paths means two prompts to
@@ -737,7 +791,7 @@ place instead of duplicating.
 > Measured on the live model at temperature 0: across three runs of one fixture,
 > one item's span widened from `"I'll take that one."` to
 > `"Someone needs to get through those before the end of the month or we'll be
-> publishing stale content. I'll take that one."` — the same commitment, quoted
+publishing stale content. I'll take that one."` — the same commitment, quoted
 > with more context. Different span → different hash → **`ON CONFLICT` does not
 > fire and a duplicate pending row is created.**
 >
@@ -756,7 +810,7 @@ place instead of duplicating.
 > **Do not fix this by hashing the description instead** — descriptions vary far
 > more than spans (reworded on every single run). The fix is to stop requiring
 > exact equality: look up existing candidates for the same `unified_event_id`
-> and match on span *overlap* before inserting, which is what the eval scorer
+> and match on span _overlap_ before inserting, which is what the eval scorer
 > already does. That is a deliberate design change, not a patch — leave the
 > exact-hash path until it is made.
 
@@ -764,12 +818,12 @@ place instead of duplicating.
 
 Order is **exact** → **email** → **fuzzy** → **unresolved**.
 
-| Confidence | Meaning | Auto-linkable |
-| --- | --- | --- |
-| `exact` | an already-linked `person_identity` for this display name | ✅ |
-| `email` | roster email match, where the local part resembles the spoken name | ✅ |
-| `fuzzy` | a name **suggestion** | ❌ mandatory human confirmation |
-| `unresolved` | no confident answer, including ties | ❌ |
+| Confidence   | Meaning                                                            | Auto-linkable                   |
+| ------------ | ------------------------------------------------------------------ | ------------------------------- |
+| `exact`      | an already-linked `person_identity` for this display name          | ✅                              |
+| `email`      | roster email match, where the local part resembles the spoken name | ✅                              |
+| `fuzzy`      | a name **suggestion**                                              | ❌ mandatory human confirmation |
+| `unresolved` | no confident answer, including ties                                | ❌                              |
 
 - **`fuzzy` may only ever appear on `candidate_action_item`**, which is a review
   queue. `person_identity`'s CHECK has no such value and rejects it — verified
@@ -851,13 +905,13 @@ different problem.
 
 Full reference: [docs/webhook-contract.md](./docs/webhook-contract.md).
 
-| Source | Header | Prefix | Basestring | Replay window |
-| --- | --- | --- | --- | --- |
-| Slack | `X-Slack-Signature` | `v0=` | `v0:{ts}:{body}` | ✅ ±300s |
-| UGC | `X-LuckyFours-Signature` | `sha256=` | `{ts}.{body}` | ✅ ±300s |
-| Vision | `X-Vision-Signature` | `sha256=` | `{body}` | ❌ none |
-| ClickUp | `X-Signature` | *(none)* | `{body}` | ❌ none |
-| Fireflies | `X-Hub-Signature` | `sha256=` | `{body}` | ❌ none |
+| Source    | Header                   | Prefix    | Basestring       | Replay window |
+| --------- | ------------------------ | --------- | ---------------- | ------------- |
+| Slack     | `X-Slack-Signature`      | `v0=`     | `v0:{ts}:{body}` | ✅ ±300s      |
+| UGC       | `X-LuckyFours-Signature` | `sha256=` | `{ts}.{body}`    | ✅ ±300s      |
+| Vision    | `X-Vision-Signature`     | `sha256=` | `{body}`         | ❌ none       |
+| ClickUp   | `X-Signature`            | _(none)_  | `{body}`         | ❌ none       |
+| Fireflies | `X-Hub-Signature`        | `sha256=` | `{body}`         | ❌ none       |
 
 `src/features/connectors/verify-hmac.ts` exposes **two** functions —
 `verifyWithTimestamp()` and `verifyBodyOnly()` — rather than one with an optional
@@ -884,7 +938,7 @@ field; two functions make the absence visible at the call site.
 > replayed verbatim. **Idempotency is the sole defence on those three.** Do not
 > add side effects to those paths that are unsafe to repeat.
 >
-> Fireflies' v2 body *does* carry a millisecond `timestamp`, and because the
+> Fireflies' v2 body _does_ carry a millisecond `timestamp`, and because the
 > signature covers the body an attacker cannot alter it — so it could bound
 > replay. It deliberately does not: the payoff of a replay is an idempotent
 > re-fetch, while a wrong window permanently drops a delayed retry from a sender
@@ -893,7 +947,7 @@ field; two functions make the absence visible at the call site.
 ### Setup test events use constant ids
 
 UGC sends `test.ping` with id `evt_test`; Vision sends `control_center.test` with
-an all-zero id. Deduplicating on a constant id would make the *second* ping
+an all-zero id. Deduplicating on a constant id would make the _second_ ping
 vanish — during setup that looks exactly like a broken handler. Both are stored
 with a **null** `external_id` so every ping lands, and logged as `TEST EVENT`.
 
@@ -902,18 +956,18 @@ with a **null** `external_id` so every ping lands, and logged as `TEST EVENT`.
 **`https://docs.fireflies.ai/graphql-api/webhooks` is not to be trusted.** It
 documents the v1 (Developer Settings) webhook. Fireflies has replaced it with a
 v2 system configured on the **Integrations page**, and the v2 payload differs on
-*every* field. Confirmed from live deliveries sent by `Fireflies-Webhook/2.0`:
+_every_ field. Confirmed from live deliveries sent by `Fireflies-Webhook/2.0`:
 
 ```json
 { "event": "test", "timestamp": 1785510895435, "meeting_id": "test_00000000" }
 ```
 
-| v1 — docs, deprecated | v2 — actual |
-| --- | --- |
-| `meetingId` | `meeting_id` — **snake_case** |
-| `eventType` | `event` |
-| `clientReferenceId` | *does not exist* |
-| *not mentioned* | `timestamp` — epoch **milliseconds** |
+| v1 — docs, deprecated | v2 — actual                          |
+| --------------------- | ------------------------------------ |
+| `meetingId`           | `meeting_id` — **snake_case**        |
+| `eventType`           | `event`                              |
+| `clientReferenceId`   | _does not exist_                     |
+| _not mentioned_       | `timestamp` — epoch **milliseconds** |
 
 The handler was built against v1 and silently mis-parsed everything: three
 stored rows all had a null `external_id` and `processed=false`, because
@@ -959,7 +1013,7 @@ shape change fails loudly instead of looking healthy.
   and Vision. Fetching it would burn 4 calls from a 500-per-DAY budget and
   dead-letter.
 - **There is no timestamp HEADER**, so nothing enters the signature basestring
-  and `verifyBodyOnly` is correct. The *body* timestamp could bound replay, and
+  and `verifyBodyOnly` is correct. The _body_ timestamp could bound replay, and
   deliberately is not used to: a successful replay only re-triggers an
   idempotent transcript fetch, whereas a wrong window permanently drops a
   delayed retry from a sender whose retry behaviour is undocumented.
@@ -1074,12 +1128,12 @@ The same reasoning applies to `src/features/connectors/studio/client.ts`.
 A wrong header returns a 401 that is indistinguishable from a revoked token, so
 each convention is encoded once in its own connector and never hand-written.
 
-| Provider | Header |
-| --- | --- |
-| Slack | `Authorization: Bearer xoxb-...` |
-| **ClickUp** | `Authorization: <token>` — **raw, NO `Bearer` prefix** |
-| Notion | `Authorization: Bearer ...` **plus** the mandatory `Notion-Version` header |
-| Fireflies | `Authorization: Bearer ...`, GraphQL only |
+| Provider    | Header                                                                     |
+| ----------- | -------------------------------------------------------------------------- |
+| Slack       | `Authorization: Bearer xoxb-...`                                           |
+| **ClickUp** | `Authorization: <token>` — **raw, NO `Bearer` prefix**                     |
+| Notion      | `Authorization: Bearer ...` **plus** the mandatory `Notion-Version` header |
+| Fireflies   | `Authorization: Bearer ...`, GraphQL only                                  |
 
 Each `authHeaders()` **throws** on a missing env var rather than sending
 `Bearer undefined`, which produces the same ambiguous 401.
@@ -1119,7 +1173,7 @@ Do not read any of it as describing something the system does today.
   Omitting it returns `400 validation_error` — there is no default version.
 - **Deny-by-default per page.** An integration sees nothing until a page or
   database is explicitly shared with it (⋯ → Connections → Command Center).
-  Sharing a *parent* page cascades to its children.
+  Sharing a _parent_ page cascades to its children.
   > A `404 object_not_found` here almost always means "not shared", **not**
   > "wrong ID". Chasing the ID is the standard wasted hour.
 - **Rate limit ≈ 3 requests/second** average. Bursts get `429`. Any batch read
@@ -1166,42 +1220,112 @@ in only after the integration works.
 Package manager is **pnpm** (pinned via `packageManager` in `package.json`).
 Ignore any `bun run` references still in AGENTS.md.
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm install` | Install dependencies |
-| `pnpm dev` | Dev server on :3000 |
-| `pnpm build` | Production build |
-| `pnpm start` | Serve the production build |
-| `pnpm lint` | oxlint |
-| `pnpm lint:fix` | oxlint --fix + format |
-| `pnpm lint:strict` | Zero-warning gate |
-| `pnpm format` | oxfmt |
-| `pnpm format:check` | Verify formatting |
-| `CI=1 pnpm build` | Build with Sentry source-map upload logs visible |
+| Command                | Purpose                                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`         | Install dependencies                                                                                                                                       |
+| `pnpm dev`             | Dev server on :3000                                                                                                                                        |
+| `pnpm build`           | Production build                                                                                                                                           |
+| `pnpm start`           | Serve the production build                                                                                                                                 |
+| `pnpm lint`            | oxlint                                                                                                                                                     |
+| `pnpm lint:fix`        | ⚠️ **BROKEN** — the script body is `oxlint --fix && bun format`, and bun is not installed. Run `pnpm lint --fix && pnpm format` instead, or fix the script |
+| `pnpm lint:strict`     | Zero-warning gate                                                                                                                                          |
+| `pnpm format`          | oxfmt                                                                                                                                                      |
+| `pnpm format:check`    | Verify formatting                                                                                                                                          |
+| `pnpm lint:boundaries` | Scan every `'use client'` file for server-only imports. Currently 131 client components, clean                                                             |
+| `CI=1 pnpm build`      | Build with Sentry source-map upload logs visible                                                                                                           |
+
+### Tests — vitest, and 30% of the suite is silently skipped
+
+```bash
+pnpm test                                        # whole suite, ~3s
+pnpm test:watch                                  # watch mode
+pnpm test src/features/connectors/slack/verify.test.ts   # ONE file — positional substring filter
+pnpm test slack -t 'rejects a re-serialised body'        # one test by name
+```
+
+`environment: 'node'`, `globals: false` — import `describe`/`it`/`expect`
+explicitly. Component tests would need jsdom; add
+`// @vitest-environment jsdom` per file if that day comes.
+
+> ⚠️ **`vitest.config.ts` sets `env: {}` deliberately, so the suite does NOT
+> load `.env.local`.** Nine files are DB-gated behind
+> `Boolean(process.env.DATABASE_URL ?? process.env.DATABASE_PUBLIC_URL)` and
+> turn into `describe.skip` without it. A bare `pnpm test` reports
+> **383 passed | 69 skipped** and exits 0 — green, while every test that
+> touches Postgres, pg-boss, identity resolution and extraction ran nothing.
+>
+> **The trap is single-file runs.** `pnpm test src/features/extraction/owner.test.ts`
+> prints `1 skipped` in 300ms, which looks like a pass at a glance. If a test
+> file you are working on reports 0 assertions, you are missing the env file,
+> not passing.
+
+| Command           | Covers                                                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm test:db`    | The DB-gated suites — queue, `ingest`, `ingest-rollback`, identity, normalise, extraction. Runs vitest through `tsx --env-file=.env.local` |
+| `pnpm test:queue` | `src/lib/queue` only, same env-file mechanism                                                                                              |
+
+Those two exist because a config-level env load would make every test
+implicitly depend on a laptop's secrets. Integration rows are written with a
+unique `itest-<pid>-<ts>` external id and deleted afterwards, so they run
+against the real database without disturbing the backlog.
 
 ### Extraction & LLM commands
 
 All of these spend real OpenRouter credit except `--review` and `--dry`.
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm eval:extraction` | **The regression gate.** Run before and after any prompt or model-slug change. Exits non-zero below threshold. ~$0.04 |
-| `pnpm eval:extraction --review` | Print every fixture's retained content in full, for PII review. No model call |
-| `pnpm eval:extraction --verbose` | Per-item detail: which owner and date were actually returned, which traps tripped |
-| `pnpm extract:run --list` | Meetings with a stored transcript, and how many items each has |
-| `pnpm extract:run --dry <id>` | Size a transcript in tokens without calling the model |
-| `pnpm extract:run <unifiedEventId>` | Extract one meeting and print items + cost |
-| `pnpm ai:smoke` | Verify the OpenRouter credential. Distinguishes auth failure, exhausted credit and an unknown slug — an empty balance otherwise reads exactly like a bad key |
+| Command                             | Purpose                                                                                                                                                      |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pnpm eval:extraction`              | **The regression gate.** Run before and after any prompt or model-slug change. Exits non-zero below threshold. ~$0.04                                        |
+| `pnpm eval:extraction --review`     | Print every fixture's retained content in full, for PII review. No model call                                                                                |
+| `pnpm eval:extraction --verbose`    | Per-item detail: which owner and date were actually returned, which traps tripped                                                                            |
+| `pnpm extract:run --list`           | Meetings with a stored transcript, and how many items each has                                                                                               |
+| `pnpm extract:run --dry <id>`       | Size a transcript in tokens without calling the model                                                                                                        |
+| `pnpm extract:run <unifiedEventId>` | Extract one meeting and print items + cost                                                                                                                   |
+| `pnpm ai:smoke`                     | Verify the OpenRouter credential. Distinguishes auth failure, exhausted credit and an unknown slug — an empty balance otherwise reads exactly like a bad key |
 
 ### Database commands
 
+| Command            | Purpose                                                                                                                                                                                                                                                                                              |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:generate` | Emit a migration from schema changes into `drizzle/`                                                                                                                                                                                                                                                 |
+| `pnpm db:migrate`  | Apply pending migrations                                                                                                                                                                                                                                                                             |
+| `pnpm db:push`     | Push schema without a migration file — **dev only, never production**                                                                                                                                                                                                                                |
+| `pnpm db:studio`   | Drizzle Studio                                                                                                                                                                                                                                                                                       |
+| `pnpm db:seed`     | Seeds `role_profile`, `person`, `recurring_task`, plus `tracked_item`/`project` via `src/db/seed-tracker.ts`. **Idempotent** — every write is a lookup-then-insert/update, so re-running leaves row counts unchanged. `completion_event` and `raw_event` stay empty; those are produced by ingestion |
+
+> ⚠️ **Person emails are NOT in the seed, deliberately — this repo is public.**
+> Email is the only automatic cross-system identity key, so a roster with no
+> emails resolves nobody. Bootstrap them with
+> `pnpm people:email "<Name>" <address>` (`--list` to see the roster) after
+> seeding, or identity resolution silently links nothing.
+
+### Operational scripts — EVERY mutating one is dry-run by default
+
+The shared convention: **nothing writes without `--commit`.** These scripts
+rewrite who real work belongs to, and a wrong link or attribution is silent —
+nobody goes looking for it. Read the dry-run output before committing.
+
 | Command | Purpose |
 | --- | --- |
-| `pnpm db:generate` | Emit a migration from schema changes into `drizzle/` |
-| `pnpm db:migrate` | Apply pending migrations |
-| `pnpm db:push` | Push schema without a migration file — **dev only, never production** |
-| `pnpm db:studio` | Drizzle Studio |
-| `pnpm db:seed` | ⚠️ Scripted but `src/db/seed.ts` does not exist yet |
+| `pnpm renormalise [--commit] [--source=NAME] [--stale]` | Rebuild `unified_event` from `raw_event`. **This is what makes a parser bug a re-run rather than a lost event** — it upserts on `(raw_event_id, source_seq)`, never delete-and-reinsert |
+| `pnpm queue:backfill [--commit]` | Enqueue `raw_event` rows that never got a parse job |
+| `pnpm identities:backfill <clickup\|slack\|all> [--commit]` | Seed `person_identity` from provider member lists |
+| `pnpm identities:relink [--commit] [--source=NAME]` | Re-run resolution over identities already in the table |
+| `pnpm events:attribute [--commit] [--source=NAME]` | Stamp `unified_event.person_id` from already-linked identities |
+| `pnpm people:email <name> <email>` / `--list` | Bootstrap a person's email (see above) |
+| `pnpm verify:exit [--verbose] [--replay]` | Week 1 exit criteria, automated portion — a pass/fail table for the whole ingest pipeline. See [docs/week-1-exit-test.md](./docs/week-1-exit-test.md) |
+
+### Connector scripts
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm webhook:send <ugc\|vision\|slack\|clickup\|fireflies>` | POST a correctly-signed dummy webhook at your own endpoint. Defaults to **localhost** — never prod by accident. Aliases: `webhook:ugc`, `webhook:vision`, `webhook:slack`, `webhook:clickup` |
+| `pnpm verify:clickup` | Read-only. Confirms auth, then walks the workspace to surface the list IDs |
+| `pnpm clickup:list` | Read-only. Webhook IDs + health, so a suspended webhook is visible |
+| `pnpm clickup:register` | ⚠️ **MANUAL ONLY, never on boot.** ClickUp does not deduplicate registrations — running it twice creates two webhooks and every event then arrives twice |
+| `pnpm clickup:delete <webhook_id>` | Clean up the duplicates the above creates |
+| `pnpm verify:notion` | Read-only credential check + list of shared databases. Not a client |
+| `pnpm fireflies:fixture` | Capture a transcript fixture. **Scrubs PII and refuses to write a file still containing a real name** |
 
 ---
 
@@ -1211,10 +1335,10 @@ Postgres 18 on Railway. Drizzle ORM with the `node-postgres` driver.
 
 **Two URLs, on purpose:**
 
-| Variable | Used by | Should point at |
-| --- | --- | --- |
-| `DATABASE_URL` | the running app (`src/db/index.ts`) | `postgres.railway.internal` in Railway — keeps queries on the private network |
-| `DATABASE_PUBLIC_URL` | migrations (`drizzle.config.ts`) | the `*.proxy.rlwy.net` host — drizzle-kit runs from a laptop or CI and cannot reach `*.railway.internal` |
+| Variable              | Used by                             | Should point at                                                                                          |
+| --------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`        | the running app (`src/db/index.ts`) | `postgres.railway.internal` in Railway — keeps queries on the private network                            |
+| `DATABASE_PUBLIC_URL` | migrations (`drizzle.config.ts`)    | the `*.proxy.rlwy.net` host — drizzle-kit runs from a laptop or CI and cannot reach `*.railway.internal` |
 
 `drizzle.config.ts` falls back to `DATABASE_URL` when `DATABASE_PUBLIC_URL` is
 unset, so a local setup with a single public URL keeps working.
@@ -1268,11 +1392,11 @@ Three columns share the `EXTERNAL_SYSTEMS` value set
 (`src/db/schema/external-system.ts`, one constant, no duplicates). **They do not
 mean the same thing.**
 
-| Column | Meaning |
-| --- | --- |
-| `tracked_item.source_system` / `.external_task_id` | where the row **CAME FROM** — it mirrors that system |
-| `candidate_action_item.external_system` / `.external_task_id` | where an approved item was **PUSHED TO** |
-| `project.external_system` / `.external_id` | where the project **MIRRORS FROM** |
+| Column                                                        | Meaning                                              |
+| ------------------------------------------------------------- | ---------------------------------------------------- |
+| `tracked_item.source_system` / `.external_task_id`            | where the row **CAME FROM** — it mirrors that system |
+| `candidate_action_item.external_system` / `.external_task_id` | where an approved item was **PUSHED TO**             |
+| `project.external_system` / `.external_id`                    | where the project **MIRRORS FROM**                   |
 
 **`tracked_item.external_task_id` means "this row mirrors an external system".**
 `tracked_item_external_ref_ck` enforces it: a non-internal row must have one, an
@@ -1296,7 +1420,7 @@ tracked_item (source_system='internal', external_task_id NULL)
 > If a phase-2 read-only Notion mirror is ever built, an imported row carries
 > `source_system='notion'` and `external_task_id` = its page id — an ORIGIN
 > pointer. Writing a page id there to mean "we pushed this out" would violate
-> `tracked_item_external_ref_ck` *and* give one column two meanings, which is
+> `tracked_item_external_ref_ck` _and_ give one column two meanings, which is
 > how you end up with a sync that cannot tell an imported task from an exported
 > one.
 
@@ -1329,7 +1453,7 @@ shared constant beats a narrowed CHECK that re-creates value drift.
 **Once extraction has written a `candidate_action_item`, its `description`,
 `owner_person_id`, `owner_confidence`, `due_date`, `source_span` and
 `confidence` are never edited.** A reviewer's corrections go onto the
-`tracked_item` created at approval; `edited_fields` records *which* fields they
+`tracked_item` created at approval; `edited_fields` records _which_ fields they
 had to change. Nothing is written back.
 
 > **Why:** the candidate is the record of what the MODEL produced. Overwrite it
@@ -1373,7 +1497,7 @@ import { updateStatusMutation } from '@/features/tracker/api/mutations';
 > is unavoidable — approving a candidate really does change what the tracker
 > board shows — and hardcoding `['tracker']` string arrays instead would drift
 > the moment a key factory changed, silently and with no type error. Importing
-> the *key factory* keeps that honest.
+> the _key factory_ keeps that honest.
 >
 > Calling another feature's **service** is different in kind: it makes one
 > feature's behaviour depend on another's internals, and the dependency runs in
@@ -1393,17 +1517,17 @@ Conventions established by the person profile (`src/features/person-profile/`).
 `ai_summary` is a CACHE — one row per subject, upserted, no history (the reason
 is written on the unique index; `monitor_report` is the time-series surface).
 
-| condition | action |
-| --- | --- |
-| `input_hash` unchanged | serve cache, **whatever its age** |
-| hash changed, younger than TTL | serve cache — the rate cap wins |
-| hash changed, at or past TTL | regenerate |
-| manual regenerate | bypass both, **but still write the hash** |
+| condition                      | action                                    |
+| ------------------------------ | ----------------------------------------- |
+| `input_hash` unchanged         | serve cache, **whatever its age**         |
+| hash changed, younger than TTL | serve cache — the rate cap wins           |
+| hash changed, at or past TTL   | regenerate                                |
+| manual regenerate              | bypass both, **but still write the hash** |
 
 > **Both gates are load-bearing and they do different jobs.** The TTL
-> (`SUMMARY_TTL_MS`, one hour) is what *guarantees* at most one call per subject
+> (`SUMMARY_TTL_MS`, one hour) is what _guarantees_ at most one call per subject
 > per hour — without it a refresh loop is a billing incident. The `input_hash`
-> is what stops a *pointless* call when the hour lapses and nothing has actually
+> is what stops a _pointless_ call when the hour lapses and nothing has actually
 > moved, which on a seven-person roster is the common case and the difference
 > between cents and dollars.
 >
@@ -1449,7 +1573,7 @@ activity, may be imperfect" — plus the generated-at time through the pinned-da
 helper, and what it was built from.
 
 > Not decoration. These summaries are written to be faithful to real data, which
-> makes them *more* likely to be read as authoritative, not less.
+> makes them _more_ likely to be read as authoritative, not less.
 
 ### 5. Prompt rules that are not optional
 
@@ -1482,15 +1606,15 @@ that miscounts must not make the footer lie.
 
 **Never pass `undefined` (or omit) the locale argument to `toLocaleString`,
 `toLocaleDateString`, or `toLocaleTimeString` in anything that renders.** Pin the
-locale *and* the timezone explicitly.
+locale _and_ the timezone explicitly.
 
 ```ts
 // ❌ resolves to the HOST's locale — different on server and client
-d.toLocaleString(undefined, { month: 'short', day: 'numeric' })
-d.toLocaleString()
+d.toLocaleString(undefined, { month: "short", day: "numeric" });
+d.toLocaleString();
 
 // ✅ same string everywhere
-d.toLocaleString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+d.toLocaleString("en-GB", { month: "short", day: "numeric", timeZone: "UTC" });
 ```
 
 > **Why — this cost a demo-day debugging session.** `undefined` resolves to the
@@ -1527,16 +1651,7 @@ latent: not yet observed failing, which is exactly how the extraction bug looked
 the day before it cost an afternoon.
 
 - [ ] **`src/features/identities/components/identity-tables/columns.tsx:11`** —
-      `Date.now()` inside a cell renderer, computing "3m ago".
-      > ⚠️ **The one most likely to bite next, and the worst to diagnose.** The
-      > other two only mismatch when the host locale differs; this one mismatches
-      > **by construction** — the server clock and the browser clock are never
-      > the same instant, so every render where the rendered string ticks over
-      > (`2m ago` → `3m ago`) is a mismatch. It will present exactly as the
-      > extraction bug did: the Identities table rendering its toolbar and row
-      > count with **no rows**, looking like a failed query. If that happens,
-      > start here, not in the data layer.
-      > Fix: compute after mount in an effect, or `suppressHydrationWarning`.
+      `Date.now()` inside a cell renderer, computing "3m ago". > ⚠️ **The one most likely to bite next, and the worst to diagnose.** The > other two only mismatch when the host locale differs; this one mismatches > **by construction** — the server clock and the browser clock are never > the same instant, so every render where the rendered string ticks over > (`2m ago` → `3m ago`) is a mismatch. It will present exactly as the > extraction bug did: the Identities table rendering its toolbar and row > count with **no rows**, looking like a failed query. If that happens, > start here, not in the data layer. > Fix: compute after mount in an effect, or `suppressHydrationWarning`.
 - [ ] **`src/features/identities/components/person-identities-card.tsx:128`** —
       bare `toLocaleString()` on `linkedAt`; no locale, no timezone.
 - [ ] **`src/components/ui/table/data-table-slider-filter.tsx:80`** —
@@ -1577,3 +1692,26 @@ imports it directly. Use it rather than writing another Intl call.
 - `/dashboard/overview` has ~3s artificial delays to strip when you replace it
 - `src/app/api/sentry-check/route.ts` is a **temporary** public throw-route for verifying Sentry. Delete it once verified.
 - `docs/prd.md` is still missing and is a Day-1 deliverable
+
+## Frontend revamp — mockup is the UI contract
+
+The UI is being rebuilt to match the design mockups. **The mockups define
+layout and screens; the amendments define behaviour. Where they conflict,
+docs/prd-amendments.md wins** (e.g. mockup "Synced to ClickUp" badges render
+as tracker-native state — there is no ClickUp write path).
+
+- **Mockups:** `design/mockup/*.dc.html` — 15 screens across two files,
+  located via `data-screen-label` attributes. Open in a browser for visual
+  reference; `_ds/` and `support.js` must stay siblings of the HTML.
+- **Data contract:** `docs/frontend-data-contract.md` — screen-by-screen
+  field requirements. Consult before building any screen or endpoint.
+  Contract names map to existing tables via a DTO layer in each feature's
+  `api/types.ts` + `service.ts`; DB naming (snake_case, singular) is unchanged.
+- **Role-aware nav:** role comes from our `person` table, NOT Clerk orgs.
+  Do not reintroduce `NavItem.access` / org-membership RBAC.
+- **Screen build rule:** extract the screen's section from the mockup HTML,
+  rebuild with existing shadcn components + theme tokens from
+  `design/mockup/_ds/_ds_bundle.css`. Enums ship from the backend; colors
+  derive in the frontend. Unbuilt data → typed mocks in the feature's
+  `api/service.ts` (per the existing "service.ts is the only file that
+  changes" pattern) with `// TODO(backend):` markers logged in docs/gaps.md.

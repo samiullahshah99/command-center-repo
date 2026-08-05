@@ -27,19 +27,19 @@ import type { ProjectStatus } from '@/db/schema/project';
 import type { TrackedItemStatus } from '@/db/schema/tracked-item';
 import { buildAgentPerformance } from '@/lib/agent-performance';
 import { foldBriefs } from '@/lib/brief-fold';
+import { buildBriefBacklog, buildWeeklySeries } from '@/lib/brief-view';
 import { departmentAccentVar } from '@/lib/dept-accent';
 import { computeDeptHealth, TERMINAL_STATUSES } from '@/lib/dept-health';
 import { getDeptItems } from '@/lib/dept-nav';
 import { formatDateOnly } from '@/lib/format-date';
 import { personAccentVar } from '@/lib/person-accent';
 import type {
-  BriefPerformance,
   BriefRow,
   DepartmentDetail,
   DeptItem,
   DeptProject,
   DeptRisk,
-  WeekBar
+  WeeklyPerformanceView
 } from './types';
 
 /** Resource-based check on every export — a Server Action is its own endpoint. */
@@ -52,7 +52,6 @@ async function requireUser(): Promise<void> {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const RISK_CAP = 6;
-const PERF_WEEKS = 6;
 
 /** Drizzle's execute() returns a driver result; both shapes are handled here. */
 function rowsOf<T>(res: unknown): T[] {
@@ -68,24 +67,6 @@ function initialsOf(name: string): string {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-/** ISO week label — "W32". Monday-start, matching the fold and the seed. */
-function isoWeekLabel(d: Date): string {
-  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  // Thursday of this week decides the ISO year/week.
-  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((t.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-  return `W${week}`;
-}
-
-/** Monday 00:00 UTC of the week containing `d`. */
-function mondayOf(d: Date): Date {
-  const x = new Date(d);
-  x.setUTCHours(0, 0, 0, 0);
-  x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
-  return x;
 }
 
 /**
@@ -105,73 +86,13 @@ function mondayOf(d: Date): Date {
  */
 async function buildBriefs(now: Date): Promise<{
   backlog: BriefRow[];
-  performance: BriefPerformance;
+  performance: WeeklyPerformanceView;
 }> {
   const folded = await foldBriefs();
 
-  const today = utcDay(now);
-
-  // Backlog: NON-TERMINAL states only. `approved` is the end of the lifecycle, so
-  // an approved brief is not backlog.
-  const backlog: BriefRow[] = folded
-    .filter((b) => b.state !== 'approved')
-    .map((b) => ({
-      id: b.id,
-      title: b.label ?? 'Untitled brief',
-      // ⚠️ Vision has no product field — see the note on BriefRow.
-      product: '—',
-      // ⚠️ Real where the actor resolved, "—" otherwise. NEVER guessed: two people
-      // can share a display name and a wrong attribution is silent.
-      owner: b.actorName ?? '—',
-      ageDays: Math.max(0, Math.round((today - utcDay(new Date(b.firstObservedAt))) / 86_400_000)),
-      state: b.state
-    }))
-    .toSorted((a, b) => b.ageDays - a.ageDays);
-
   /**
-   * ── The 6-week series.
-   *
-   * ⚠️ DECISION 6 (2026-08-06) says quota counts APPROVED briefs. The live Vision
-   * catalogue contains **no `brief.approved` events at all** — created, updated,
-   * submitted, sent_back, commented and script_saved only — so an approvals series
-   * would be six empty bars, which reads as a broken chart rather than as a data
-   * gap. The documented fallback is taken: count briefs that REACHED `in_review`,
-   * i.e. were submitted, using each brief's `stateEnteredAt`.
-   *
-   * `usesSubmittedFallback` carries that to the UI, which captions it. Flip back to
-   * approvals — and drop the flag — the day Vision emits `brief.approved`.
-   *
-   * ⚠️ Bucketed from the FOLD, so it reflects each brief's CURRENT state. A brief
-   * submitted in W31 and sent back in W32 counts in neither: its current state is
-   * `sent_back`. That is a real limitation of folding to current state rather than
-   * replaying transitions, and it under-counts rather than inventing.
-   */
-  const weekStarts: Date[] = [];
-  const thisMonday = mondayOf(now);
-  for (let i = PERF_WEEKS - 1; i >= 0; i -= 1) {
-    const d = new Date(thisMonday);
-    d.setUTCDate(d.getUTCDate() - i * 7);
-    weekStarts.push(d);
-  }
-
-  const counts = new Map<number, number>(weekStarts.map((d) => [d.getTime(), 0]));
-  for (const b of folded) {
-    // The fallback state — see above.
-    if (b.state !== 'in_review') continue;
-    const wk = mondayOf(new Date(b.stateEnteredAt)).getTime();
-    if (counts.has(wk)) counts.set(wk, (counts.get(wk) ?? 0) + 1);
-  }
-
-  const bars: WeekBar[] = weekStarts.map((d) => ({
-    week: isoWeekLabel(d),
-    count: counts.get(d.getTime()) ?? 0
-  }));
-
-  /**
-   * Team-wide quota. ⚠️ NULL when nothing configures one — which is the case
-   * today, every `quota_config` being `{}`. An unconfigured quota is not a zero
-   * quota, so the UI renders neutral bars rather than colouring them all "below
-   * target". Same rule `getBriefQuota` already applies.
+   * Team-wide quota. ⚠️ NULL when nothing configures one — the case today, every
+   * `quota_config` being `{}`. An unconfigured quota is not a zero quota.
    */
   const quotaRows = await db
     .select({ config: sql<unknown>`rp.quota_config` })
@@ -183,7 +104,12 @@ async function buildBriefs(now: Date): Promise<{
     if (typeof n === 'number' && n > 0) quota = (quota ?? 0) + n;
   }
 
-  return { backlog, performance: { bars, quota, usesSubmittedFallback: true } };
+  // ⚠️ SHARED builders — the same ones Briefs & quota uses, so the two screens
+  // cannot compute different backlogs or different weekly series.
+  return {
+    backlog: buildBriefBacklog(folded, now),
+    performance: buildWeeklySeries(folded, now, quota)
+  };
 }
 
 /**

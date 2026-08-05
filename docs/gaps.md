@@ -19,6 +19,76 @@ and flipping one field in one file removes both.
 
 ---
 
+## Briefs & quota — nudge and ad testing
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/briefs` → quota hero's nudge line, and the "In ad testing" card |
+| **Generators** | `sampleNudge()` / `sampleAdTesting()` in `src/features/briefs/api/service.ts` |
+| **Markers** | `TODO(backend): calendar-aware nudge` · `TODO(backend): ad-testing pipeline` |
+| **DTO flags** | `MyQuota.nudgeIsSample` · `AdTesting.isSample` |
+| **Audit ref** | §2.12 |
+
+**The nudge** is calendar-aware in the mockup ("2 to go before Friday — writing
+blocks Mon & Wed on your calendar"). Calendar has no client, no credentials and no
+table. The *remaining count* inside it is real (target minus submitted); the
+scheduling advice is not, so the whole line is prefixed "Sample nudge —".
+
+⚠️ **The nudge is omitted entirely when no quota is configured** — which is the
+case today. A nudge toward a target nobody set is noise, and inventing urgency is
+worse than saying nothing.
+
+**Ad testing** is wholly invented. `BRIEF_STATES` is
+`in_progress | in_review | sent_back | approved` — there is no `in_testing`, no
+`winner`, no table and no source emitting one. Fixed values rather than derived
+ones, precisely because there is no real signal to derive from.
+
+**Real on that page:** the submitted count, the ISO week, the average turnaround
+(created → submitted pairs over 30 days, production-filtered), the brief backlog
+and the 6-week chart.
+
+---
+
+## Quota semantics — counting SUBMISSIONS, not approvals *(changed 2026-08-06)*
+
+⚠️ **Not a mock — a substitution, and it changed a number that was already on
+screen.**
+
+Decision 6 (2026-08-06) says the weekly quota counts **APPROVED** briefs. The live
+Vision catalogue emits **no `brief.approved` event at all** — only `created`,
+`updated`, `submitted`, `sent_back`, `commented` and `script_saved`. Escalated to
+the platform owner; pending.
+
+`getBriefQuota()` previously counted **`brief.created`**, which audit **D9** flagged
+as measuring the wrong thing (briefs *started*, not delivered). It now counts
+**`brief.submitted`** — the closest measurable proxy to the decision.
+
+**What moved as a result:**
+
+| Surface | Before | After |
+| --- | --- | --- |
+| People page → quota column (`BriefQuotaBar`) | briefs *created* this week | briefs *submitted* this week — **a different measure, not simply smaller** |
+| Briefs & quota → hero card | *(new)* | briefs submitted this week |
+| 6-week charts (department + briefs) | *(new)* | submissions, captioned |
+
+⚠️ **Measured on live data for the current week:** created = Usama 6 / Ardin 5;
+submitted = Usama 10 / Ardin 0. Submissions can EXCEED creations because a brief
+submitted this week may have been started in an earlier one — so anyone comparing
+the People column against last week's screenshot should expect movement in either
+direction.
+
+`QuotaRow.created` was **renamed to `submitted`** rather than left in place with
+new contents — a field whose name says "created" holding submissions is how the
+next reader draws a wrong conclusion from a correct number.
+
+⚠️ **The Control Tower is NOT affected.** Its brief-pipeline widget reads
+`foldBriefs()` directly, not `getBriefQuota()` — checked, not assumed.
+
+⚠️ `brief.updated` is still never counted: it fires 278 times across 19 briefs, so
+counting it would measure editing volume and present it as output.
+
+---
+
 ## Department detail — three data gaps, none of them a mock
 
 ⚠️ **This entry documents MISSING FIELDS AND A SUBSTITUTION, not invented data.**
@@ -76,10 +146,10 @@ no model call — it is not an AI summary and carries no sample flag. Extending
 | | |
 | --- | --- |
 | **Surface** | `/dashboard/my-team` → "Agent performance" card |
-| **Generator** | `buildAgentPerformance()` in `src/features/my-team/api/service.ts` |
+| **Generator** | `buildAgentPerformance()` in `src/lib/agent-performance.ts` (shared) |
 | **Marker** | `TODO(backend): zendesk (audit §3.3)` |
 | **DTO flag** | `MyTeam.agents.figuresAreSample` |
-| **Renderer** | `AgentPerformanceCard` in `src/features/my-team/components/my-team-body.tsx` |
+| **Renderer** | `@/components/agent-performance-table` (shared by My team and the CX department panel) |
 | **Audit ref** | §3.3 AgentPerformance, §2.4 CX panel, §2.11, §5 integration row "Zendesk" |
 
 ⚠️ **Hybrid — read the split.**

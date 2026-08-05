@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query';
-import { getBriefBoard, getBriefQuota, getBriefTimeline } from './service';
+import { getBriefBoard, getBriefQuota, getBriefsQuotaScreen, getBriefTimeline } from './service';
 
 export const briefKeys = {
   all: ['briefs'] as const,
@@ -24,4 +24,17 @@ export const briefQuotaQueryOptions = () =>
     queryKey: briefKeys.quota(),
     queryFn: () => getBriefQuota(),
     staleTime: 60_000
+  });
+
+/**
+ * The creative persona's Briefs & quota screen.
+ *
+ * ⚠️ Takes an ISO STRING so both sides of the SSR handoff build the same key —
+ * two `new Date()` calls would produce two different instants. Same pattern as
+ * `myDayQueryOptions`.
+ */
+export const briefsQuotaScreenOptions = (personId: string, nowIso: string) =>
+  queryOptions({
+    queryKey: [...briefKeys.all, 'quota-screen', personId, nowIso.slice(0, 10)] as const,
+    queryFn: () => getBriefsQuotaScreen(personId, new Date(nowIso))
   });

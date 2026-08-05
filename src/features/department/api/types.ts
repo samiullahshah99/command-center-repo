@@ -10,6 +10,7 @@ import type { ProjectStatus } from '@/db/schema/project';
 import type { TrackedItemStatus } from '@/db/schema/tracked-item';
 import type { AgentPerformanceView } from '@/lib/agent-performance';
 import type { BriefState } from '@/lib/brief-states';
+import type { BriefRow, WeekBar, WeeklyPerformanceView } from '@/lib/brief-view';
 import type { TeamMemberView } from '@/components/team-member-list';
 import type { DeptHealthStatus } from '@/lib/dept-health';
 
@@ -62,51 +63,12 @@ export type DeptRisk = {
   href: string;
 };
 
-/** One row of the creative brief backlog. */
-export type BriefRow = {
-  id: string;
-  /** The brief's label from its Vision events. */
-  title: string;
-  /**
-   * ⚠️ ALWAYS "—". Vision carries NO product field on a brief (audit §3.1). The
-   * column exists because the mockup has it; inventing a value would be worse than
-   * an em dash. Logged in docs/gaps.md.
-   */
-  product: string;
-  /** Real where the actor resolved; "—" otherwise. ⚠️ NEVER guessed. */
-  owner: string;
-  /** Whole days since the brief was FIRST OBSERVED (not created — see the fold). */
-  ageDays: number;
-  state: BriefState;
-};
-
-/** One bar of the 6-week performance chart. */
-export type WeekBar = {
-  /** ISO week label, e.g. "W32". */
-  week: string;
-  count: number;
-};
-
-export type BriefPerformance = {
-  bars: WeekBar[];
-  /**
-   * Team-wide `role_profile.quota_config.briefsPerWeek`, summed.
-   *
-   * ⚠️ NULL when no role profile configures one — which is the case today. An
-   * unconfigured quota is NOT a zero quota, so the bars render neutral rather than
-   * all-below-target. Same rule the briefs feature already applies.
-   */
-  quota: number | null;
-  /**
-   * ⚠️ TRUE when the series counts `brief.submitted` instead of approvals.
-   *
-   * Decision 6 (2026-08-06) says quota counts APPROVED briefs — but the live Vision
-   * catalogue contains **no `brief.approved` events at all**, so an approvals series
-   * would be six empty bars. The documented fallback is taken and surfaced in the
-   * caption; this is a data gap, not a mock.
-   */
-  usesSubmittedFallback: boolean;
-};
+/**
+ * ⚠️ Brief view shapes MOVED to `@/lib/brief-view` when the Briefs & quota screen
+ * became a second consumer of the same table and chart. Re-exported so this
+ * feature's DTO still reads whole.
+ */
+export type { BriefRow, WeeklyPerformanceView, WeekBar };
 
 export type DepartmentDetail = {
   department: {
@@ -132,7 +94,7 @@ export type DepartmentDetail = {
   risks: DeptRisk[];
   members: TeamMemberView[];
   /** Present only for `dept_type = 'creative'`. */
-  briefs: { backlog: BriefRow[]; performance: BriefPerformance } | null;
+  briefs: { backlog: BriefRow[]; performance: WeeklyPerformanceView } | null;
   /** Present only for `dept_type = 'cx'`. */
   agents: AgentPerformanceView | null;
   /** Resolved ONCE on the server; every date comparison derives from it. */

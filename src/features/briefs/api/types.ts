@@ -1,3 +1,4 @@
+import type { BriefRow, WeeklyPerformanceView } from '@/lib/brief-view';
 import type { BriefState } from '../constants/brief-states';
 
 export type { BriefState };
@@ -80,8 +81,21 @@ export type BriefTimeline = {
 
 export type QuotaRow = {
   personId: string;
-  /** Briefs CREATED by this person since Monday. */
-  created: number;
+  /**
+   * Briefs SUBMITTED by this person since Monday.
+   *
+   * ⚠️ RENAMED FROM `created` ON 2026-08-06, and the underlying event changed with
+   * it. Decision 6 says the quota counts APPROVED briefs; Vision emits no
+   * `brief.approved` event at all (escalated to the platform owner), so submissions
+   * are the closest measurable proxy to the decision. Counting `brief.created`
+   * measured briefs STARTED, which is a different thing and was flagged as a
+   * mismatch in audit D9.
+   *
+   * ⚠️ THE FIELD WAS RENAMED DELIBERATELY rather than left as `created` with new
+   * contents. A field whose name says "created" holding submissions is how the next
+   * reader draws a wrong conclusion from a correct number.
+   */
+  submitted: number;
   /** From role_profile.quota_config.briefsPerWeek. Null = no quota configured. */
   target: number | null;
 };
@@ -96,4 +110,65 @@ export type BriefQuota = {
   configured: boolean;
   /** Monday 00:00 UTC of the current week. */
   weekStart: string;
+};
+
+// ── Briefs & quota (the creative persona's home screen) ─────────────────────
+
+/**
+ * The hero card's me-scoped quota.
+ *
+ * ⚠️ `target` is null when no role profile configures `briefsPerWeek` — the case
+ * today. An unconfigured quota is NOT a zero quota: the UI shows the submitted
+ * count alone, with no bar and no "/ target", because a 0-of-0 bar reads as
+ * failure against a target nobody set.
+ */
+export type MyQuota = {
+  submitted: number;
+  target: number | null;
+  /** ISO week label, e.g. "W32". */
+  week: string;
+  /** Monday 00:00 UTC, ISO. */
+  weekStart: string;
+  /**
+   * ⚠️ INVENTED, and null whenever `target` is null.
+   *
+   * The mockup's nudge is calendar-aware ("2 to go before Friday — writing blocks
+   * Mon & Wed on your calendar"). Calendar has no code at all (audit §2.12), so the
+   * line is a placeholder carrying `nudgeIsSample`. A nudge toward a target nobody
+   * set is noise, so it is omitted entirely when unconfigured.
+   */
+  nudge: string | null;
+  /** ⚠️ True whenever `nudge` is non-null. */
+  nudgeIsSample: boolean;
+};
+
+/** Mean days from a brief's created event to its submitted event. */
+export type Turnaround = {
+  /** Null when no brief has both events in the window — renders "—". */
+  avgDays: number | null;
+  /** How many briefs contributed. Zero is an honest answer, not an error. */
+  sampleSize: number;
+};
+
+/**
+ * ⚠️ WHOLLY INVENTED. `BRIEF_STATES` has no `in_testing` or `winner`, there is no
+ * ad-testing table and no source emits one (audit §2.12). Carries `isSample` so the
+ * card cannot render without its caption.
+ */
+export type AdTesting = {
+  inTesting: number;
+  winners: string[];
+  isSample: boolean;
+};
+
+export type BriefsQuotaScreen = {
+  /** Shared with the department page — same fold, same builder. */
+  backlog: BriefRow[];
+  /** Shared with the department page — same fold, same builder. */
+  performance: WeeklyPerformanceView;
+  quota: MyQuota;
+  turnaround: Turnaround;
+  adTesting: AdTesting;
+  /** Resolved ONCE on the server; every date comparison derives from it. */
+  now: string;
 };

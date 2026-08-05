@@ -4,30 +4,18 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { AgentPerformanceTable } from '@/components/agent-performance-table';
+import { BriefBacklogTable } from '@/components/brief-backlog-table';
+import { WeeklyPerformanceChart } from '@/components/weekly-performance-chart';
 import { Icons } from '@/components/icons';
 import { TeamMemberList } from '@/components/team-member-list';
 import { Progress } from '@/components/ui/progress';
-import {
-  EmptyState,
-  LABEL_CAPS,
-  Panel,
-  Row,
-  ROW_META,
-  RowList,
-  Screen,
-  StatCard
-} from '@/components/ui/panel';
+import { EmptyState, Panel, Row, ROW_META, RowList, Screen, StatCard } from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
 import { formatDueDate } from '@/lib/format-date';
 import { ROW_TONE, rowStateLabel, rowTone } from '@/lib/row-tone';
 import { departmentQueryOptions } from '../api/queries';
 import type { DepartmentDetail } from '../api/types';
-import {
-  BRIEF_STATE_META,
-  HEALTH_BADGE,
-  HEALTH_LABEL,
-  PROJECT_STATUS_META
-} from '../constants/department-options';
+import { HEALTH_BADGE, HEALTH_LABEL, PROJECT_STATUS_META } from '../constants/department-options';
 
 /**
  * Department detail.
@@ -96,8 +84,8 @@ export function DepartmentBody({ departmentId, nowIso }: { departmentId: string;
       {/* Conditional panel, keyed on dept_type. Other types get neither. */}
       {data.briefs && (
         <div className='grid items-start gap-[14px] lg:grid-cols-[3fr_2fr]'>
-          <BriefBacklog data={data} />
-          <BriefPerformanceChart data={data} />
+          <BriefBacklogTable rows={data.briefs.backlog} />
+          <WeeklyPerformanceChart data={data.briefs.performance} />
         </div>
       )}
       {data.agents && <AgentPerformanceTable data={data.agents} />}
@@ -305,128 +293,6 @@ function RiskPanel({ data }: { data: DepartmentDetail }) {
           ))}
         </RowList>
       )}
-    </Panel>
-  );
-}
-
-/**
- * Creative-only: the brief backlog.
- *
- * ⚠️ REAL DATA from the shared Vision fold, production-filtered. PRODUCT is always
- * an em dash — Vision carries no product field (audit §3.1) — and OWNER is "—"
- * wherever the actor identity is unlinked, never guessed.
- */
-function BriefBacklog({ data }: { data: DepartmentDetail }) {
-  const briefs = data.briefs;
-  if (!briefs) return null;
-
-  return (
-    <Panel
-      title={`Brief backlog · ${briefs.backlog.length}`}
-      meta={<span className='text-[11.5px]'>via Brief Tracker</span>}
-    >
-      {briefs.backlog.length === 0 ? (
-        <p className='text-muted-foreground text-[12.5px]'>No briefs in flight.</p>
-      ) : (
-        <div className='overflow-x-auto'>
-          <div className='min-w-[520px]'>
-            <div
-              className={cn(
-                LABEL_CAPS,
-                'grid grid-cols-[1.6fr_0.7fr_0.9fr_0.5fr_0.8fr] gap-[10px] border-b pb-[7px]'
-              )}
-            >
-              <span>Brief</span>
-              <span>Product</span>
-              <span>Owner</span>
-              <span className='text-right'>Age</span>
-              <span>Status</span>
-            </div>
-
-            {briefs.backlog.map((b) => {
-              const meta = BRIEF_STATE_META[b.state];
-              return (
-                <div
-                  key={b.id}
-                  className='grid grid-cols-[1.6fr_0.7fr_0.9fr_0.5fr_0.8fr] gap-[10px] border-b py-[8px] text-[12.5px] last:border-b-0'
-                >
-                  <span className='min-w-0 truncate font-semibold'>{b.title}</span>
-                  <span className='text-muted-foreground'>{b.product}</span>
-                  <span className='text-muted-foreground min-w-0 truncate'>{b.owner}</span>
-                  <span className='text-right tabular-nums'>{b.ageDays}d</span>
-                  <span className={cn('font-semibold', meta.tone)}>{meta.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </Panel>
-  );
-}
-
-/**
- * Creative-only: the 6-week series.
- *
- * ⚠️ REAL COUNTS, with a documented SUBSTITUTION. Decision 6 says the quota counts
- * APPROVED briefs; Vision emits no `brief.approved` event at all, so the series
- * counts submissions instead and the caption says so. That is a data gap surfaced,
- * not a mock — every bar is a real count of real events.
- *
- * ⚠️ Bars are NEUTRAL when no quota is configured. Every `quota_config` is `{}`
- * today, and an unconfigured quota is not a zero quota — colouring every bar
- * "below target" against a threshold nobody set would be a fabricated judgement.
- */
-function BriefPerformanceChart({ data }: { data: DepartmentDetail }) {
-  const perf = data.briefs?.performance;
-  if (!perf) return null;
-
-  const peak = Math.max(...perf.bars.map((b) => b.count), perf.quota ?? 0, 1);
-
-  return (
-    <Panel
-      title={
-        perf.usesSubmittedFallback
-          ? 'Briefs submitted vs quota, last 6 weeks'
-          : 'Briefs approved vs quota, last 6 weeks'
-      }
-    >
-      {perf.usesSubmittedFallback && (
-        <p className='text-muted-foreground text-[11.5px] leading-[1.45]'>
-          Counting <span className='font-semibold'>submissions</span>: Vision emits no
-          brief-approved event yet, so approvals cannot be derived.
-        </p>
-      )}
-
-      <div className='flex h-[128px] items-end gap-[10px]'>
-        {perf.bars.map((b) => {
-          // Neutral unless a quota exists to compare against — see the header.
-          const tone =
-            perf.quota === null
-              ? 'bg-muted-foreground/40'
-              : b.count >= perf.quota
-                ? 'bg-success'
-                : 'bg-warning';
-
-          return (
-            <div key={b.week} className='flex flex-1 flex-col items-center gap-[5px]'>
-              <span className='text-[11px] font-semibold tabular-nums'>{b.count || ''}</span>
-              <div
-                className={cn('w-full rounded-t-[4px]', b.count > 0 ? tone : 'bg-muted')}
-                style={{ height: b.count > 0 ? `${Math.max(8, (b.count / peak) * 100)}%` : '2px' }}
-                title={`${b.week}: ${b.count}`}
-              />
-              <span className='text-muted-foreground text-[10.5px]'>{b.week}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className='text-muted-foreground text-[11.5px]'>
-        {perf.quota === null
-          ? 'No weekly quota configured — bars show volume only.'
-          : `Quota: ${perf.quota}/wk team-wide.`}
-      </p>
     </Panel>
   );
 }

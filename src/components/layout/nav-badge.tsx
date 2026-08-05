@@ -65,13 +65,16 @@ export function NavBadge({
   return (
     <span
       className={cn(
-        'ml-auto flex min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums',
+        // Mock's pill: 999px radius, 10.5px bold, --primary fill.
+        'ml-auto flex min-w-[18px] shrink-0 items-center justify-center rounded-full px-[7px] py-px text-[10.5px] font-bold tabular-nums',
         // Hidden when the rail is icon-collapsed: at 48px the row shows only its
         // icon and a pill would push it off its own centre.
         'group-data-[collapsible=icon]:hidden',
+        // Semantic tokens from the adoption — no hardcoded amber. The default
+        // pill is --primary per the mock; `amber` is the decision-needed variant.
         tone === 'amber'
-          ? 'bg-amber-100 text-amber-800'
-          : 'bg-sidebar-accent text-sidebar-accent-foreground',
+          ? 'bg-warning text-warning-foreground'
+          : 'bg-primary text-primary-foreground',
         className
       )}
       // 99+ keeps the pill a fixed width; a four-digit count would reflow the row.

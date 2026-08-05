@@ -51,11 +51,17 @@ export default function AppSidebar() {
               size='lg'
               render={<Link href='/dashboard/overview' aria-label='Dashboard home' />}
             >
-              <div className='bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg'>
+              {/* 30px tile, 8px radius, --sidebar-primary — mock's header block. */}
+              <div className='bg-sidebar-primary text-sidebar-primary-foreground flex size-[30px] shrink-0 items-center justify-center rounded-[8px] text-[13px] font-bold'>
                 <Icons.logo className='size-4' />
               </div>
-              <div className='grid flex-1 text-left text-sm leading-tight'>
-                <span className='truncate font-semibold'>Dashboard</span>
+              <div className='grid flex-1 text-left leading-tight'>
+                <span className='truncate text-[13.5px] font-bold'>Command Center</span>
+                {/* Subtitle hides when the rail collapses to icons — at 48px
+                    there is no room for it and it would wrap under the tile. */}
+                <span className='text-muted-foreground truncate text-[11px] group-data-[collapsible=icon]:hidden'>
+                  Lucky Fours · internal
+                </span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -66,7 +72,9 @@ export default function AppSidebar() {
           <NavZone key={group.id} group={group} pathname={pathname} />
         ))}
       </SidebarContent>
-      <SidebarFooter>
+      {/* Top border per the mock. The user block below is the REAL Clerk
+          session — name and email from useUser(), never a hardcoded person. */}
+      <SidebarFooter className='border-sidebar-border border-t'>
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
@@ -78,7 +86,9 @@ export default function AppSidebar() {
                   />
                 }
               >
-                {user && <UserAvatarProfile className='h-8 w-8 rounded-lg' showInfo user={user} />}
+                {user && (
+                  <UserAvatarProfile className='size-[30px] rounded-full' showInfo user={user} />
+                )}
                 <Icons.chevronsDown className='ml-auto size-4' />
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -154,7 +164,7 @@ function NavZone({ group, pathname }: { group: NavGroup; pathname: string }) {
                   // as CollapsibleTrigger's children.
                   <button type='button' aria-label={`${group.label} section, expand or collapse`} />
                 }
-                className='w-full cursor-pointer'
+                className='text-muted-foreground text-[11px] font-semibold tracking-[0.07em] uppercase w-full cursor-pointer'
               />
             }
           >
@@ -169,7 +179,11 @@ function NavZone({ group, pathname }: { group: NavGroup; pathname: string }) {
 
   return (
     <SidebarGroup className='py-0'>
-      {group.label && <SidebarGroupLabel>{group.label}</SidebarGroupLabel>}
+      {group.label && (
+        <SidebarGroupLabel className='text-muted-foreground text-[11px] font-semibold tracking-[0.07em] uppercase'>
+          {group.label}
+        </SidebarGroupLabel>
+      )}
       {rows}
     </SidebarGroup>
   );
@@ -186,6 +200,13 @@ function NavRow({ item, pathname }: { item: NavItem; pathname: string }) {
         render={<Link href={item.url} aria-label={item.title} />}
         tooltip={item.title}
         isActive={pathname === item.url}
+        /* Mock's row spec. Arbitrary values on radius/size deliberately:
+           tailwind-merge does not treat `rounded-cc-*`-style scale names as the
+           same group as `rounded-md`, but `rounded-[8px]` IS in that group and
+           correctly evicts the cva's default. Active state is --sidebar-accent,
+           which is exactly the mock's towerBg (`view === v ? sidebar-accent`),
+           so hover and active intentionally match. */
+        className='rounded-[8px] text-[13.5px] font-medium [&>svg]:size-[15px]'
       >
         <Icon />
         <span>{item.title}</span>

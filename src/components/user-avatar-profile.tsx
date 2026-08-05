@@ -15,7 +15,8 @@ export function UserAvatarProfile({ className, showInfo = false, user }: UserAva
     <div className='flex items-center gap-2'>
       <Avatar className={className}>
         <AvatarImage src={user?.imageUrl || ''} alt={user?.fullName || ''} />
-        <AvatarFallback className='rounded-lg'>
+        {/* Circle, not a squircle — the mock's footer avatar is 999px. */}
+        <AvatarFallback className='bg-sidebar-primary text-sidebar-primary-foreground rounded-full text-[12px] font-bold'>
           {user?.fullName?.slice(0, 2)?.toUpperCase() || 'CN'}
         </AvatarFallback>
       </Avatar>

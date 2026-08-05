@@ -86,6 +86,111 @@ export type ExtractionDetail = {
   pending: boolean;
 };
 
+// ── Capture queue ───────────────────────────────────────────────────────────
+//
+// ⚠️ ADDED for the Capture queue restyle. Every type below is NEW and additive —
+// nothing above changed, so the meetings list, the detail page and the review
+// mutations keep their exact shapes.
+
+/**
+ * One incoming-source provenance card.
+ *
+ * ⚠️ A READ-ONLY DISPLAY, never an ingest control. The mockup puts "Ingest"
+ * buttons on these cards; a button that fabricates `raw_event` rows beside real
+ * webhook deliveries is precisely the landmine flagged on the person profile's
+ * "Capture from Slack" affordance. Ingestion is webhook-driven.
+ */
+export type CaptureProvenance = {
+  /** Right-hand header meta: "#channel · 11:38" or "Dev Sync · 29 Jul 2026". */
+  contextLabel: string | null;
+  /** Who said it, when known. Slack shows a resolved person or the raw actor. */
+  authorName: string | null;
+  /** Pre-formatted server-side. Never a raw ISO string. */
+  when: string | null;
+  /** The candidate's `source_span` — the verbatim quote. */
+  quote: string | null;
+  /**
+   * Copy for when nothing has arrived from this source yet. Non-null exactly when
+   * `quote` is null. ⚠️ NEVER a fabricated message — an empty source says so.
+   */
+  emptyCopy: string | null;
+};
+
+/** A pending candidate, as the review queue renders it. */
+export type QueueCandidate = {
+  id: string;
+  /** The proposed task — `candidate_action_item.description`. Immutable. */
+  description: string;
+  /** Verbatim transcript/thread quote. The reviewer's only verification path. */
+  sourceSpan: string;
+  /** Name exactly as the source said it. Kept permanently as the model's record. */
+  ownerName: string;
+  /** The resolved roster person, when one was confident enough to link. */
+  ownerPersonName: string | null;
+  ownerConfidence: OwnerConfidenceLevel;
+  /** ISO date (yyyy-mm-dd) or null. Rendered via @/lib/format-date. */
+  dueDate: string | null;
+  /** The model's own 0–1 estimate. Rendered as a percentage. */
+  confidence: number;
+  /** 'Meeting' | 'Slack' — humanised in the DTO from the originating event. */
+  sourceLabel: string;
+};
+
+/** A candidate that was approved and has a `tracked_item` to show for it. */
+export type TrackerLanded = {
+  candidateId: string;
+  trackedItemId: string;
+  /** The tracked_item's title — the reviewer's wording if they edited it. */
+  title: string;
+  /** Resolved owner, else the name the source used. */
+  ownerLabel: string;
+  projectId: string | null;
+  projectName: string | null;
+};
+
+/**
+ * One auto-completion ledger row.
+ *
+ * ⚠️ HYBRID — read the per-field notes. `task` and `owner` come from REAL
+ * `recurring_task` rows; `evidence` and `when` are INVENTED because the completion
+ * engine does not exist (`completion_event`: 0 rows, no writer).
+ */
+export type LedgerRow = {
+  id: string;
+  /** REAL — derived from the rule's event via @/lib/recurring-label. */
+  task: string;
+  /** REAL — the recurring task's owner. */
+  owner: string;
+  /** ⚠️ INVENTED. There is no evidence store yet. */
+  evidence: string;
+  /** ⚠️ INVENTED. Pre-formatted; there is no completion timestamp to read. */
+  when: string;
+};
+
+export type CaptureLedger = {
+  /** ⚠️ Applies to `evidence` and `when`; the task and owner are real. */
+  detailIsSample: boolean;
+  rows: LedgerRow[];
+};
+
+export type CaptureQueue = {
+  /** The newest pending Slack-sourced capture, or its empty state. */
+  slack: CaptureProvenance;
+  /** The newest pending meeting-sourced capture, or its empty state. */
+  meeting: CaptureProvenance;
+  pending: QueueCandidate[];
+  /** Uncapped count — `pending` is capped for the page. */
+  pendingTotal: number;
+  landed: TrackerLanded[];
+  ledger: CaptureLedger;
+  /**
+   * Resolved ONCE on the server. Every date on the page derives from it — a
+   * per-render clock differs between SSR and hydration and React discards the
+   * subtree.
+   */
+  now: string;
+};
+
 // ── The fetch-and-extract action ────────────────────────────────────────────
 
 export type FetchExtractResult =

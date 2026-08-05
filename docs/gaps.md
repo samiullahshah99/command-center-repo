@@ -19,6 +19,40 @@ and flipping one field in one file removes both.
 
 ---
 
+## Capture queue — auto-completion ledger EVIDENCE and WHEN (hybrid)
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/extraction` → "Auto-completion ledger" card |
+| **Generator** | `buildLedger()` in `src/features/extraction/api/service.ts` |
+| **Marker** | `TODO(backend): completion engine (audit D5)` |
+| **DTO flag** | `CaptureQueue.ledger.detailIsSample` |
+| **Renderer** | `Ledger` in `src/features/extraction/components/capture-queue-view.tsx` |
+| **Audit ref** | D5, §1.2 `completionType`/`evidence`, §2.6 ledger |
+
+⚠️ **Hybrid — read the split.**
+
+**Real:** the TASK and OWNER columns. Queried from `recurring_task` joined to
+`person`, so the ledger names the same five tasks the Automations table and My day
+show, with their actual owners. The watched signal quoted inside the evidence
+string is also real (`auto_complete_rule.source` + `.event`).
+
+**Invented:** the EVIDENCE claim (that the signal fired) and the WHEN. The
+completion engine does not exist — `completion_event` has **0 rows and no
+writer**, and nothing evaluates `auto_complete_rule`.
+
+The caption says exactly this rather than a blanket "Sample data", because
+labelling the whole card fake would be its own inaccuracy.
+
+> ⚠️ **NEVER seed `completion_event` to fix this.** A seeded row makes a
+> fabricated completion indistinguishable from a measured one at the database
+> level. The seed spec's hard rules forbid it.
+
+**Everything else on that page is real** — the provenance cards, the review queue,
+and the "Added to tracker" list. See the note at the foot of this file.
+
+---
+
 ## My day — "Today" timeline
 
 | | |

@@ -18,17 +18,20 @@
 
 'use server';
 
-import { desc, eq, inArray, sql } from 'drizzle-orm';
+import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import {
   candidateActionItem,
   person,
   project,
+  recurringTask,
   trackedItem,
   transcript,
   unifiedEvent
 } from '@/db/schema';
+import { formatMeetingDate } from '@/lib/format-date';
+import { recurringLabel, watchedSignalLabel } from '@/lib/recurring-label';
 import {
   FirefliesGraphQLError,
   listTranscripts,
@@ -42,6 +45,10 @@ import {
 import { approveCandidateSchema, rejectCandidateSchema } from '../schemas/review';
 import type {
   ActionItemRow,
+  CaptureLedger,
+  CaptureQueue,
+  LedgerRow,
+  QueueCandidate,
   ExtractionDetail,
   ExtractionStatusResponse,
   MeetingBlockedReason,
@@ -595,4 +602,232 @@ export async function rejectCandidate(input: unknown): Promise<ReviewResult> {
 
     return { ok: true, status: 'rejected' } as const;
   });
+}
+
+// ── Capture queue ───────────────────────────────────────────────────────────
+//
+// ⚠️ EVERYTHING BELOW IS READ-ONLY AND ADDITIVE. `approveCandidate` and
+// `rejectCandidate` above are untouched — their transaction, their
+// `SELECT … FOR UPDATE`, and the candidate-immutability rules they enforce are the
+// working core of this feature and nothing here reaches into them.
+//
+// ⚠️ CANDIDATES ARE RENDERED, NEVER EDITED. A candidate row is the record of what
+// the MODEL produced; a reviewer's corrections live on the promoted `tracked_item`
+// with `edited_fields` naming what changed. Overwriting a candidate would make
+// "how often was the model right?" unanswerable, because the wrong answer would
+// have been replaced by the right one.
+
+/** Rows the queue shows before it stops being reviewable in one sitting. */
+const QUEUE_CAP = 12;
+/** Recently-landed rows shown under the queue. */
+const LANDED_CAP = 5;
+
+/**
+ * TODO(backend): completion engine (audit D5).
+ *
+ * ⚠️ HYBRID. The task and owner on each row are REAL — queried from
+ * `recurring_task` joined to `person`, so the ledger names the same five tasks the
+ * Automations table does and the story hangs together. The EVIDENCE and the WHEN
+ * are invented: `completion_event` has 0 rows and NO WRITER, and nothing evaluates
+ * `auto_complete_rule`.
+ *
+ * ⚠️ NEVER "fix" this by seeding `completion_event`. A seeded row makes a
+ * fabricated completion indistinguishable from a measured one at the database
+ * level, which is strictly worse than a labelled placeholder. The seed spec's hard
+ * rules forbid it for exactly this reason.
+ *
+ * ⚠️ The `when` values are derived from `now` so they stay recent; a hardcoded date
+ * stops being "this week" and reads as a broken feature rather than as sample data.
+ */
+async function buildLedger(now: Date): Promise<CaptureLedger> {
+  const rows = await db
+    .select({
+      id: recurringTask.id,
+      cadence: recurringTask.cadence,
+      rule: recurringTask.autoCompleteRule,
+      owner: person.name
+    })
+    .from(recurringTask)
+    .leftJoin(person, eq(person.id, recurringTask.ownerPersonId))
+    .orderBy(asc(recurringTask.createdAt))
+    .limit(6);
+
+  const ledgerRows: LedgerRow[] = rows.map((r, i) => {
+    const rule = (r.rule ?? {}) as { source?: string; event?: string };
+    const when = new Date(now);
+    // Spread across recent days so the column is not a wall of one date.
+    when.setUTCDate(when.getUTCDate() - i);
+    when.setUTCHours(9, 0, 0, 0);
+
+    return {
+      // REAL:
+      task: recurringLabel(rule.event),
+      owner: r.owner ?? 'Unassigned',
+      // ⚠️ INVENTED — see the header. The signal named IS real; that it fired is not.
+      evidence: `${watchedSignalLabel(rule.source, rule.event)} — would satisfy this ${r.cadence} task`,
+      when: formatMeetingDate(when.toISOString()),
+      id: r.id
+    };
+  });
+
+  return { detailIsSample: true, rows: ledgerRows };
+}
+
+/** Humanised source label for a candidate's originating event. */
+function captureSourceLabel(source: string): string {
+  if (source === 'fireflies') return 'Meeting';
+  if (source === 'slack') return 'Slack';
+  return source.charAt(0).toUpperCase() + source.slice(1);
+}
+
+/**
+ * Everything the Capture queue renders, in FOUR queries plus the ledger.
+ *
+ * ⚠️ ONE pre-aggregated call. A widget that needs more data extends this; a second
+ * endpoint would be free to disagree with it about what is pending.
+ */
+export async function getCaptureQueue(): Promise<CaptureQueue> {
+  await requireUser();
+
+  const now = new Date();
+
+  /**
+   * ── Pending candidates, with their originating event and resolved owner.
+   *
+   * ⚠️ Ordered by the model's confidence DESCENDING, then oldest first. The
+   * reviewer's time is best spent where the model is most sure, and within equal
+   * confidence the longest-waiting item goes first so nothing starves.
+   */
+  const pendingRows = await db
+    .select({
+      id: candidateActionItem.id,
+      description: candidateActionItem.description,
+      sourceSpan: candidateActionItem.sourceSpan,
+      ownerName: candidateActionItem.ownerName,
+      ownerConfidence: candidateActionItem.ownerConfidence,
+      dueDate: candidateActionItem.dueDate,
+      confidence: candidateActionItem.confidence,
+      createdAt: candidateActionItem.createdAt,
+      eventSource: unifiedEvent.source,
+      eventSubjectId: unifiedEvent.subjectId,
+      eventSubjectLabel: unifiedEvent.subjectLabel,
+      eventOccurredAt: unifiedEvent.occurredAt,
+      ownerPersonName: person.name
+    })
+    .from(candidateActionItem)
+    .innerJoin(unifiedEvent, eq(unifiedEvent.id, candidateActionItem.unifiedEventId))
+    .leftJoin(person, eq(person.id, candidateActionItem.ownerPersonId))
+    .where(eq(candidateActionItem.reviewStatus, 'pending'))
+    .orderBy(desc(candidateActionItem.confidence), asc(candidateActionItem.createdAt));
+
+  /**
+   * ── Landed: approved candidates that produced a tracked_item.
+   *
+   * ⚠️ INNER join to `tracked_item`. An approved candidate with no tracked item
+   * would mean the promotion transaction half-committed, which it cannot — but
+   * showing such a row under "Added to tracker" would be a claim we cannot back.
+   */
+  const landedRows = await db
+    .select({
+      candidateId: candidateActionItem.id,
+      trackedItemId: trackedItem.id,
+      title: trackedItem.title,
+      ownerName: candidateActionItem.ownerName,
+      ownerPersonName: person.name,
+      projectId: project.id,
+      projectName: project.name,
+      reviewedAt: candidateActionItem.reviewedAt
+    })
+    .from(candidateActionItem)
+    .innerJoin(trackedItem, eq(trackedItem.candidateActionItemId, candidateActionItem.id))
+    .leftJoin(person, eq(person.id, trackedItem.ownerPersonId))
+    .leftJoin(project, eq(project.id, trackedItem.projectId))
+    .where(inArray(candidateActionItem.reviewStatus, ['approved', 'auto_approved']))
+    .orderBy(desc(candidateActionItem.reviewedAt))
+    .limit(LANDED_CAP);
+
+  // ── Titles for meeting-sourced provenance. One lookup for the newest only. ──
+  const newestMeeting = pendingRows.find((r) => r.eventSource === 'fireflies');
+  const newestSlack = pendingRows.find((r) => r.eventSource === 'slack');
+
+  let meetingTitle: string | null = null;
+  if (newestMeeting?.eventSubjectId) {
+    const [t] = await db
+      .select({ title: transcript.title, meetingDate: transcript.meetingDate })
+      .from(transcript)
+      .where(eq(transcript.firefliesId, newestMeeting.eventSubjectId))
+      .limit(1);
+    meetingTitle = t?.title ?? null;
+  }
+
+  const pending: QueueCandidate[] = pendingRows.slice(0, QUEUE_CAP).map((r) => ({
+    id: r.id,
+    description: r.description,
+    sourceSpan: r.sourceSpan,
+    ownerName: r.ownerName,
+    ownerPersonName: r.ownerPersonName,
+    ownerConfidence: toOwnerConfidence(r.ownerConfidence),
+    dueDate: r.dueDate,
+    confidence: r.confidence,
+    sourceLabel: captureSourceLabel(r.eventSource)
+  }));
+
+  return {
+    /**
+     * ⚠️ THE CHANNEL NAME IS NOT AVAILABLE. Slack event envelopes carry the channel
+     * ID (`C0BLLT9PT18`) and `unified_event.subject_label` is null for every Slack
+     * row — resolving `#proj-retention` needs a `conversations.info` call we do not
+     * make. The ID is shown rather than an invented name.
+     */
+    slack: newestSlack
+      ? {
+          contextLabel: newestSlack.eventSubjectLabel ?? newestSlack.eventSubjectId,
+          authorName: newestSlack.ownerPersonName ?? newestSlack.ownerName,
+          when: formatMeetingDate(newestSlack.eventOccurredAt.toISOString()),
+          quote: newestSlack.sourceSpan,
+          emptyCopy: null
+        }
+      : {
+          contextLabel: null,
+          authorName: null,
+          when: null,
+          quote: null,
+          // ⚠️ Truthful, and it is the current state: the listener IS live, and
+          // extraction from Slack threads has simply produced nothing yet.
+          emptyCopy: 'No Slack captures yet — the listener is live on invited channels.'
+        },
+
+    meeting: newestMeeting
+      ? {
+          contextLabel: meetingTitle ?? newestMeeting.eventSubjectId,
+          authorName: newestMeeting.ownerPersonName ?? newestMeeting.ownerName,
+          when: formatMeetingDate(newestMeeting.eventOccurredAt.toISOString()),
+          quote: newestMeeting.sourceSpan,
+          emptyCopy: null
+        }
+      : {
+          contextLabel: null,
+          authorName: null,
+          when: null,
+          quote: null,
+          emptyCopy: 'No meeting captures yet — fetch a transcript to extract from it.'
+        },
+
+    pending,
+    pendingTotal: pendingRows.length,
+
+    landed: landedRows.map((r) => ({
+      candidateId: r.candidateId,
+      trackedItemId: r.trackedItemId,
+      // `tracked_item.title` is null only for non-internal rows, which a promoted
+      // candidate never is — but the fallback keeps the row readable regardless.
+      title: r.title ?? 'Untitled item',
+      ownerLabel: r.ownerPersonName ?? r.ownerName,
+      projectId: r.projectId,
+      projectName: r.projectName
+    })),
+
+    ledger: await buildLedger(now),
+    now: now.toISOString()
+  };
 }

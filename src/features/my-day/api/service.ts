@@ -29,6 +29,7 @@ import type { Cadence } from '@/db/schema/recurring-task';
 import type { TrackedItemStatus } from '@/db/schema/tracked-item';
 import { formatDateOnly, formatMeetingDate } from '@/lib/format-date';
 import { TERMINAL_STATUSES } from '@/lib/dept-health';
+import { recurringLabel, watchedSignalLabel } from '@/lib/recurring-label';
 import type {
   Greeting,
   MyAlert,
@@ -63,36 +64,6 @@ const SOURCE_LABEL: Record<string, string> = {
   manual: 'Manual',
   system: 'System'
 };
-
-/**
- * `auto_complete_rule.event` → the mockup's Automations label.
- *
- * ⚠️ `recurring_task` HAS NO NAME COLUMN and the seed spec forbids adding one, so
- * the visible label is a display mapping over a REAL value. The event is what the
- * database holds; this is only its wording. An unmapped event falls back to a
- * humanised form of itself rather than to a blank row — a missing label is a
- * mapping gap worth seeing.
- */
-const RECURRING_LABEL: Record<string, string> = {
-  recap_delivered: 'CX metrics recap',
-  awaiting_review_acknowledged: 'Daily returns review',
-  ops_review_posted: 'Ops review post',
-  briefs_submitted: 'Weekly brief quota',
-  standup_message: 'Standup notes',
-  progress_updated: 'Progress update'
-};
-
-/** `portal` + `awaiting_review_acknowledged` → "Portal · awaiting review acknowledged". */
-function signalLabel(source: string | undefined, event: string | undefined): string {
-  const src = source ? source.charAt(0).toUpperCase() + source.slice(1) : 'Unknown source';
-  const evt = event ? event.replaceAll('_', ' ') : 'no signal configured';
-  return `${src} · ${evt}`;
-}
-
-function humanise(value: string): string {
-  const s = value.replaceAll('_', ' ');
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
 
 /** UTC day, for whole-day comparisons. */
 function utcDay(x: Date): number {
@@ -402,9 +373,9 @@ export async function getMyDay(personId: string, now: Date): Promise<MyDay> {
 
     return {
       id: r.id,
-      name: rule.event ? (RECURRING_LABEL[rule.event] ?? humanise(rule.event)) : 'Recurring task',
+      name: recurringLabel(rule.event),
       cadence: r.cadence as Cadence,
-      watchedSignal: signalLabel(rule.source, rule.event),
+      watchedSignal: watchedSignalLabel(rule.source, rule.event),
       fallbackManual: r.fallbackManual,
       state: mocked.state,
       evidence: mocked.evidence

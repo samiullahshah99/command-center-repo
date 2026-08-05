@@ -96,7 +96,9 @@ export function BriefDetailPanel({
                       aria-hidden
                       className={cn(
                         'mt-1.5 size-1.5 shrink-0 rounded-full',
-                        LIFECYCLE.has(e.eventType) ? 'bg-slate-500' : 'bg-slate-300'
+                        LIFECYCLE.has(e.eventType)
+                          ? 'bg-muted-foreground'
+                          : 'bg-muted-foreground/40'
                       )}
                     />
                     <div className='flex min-w-0 flex-col gap-0.5'>

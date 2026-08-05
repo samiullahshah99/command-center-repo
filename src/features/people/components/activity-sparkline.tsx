@@ -55,7 +55,7 @@ export function ActivitySparkline({
             <div
               key={d.day}
               title={`${d.day}: ${d.count} event${d.count === 1 ? '' : 's'}`}
-              className={cn('w-1 rounded-sm', d.count > 0 ? 'bg-sky-400' : 'bg-slate-200')}
+              className={cn('w-1 rounded-sm', d.count > 0 ? 'bg-sky-400' : 'bg-muted')}
               // Zero days keep a 2px stub so the 14-day window stays legible as
               // a window rather than collapsing to only the active days.
               style={{ height: d.count > 0 ? `${Math.max(15, (d.count / peak) * 100)}%` : '2px' }}

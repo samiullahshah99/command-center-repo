@@ -19,6 +19,58 @@ and flipping one field in one file removes both.
 
 ---
 
+## Department detail — three data gaps, none of them a mock
+
+⚠️ **This entry documents MISSING FIELDS AND A SUBSTITUTION, not invented data.**
+Every number on `/dashboard/departments/[id]` is a real count. It is listed here
+because a reader of the page will see em dashes and a caption and should be able to
+find out why.
+
+| Gap | Surface | Behaviour | Audit ref |
+| --- | --- | --- | --- |
+| **Brief `product`** | Brief backlog, PRODUCT column | Always `—` | §3.1 |
+| **Approval-week series** | 6-week chart | Counts *submissions*, captioned | Decision 6 (2026-08-06) |
+| **Quota exception annotation** | 6-week chart | Omitted entirely | D8 |
+
+**1. Vision carries no product field on a brief.** The mockup's backlog has a
+PRODUCT column; `FoldedBrief` has `id`, `label`, `state`, timestamps and actor —
+no product. The column renders `—` rather than inventing a value or silently
+dropping the column.
+
+**2. The chart counts submissions, not approvals.** Decision 6 says the quota
+counts APPROVED briefs. ⚠️ **The live Vision catalogue contains no
+`brief.approved` events at all** — only `created`, `updated`, `submitted`,
+`sent_back`, `commented` and `script_saved`. An approvals series would be six empty
+bars, which reads as a broken chart rather than as a data gap. The brief's
+documented fallback is taken: briefs currently in `in_review`, bucketed by
+`stateEnteredAt`. Surfaced two ways — the card title says "Briefs submitted vs
+quota" and a caption states why. `BriefPerformance.usesSubmittedFallback` carries
+it; flip to approvals and drop the flag the day Vision emits the event.
+
+> ⚠️ Bucketing from the fold reflects each brief's CURRENT state, so a brief
+> submitted in W31 and sent back in W32 counts in neither. That under-counts rather
+> than inventing, and a true series needs transition replay rather than a fold.
+
+**3. No quota is configured, so the bars are neutral.** Every `role_profile.
+quota_config` is `{}`. An unconfigured quota is not a zero quota, so bars render
+neutral rather than all-below-target — colouring them against a threshold nobody
+set would be a fabricated judgement. Same rule `getBriefQuota` already applies.
+
+**4. The mockup's exception annotation ("W31 dip = product launch freeze") is
+omitted.** There is no exception field and no place to store one (audit D8).
+
+**Also worth knowing:** the brief panel is **not department-filtered**, and cannot
+honestly be. A Vision brief has no department — attribution runs brief → actor
+identity → person, and Vision attribution is partial. Filtering by the actor's
+department would silently drop every brief whose actor is unlinked, which is most
+of them, and present a short list as a complete one.
+
+**The department summary sentence is deterministic**, built from live counts with
+no model call — it is not an AI summary and carries no sample flag. Extending
+`ai_summary` to a polymorphic subject is backend work (audit §1.3).
+
+---
+
 ## My team — Agent performance FIGURES (hybrid)
 
 | | |

@@ -7,51 +7,17 @@
 
 import type { TrackedItemStatus } from '@/db/schema/tracked-item';
 import type { DeptHealthStatus } from '@/lib/dept-health';
+import type { AgentCadence, AgentPerformanceView, AgentRow } from '@/lib/agent-performance';
+import type { TeamMemberView } from '@/components/team-member-list';
 
 export type { DeptHealthStatus, TrackedItemStatus };
 
 /**
- * ⚠️ ADHERENCE, NOT A SCHEDULE — and this is a named trap from the audit.
- *
- * The mockup's Agent-performance table has a "Cadence" column meaning *is this
- * agent keeping up*. `recurring_task.cadence` is a completely different concept: a
- * REPETITION INTERVAL (`daily | weekly | biweekly | monthly | quarterly`). Two
- * different things are called "cadence" on adjacent screens, so this type is named
- * `AgentCadence` and deliberately does NOT reuse `Cadence` from
- * `@/db/schema/recurring-task`. Importing that one here would typecheck and mean
- * the wrong thing.
+ * ⚠️ Agent-performance shapes MOVED to `@/lib/agent-performance` when the CX
+ * department panel became a second consumer of the same table. Re-exported so this
+ * feature's DTO still reads whole.
  */
-export type AgentCadence = 'on_track' | 'behind' | 'ahead';
-
-/**
- * One row of the Agent-performance table.
- *
- * ⚠️ HYBRID. `personId` / `name` / `roleLabel` are REAL department members. Every
- * FIGURE — tickets, resolved, csat, cadence — is INVENTED: the Zendesk integration
- * does not exist (audit §3.3, no client, no credentials, no table). The card
- * renders a caption from `figuresAreSample`.
- */
-export type AgentRow = {
-  personId: string;
-  /** REAL — the person's name. */
-  name: string;
-  /** REAL — `role.display_name`, or null when no access role is assigned. */
-  roleLabel: string | null;
-  /** ⚠️ INVENTED. */
-  tickets: number;
-  /** ⚠️ INVENTED. */
-  resolved: number;
-  /** ⚠️ INVENTED. 0–5, one decimal. */
-  csat: number;
-  /** ⚠️ INVENTED. Adherence — see AgentCadence. */
-  cadence: AgentCadence;
-};
-
-export type AgentPerformance = {
-  /** ⚠️ Applies to the figures only; the agents themselves are real. */
-  figuresAreSample: boolean;
-  rows: AgentRow[];
-};
+export type { AgentCadence, AgentPerformanceView as AgentPerformance, AgentRow };
 
 /** One of the team's open items. */
 export type TeamItem = {
@@ -77,20 +43,11 @@ export type TeamRisk = {
   href: string;
 };
 
-/** One member row. */
-export type TeamMemberRow = {
-  id: string;
-  name: string;
-  initials: string;
-  /** Theme token reference for the avatar tint. Never a colour literal. */
-  accentVar: string;
-  /** `role.display_name`, or null. Display only — never branch on it. */
-  roleLabel: string | null;
-  /** Non-terminal items owned by this person. The row's signal. */
-  openCount: number;
-  /** Profile link, carrying `?from=my-team`. */
-  href: string;
-};
+/**
+ * ⚠️ Member row shape MOVED to `@/components/team-member-list` — the department
+ * page renders the same list. Re-exported for this feature's DTO.
+ */
+export type TeamMemberRow = TeamMemberView;
 
 export type TeamStats = {
   open: number;
@@ -114,7 +71,7 @@ export type MyTeam = {
   health: DeptHealthStatus;
   healthReasons: string[];
   stats: TeamStats;
-  agents: AgentPerformance;
+  agents: AgentPerformanceView;
   items: TeamItem[];
   risks: TeamRisk[];
   members: TeamMemberRow[];

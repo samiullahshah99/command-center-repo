@@ -27,16 +27,10 @@ import { departmentAccentVar } from '@/lib/dept-accent';
 import { computeDeptHealth, TERMINAL_STATUSES } from '@/lib/dept-health';
 import { getDeptItems } from '@/lib/dept-nav';
 import { formatDateOnly } from '@/lib/format-date';
+import { personAccentVar } from '@/lib/person-accent';
+import { buildAgentPerformance } from '@/lib/agent-performance';
 
-import type {
-  AgentCadence,
-  AgentPerformance,
-  AgentRow,
-  MyTeam,
-  TeamItem,
-  TeamMemberRow,
-  TeamRisk
-} from './types';
+import type { MyTeam, TeamItem, TeamMemberRow, TeamRisk } from './types';
 
 /** Resource-based check on every export — a Server Action is its own endpoint. */
 async function requireUser(): Promise<void> {
@@ -71,49 +65,6 @@ export async function resolveTeamScope(
   return departmentId ? { departmentId } : null;
 }
 
-/**
- * TODO(backend): zendesk (audit §3.3).
- *
- * ⚠️ THE AGENTS ARE REAL; EVERY FIGURE IS INVENTED. Zendesk has **no code at all**
- * — no client, no credentials, no table — and `AgentPerformance` appears on three
- * screens in the contract, so this is the shape those will share.
- *
- * ⚠️ DERIVED FROM A REAL PER-PERSON COUNT so the numbers are stable per agent
- * rather than reshuffling on every reload. A figure that changes on refresh reads
- * as live telemetry. It is still invented; the caption is what makes that legible,
- * not the arithmetic.
- *
- * ⚠️ `cadence` here is ADHERENCE, not a schedule. See the note on `AgentCadence`.
- */
-function buildAgentPerformance(
-  members: { id: string; name: string; roleLabel: string | null; openCount: number }[]
-): AgentPerformance {
-  const rows: AgentRow[] = members.map((m, i) => {
-    // Stable, bounded, and visibly synthetic-but-plausible.
-    const tickets = 40 + ((i * 17 + m.openCount * 3) % 60);
-    const resolved = Math.max(0, tickets - ((i * 5 + m.openCount) % 9));
-    const csat = Number((4.2 + ((i * 3) % 7) / 10).toFixed(1));
-
-    // Adherence follows the one REAL signal available: someone carrying more open
-    // work than they are closing is "behind". That keeps the mocked column at
-    // least directionally honest against data we do have.
-    const cadence: AgentCadence =
-      m.openCount >= 5 ? 'behind' : m.openCount <= 1 ? 'ahead' : 'on_track';
-
-    return {
-      personId: m.id,
-      name: m.name,
-      roleLabel: m.roleLabel,
-      tickets,
-      resolved,
-      csat,
-      cadence
-    };
-  });
-
-  return { figuresAreSample: true, rows };
-}
-
 /** UTC day, for whole-day overdue comparisons. */
 function utcDay(x: Date): number {
   return Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate());
@@ -124,24 +75,6 @@ function initialsOf(name: string): string {
   if (parts.length === 0) return '?';
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
-
-/**
- * Stable per-person avatar tint, hashing the person's ID.
- *
- * ⚠️ Duplicated from the person profile's `personAccentVar` rather than imported:
- * that lives in a feature's constants folder and CLAUDE.md allows constants to
- * cross a boundary, but the moment a THIRD surface needs it the function belongs in
- * src/lib. Two copies is the point at which to notice, not yet to act — the
- * duplication is eight lines and the alternative is a premature move.
- */
-function personAccentVar(personId: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < personId.length; i += 1) {
-    hash ^= personId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return `var(--chart-${(hash % 5) + 1})`;
 }
 
 /**

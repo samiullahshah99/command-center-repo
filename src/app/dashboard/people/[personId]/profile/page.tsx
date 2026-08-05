@@ -27,7 +27,16 @@ const BACK_TARGETS: Record<string, { href: string; label: string }> = {
   // ONLY way to add a back target — do not relax the lookup to accept arbitrary
   // values, which is exactly what makes this an allow-list rather than a
   // passthrough.
-  'my-team': { href: '/dashboard/my-team', label: 'My team' }
+  'my-team': { href: '/dashboard/my-team', label: 'My team' },
+  /**
+   * ⚠️ STATIC TARGET, deliberately — the fallback the department brief allows.
+   *
+   * Sending the reader back to the SPECIFIC department would mean encoding its id
+   * in the query string and echoing it into an href, which is exactly the open
+   * redirect this allow-list exists to prevent. The Control Tower's Department
+   * health grid is where departments are listed, so it is the honest "up" target.
+   */
+  department: { href: '/dashboard/overview', label: 'Departments' }
 };
 
 export default async function Page(props: PageProps) {

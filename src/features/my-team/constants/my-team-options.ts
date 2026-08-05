@@ -1,5 +1,4 @@
 import type { DeptHealthStatus } from '@/lib/dept-health';
-import type { AgentCadence } from '../api/types';
 
 /** Health badge wording, matching the Control Tower's cards. */
 export const HEALTH_LABEL: Record<DeptHealthStatus, string> = {
@@ -21,20 +20,5 @@ export const HEALTH_BADGE: Record<DeptHealthStatus, string> = {
   bad: 'text-destructive border-current'
 };
 
-/**
- * Agent ADHERENCE → label + tone.
- *
- * ⚠️ NOT `recurring_task.cadence`. That column is a repetition interval
- * (`daily | weekly | …`); this is whether an agent is keeping up. Two different
- * concepts share the word "cadence" across adjacent screens — see the note on
- * `AgentCadence` in ../api/types.ts.
- *
- * ⚠️ `ahead` is MUTED, not success. Green on "ahead" turns the table into a
- * leaderboard, and this page is a manager's view of real colleagues — the only
- * value worth colouring is the one that needs action.
- */
-export const CADENCE_META: Record<AgentCadence, { label: string; tone: string }> = {
-  on_track: { label: 'On track', tone: 'text-success-muted-foreground' },
-  behind: { label: 'Behind', tone: 'text-destructive' },
-  ahead: { label: 'Ahead', tone: 'text-muted-foreground' }
-};
+// ⚠️ CADENCE_META moved to @/lib/agent-performance (AGENT_CADENCE_META) when the
+// department page became a second consumer of the same table.

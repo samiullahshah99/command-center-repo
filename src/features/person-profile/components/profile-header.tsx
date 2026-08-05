@@ -6,7 +6,7 @@ import { Icons } from '@/components/icons';
 import { StatCard } from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
 import type { PersonProfile } from '../api/types';
-import { personAccentVar } from '../constants/profile-options';
+import { personAccentVar } from '@/lib/person-accent';
 
 /**
  * Header block + the three signal cards.

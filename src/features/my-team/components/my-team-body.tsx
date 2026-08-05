@@ -1,26 +1,17 @@
 'use client';
 
 import { useMemo } from 'react';
-import Link from 'next/link';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Icons } from '@/components/icons';
-import { SampleDataCaption } from '@/components/sample-data-caption';
-import {
-  EmptyState,
-  LABEL_CAPS,
-  Panel,
-  Row,
-  ROW_META,
-  RowList,
-  Screen,
-  StatCard
-} from '@/components/ui/panel';
+import { AgentPerformanceTable } from '@/components/agent-performance-table';
+import { TeamMemberList } from '@/components/team-member-list';
+import { EmptyState, Panel, Row, ROW_META, RowList, Screen, StatCard } from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
 import { formatDueDate } from '@/lib/format-date';
 import { ROW_TONE, rowStateLabel, rowTone } from '@/lib/row-tone';
 import { myTeamQueryOptions } from '../api/queries';
 import type { MyTeam } from '../api/types';
-import { CADENCE_META, HEALTH_BADGE, HEALTH_LABEL } from '../constants/my-team-options';
+import { HEALTH_BADGE, HEALTH_LABEL } from '../constants/my-team-options';
 
 /**
  * My team — the support manager's department view.
@@ -70,14 +61,14 @@ export function MyTeamBody({ departmentId, nowIso }: { departmentId: string; now
         <StatCard size='md' label='Members' value={data.stats.members} sub='in this team' />
       </div>
 
-      <AgentPerformanceCard data={data} />
+      <AgentPerformanceTable data={data.agents} />
 
       <div className='grid items-start gap-[14px] lg:grid-cols-[3fr_2fr]'>
         <TeamActionItems data={data} now={now} />
         <RiskPanel data={data} />
       </div>
 
-      <TeamMembers data={data} />
+      <TeamMemberList members={data.members} emptyCopy='No members assigned to this team yet.' />
     </Screen>
   );
 }
@@ -115,62 +106,6 @@ function Header({ data }: { data: MyTeam }) {
         Center tracker.
       </p>
     </div>
-  );
-}
-
-/**
- * Agent performance.
- *
- * ⚠️ HYBRID. The AGENT column is real; every figure is invented because Zendesk is
- * unbuilt. The caption is rendered from the data's own `figuresAreSample` flag, so
- * it cannot be shown without it.
- */
-function AgentPerformanceCard({ data }: { data: MyTeam }) {
-  return (
-    <Panel
-      title='Agent performance'
-      meta={<span className='text-[11.5px]'>via Zendesk · this week</span>}
-    >
-      {data.agents.figuresAreSample && (
-        <SampleDataCaption what='performance figures are sample — Zendesk integration pending. The agents listed are real team members.' />
-      )}
-
-      {data.agents.rows.length === 0 ? (
-        <p className='text-muted-foreground text-[12.5px]'>No members in this team yet.</p>
-      ) : (
-        <div className='overflow-x-auto'>
-          <div className='min-w-[560px]'>
-            <div
-              className={cn(
-                LABEL_CAPS,
-                'grid grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr_0.9fr] gap-[10px] border-b pb-[7px]'
-              )}
-            >
-              <span>Agent</span>
-              <span className='text-right'>Tickets</span>
-              <span className='text-right'>Resolved</span>
-              <span className='text-right'>CSAT</span>
-              <span>Cadence</span>
-            </div>
-
-            {data.agents.rows.map((a) => (
-              <div
-                key={a.personId}
-                className='grid grid-cols-[1.2fr_0.7fr_0.7fr_0.7fr_0.9fr] gap-[10px] border-b py-[8px] text-[12.5px] last:border-b-0'
-              >
-                <span className='min-w-0 truncate font-semibold'>{a.name}</span>
-                <span className='text-right tabular-nums'>{a.tickets}</span>
-                <span className='text-right tabular-nums'>{a.resolved}</span>
-                <span className='text-right tabular-nums'>{a.csat.toFixed(1)}</span>
-                <span className={cn('font-semibold', CADENCE_META[a.cadence].tone)}>
-                  {CADENCE_META[a.cadence].label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </Panel>
   );
 }
 
@@ -276,54 +211,6 @@ function RiskPanel({ data }: { data: MyTeam }) {
             </Row>
           ))}
         </RowList>
-      )}
-    </Panel>
-  );
-}
-
-/**
- * The member list.
- *
- * ⚠️ Each row is NAVIGATION — a plain `<Link>`, not a `<Button>` wrapping one.
- * `ButtonPrimitive` declares `nativeButton = true`, so composing an `<a>` into it
- * violates its contract and Base UI warns. These rows are not button-styled at all,
- * so `buttonVariants` is not needed either.
- */
-function TeamMembers({ data }: { data: MyTeam }) {
-  return (
-    <Panel title='Team' meta={<span className='text-[11.5px]'>{data.members.length}</span>}>
-      {data.members.length === 0 ? (
-        <p className='text-muted-foreground text-[12.5px]'>No members assigned to this team yet.</p>
-      ) : (
-        <div className='divide-y'>
-          {data.members.map((m) => (
-            <Link
-              key={m.id}
-              href={m.href}
-              className='hover:bg-muted/50 -mx-[6px] flex items-center gap-[10px] rounded-[8px] px-[6px] py-[9px] transition-colors'
-            >
-              {/* Stable tint hashed from person.id — a token reference, never a
-                  colour literal, so it follows the theme through both modes. */}
-              <span
-                aria-hidden
-                className='text-primary-foreground flex size-[32px] shrink-0 items-center justify-center rounded-full text-[12px] font-bold'
-                style={{ backgroundColor: m.accentVar }}
-              >
-                {m.initials}
-              </span>
-
-              <span className='flex min-w-0 flex-1 flex-col'>
-                <span className='truncate text-[13px] font-semibold'>{m.name}</span>
-                <span className={cn(ROW_META, 'truncate')}>
-                  {m.roleLabel ?? 'No role assigned'}
-                </span>
-              </span>
-
-              <span className='text-muted-foreground shrink-0 text-[12px]'>{m.openCount} open</span>
-              <Icons.chevronRight className='text-muted-foreground size-[14px] shrink-0' />
-            </Link>
-          ))}
-        </div>
       )}
     </Panel>
   );

@@ -4,7 +4,21 @@ import { ReactNode, createContext, useContext, useEffect, useState } from 'react
 
 import { DEFAULT_THEME } from './theme.config';
 
-const COOKIE_NAME = 'active_theme';
+/**
+ * ⚠️ VERSIONED, and the suffix is load-bearing — do not "tidy" it back.
+ *
+ * This cookie outranks DEFAULT_THEME (see src/app/layout.tsx) and is written on
+ * first mount with max-age=31536000, so every browser that has ever opened the
+ * app is pinned to whatever the default was at that moment — for a year.
+ *
+ * That made the LuckyFours design adoption invisible to everyone already using
+ * the app: the tokens shipped, but each browser kept serving `active_theme=vercel`
+ * and nothing appeared to change. Renaming the cookie retires the stale pin once;
+ * a theme the user picks AFTER this lands still persists normally.
+ *
+ * Bump the suffix again if a future default change must reach existing users.
+ */
+const COOKIE_NAME = 'active_theme_v2';
 
 function setThemeCookie(theme: string) {
   if (typeof window === 'undefined') return;

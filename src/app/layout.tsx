@@ -34,7 +34,9 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const activeThemeValue = cookieStore.get('active_theme')?.value;
+  // Must match COOKIE_NAME in src/components/themes/active-theme.tsx — see the
+  // note there on why it is versioned.
+  const activeThemeValue = cookieStore.get('active_theme_v2')?.value;
   const isValidTheme = THEMES.some((t) => t.value === activeThemeValue);
   const themeToApply = isValidTheme ? activeThemeValue! : DEFAULT_THEME;
 

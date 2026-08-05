@@ -15,6 +15,33 @@
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
+
+  /* ── Semantic status ────────────────────────────────────────────────────
+     Added for PASS 1. The bundle ships no success/warning tokens, so 13 sites
+     hardcoded bg-emerald-50 / bg-amber-50 / bg-slate-100 and rendered LIGHT
+     surfaces in dark mode.
+
+     Values are Tailwind v4 oklch palette entries, which is the bundle's own
+     source: its dark --chart-2 is emerald-500 and its light --chart-5 is
+     amber-500, both exact. Dark variants follow the bundle's own light->dark
+     move on --destructive (L +0.127, C -0.054: lighter, less saturated), and
+     the muted surfaces sit at the dark --muted lightness (0.269) with a hue
+     tint.
+
+     Four roles per semantic: solid indicator, text on that solid, muted
+     surface, text on the muted surface. Pill BORDERS use the alpha modifier
+     (border-success/20) rather than a fifth token. */
+  --success: oklch(0.596 0.145 163.225);
+  --success-foreground: oklch(0.985 0 0);
+  --success-muted: oklch(0.979 0.021 166.113);
+  --success-muted-foreground: oklch(0.508 0.118 165.612);
+  --warning: oklch(0.666 0.179 58.318);
+  --warning-foreground: oklch(0.985 0 0);
+  --warning-muted: oklch(0.987 0.022 95.277);
+  /* amber-800, not 700: the sites mixed both, and 700 is thin on amber-50. */
+  --warning-muted-foreground: oklch(0.473 0.137 46.201);
+  --destructive-muted: oklch(0.971 0.013 17.38);
+  --destructive-muted-foreground: oklch(0.505 0.213 27.518);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -70,6 +97,18 @@
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0 0 0);
+
+  /* Semantic status — dark. See the note in the light block. */
+  --success: oklch(0.696 0.17 162.48);
+  --success-foreground: oklch(0.205 0 0);
+  --success-muted: oklch(0.29 0.045 165);
+  --success-muted-foreground: oklch(0.845 0.143 164.978);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.205 0 0);
+  --warning-muted: oklch(0.3 0.05 70);
+  --warning-muted-foreground: oklch(0.879 0.169 91.605);
+  --destructive-muted: oklch(0.28 0.06 27);
+  --destructive-muted-foreground: oklch(0.808 0.114 19.571);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -124,6 +163,16 @@
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);
+    --color-success: var(--success);
+    --color-success-foreground: var(--success-foreground);
+    --color-success-muted: var(--success-muted);
+    --color-success-muted-foreground: var(--success-muted-foreground);
+    --color-warning: var(--warning);
+    --color-warning-foreground: var(--warning-foreground);
+    --color-warning-muted: var(--warning-muted);
+    --color-warning-muted-foreground: var(--warning-muted-foreground);
+    --color-destructive-muted: var(--destructive-muted);
+    --color-destructive-muted-foreground: var(--destructive-muted-foreground);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);

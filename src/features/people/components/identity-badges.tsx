@@ -41,9 +41,9 @@ const SHORT: Record<string, string> = {
 const STATE_STYLE: Record<IdentityBadge['state'], string> = {
   // Colour is used sparingly on this page: department pills do not exist, so
   // these three states and the items pill are the only saturated elements.
-  linked_strong: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  linked_manual: 'bg-amber-50 text-amber-700 ring-amber-200',
-  absent: 'bg-slate-50 text-slate-400 ring-slate-200'
+  linked_strong: 'bg-success-muted text-success-muted-foreground ring-success/20',
+  linked_manual: 'bg-warning-muted text-warning-muted-foreground ring-warning/20',
+  absent: 'bg-muted text-muted-foreground ring-border'
 };
 
 function tooltipFor(b: IdentityBadge, now: Date): string {

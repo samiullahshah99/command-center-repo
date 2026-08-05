@@ -120,8 +120,8 @@ function Stat({
       <span
         className={cn(
           'text-2xl leading-none font-medium tabular-nums',
-          tone === 'bad' && 'text-red-600',
-          tone === 'warn' && 'text-amber-700'
+          tone === 'bad' && 'text-destructive',
+          tone === 'warn' && 'text-warning-muted-foreground'
         )}
       >
         {value}
@@ -152,22 +152,25 @@ function SourceCard({ row, now }: { row: ConnectorRow; now: Date }) {
             aria-hidden
             className={cn(
               'size-2 shrink-0 rounded-full',
-              indicator === 'bad' && 'bg-red-500',
-              indicator === 'warn' && 'bg-amber-500',
-              indicator === 'ok' && 'bg-emerald-500',
-              indicator === 'idle' && 'bg-slate-300'
+              indicator === 'bad' && 'bg-destructive',
+              indicator === 'warn' && 'bg-warning',
+              indicator === 'ok' && 'bg-success',
+              indicator === 'idle' && 'bg-muted-foreground/40'
             )}
           />
           {SOURCE_LABEL[row.source]}
           {queue.failed > 0 && (
-            <Badge variant='outline' className='border-red-200 bg-red-50 text-xs text-red-700'>
+            <Badge
+              variant='outline'
+              className='border-destructive/20 bg-destructive-muted text-destructive-muted-foreground text-xs'
+            >
               {queue.failed} failed
             </Badge>
           )}
           {queue.retry > 0 && (
             <Badge
               variant='outline'
-              className='border-amber-200 bg-amber-50 text-xs text-amber-800'
+              className='border-warning/20 bg-warning-muted text-warning-muted-foreground text-xs'
             >
               {queue.retry} retrying
             </Badge>
@@ -180,7 +183,7 @@ function SourceCard({ row, now }: { row: ConnectorRow; now: Date }) {
         <div className='flex flex-col gap-0.5'>
           <span className='text-muted-foreground text-xs'>Last event received</span>
           {row.lastEventAt ? (
-            <span className={cn('text-sm', isQuiet && 'text-amber-700')}>
+            <span className={cn('text-sm', isQuiet && 'text-warning-muted-foreground')}>
               {formatRelativeTime(row.lastEventAt, now)}
               {isQuiet && (
                 <span className='text-muted-foreground'>
@@ -239,8 +242,8 @@ function QueueStat({ label, n, tone }: { label: string; n: number; tone?: 'bad' 
       className={cn(
         'tabular-nums',
         n === 0 && 'text-muted-foreground',
-        tone === 'bad' && 'font-medium text-red-600',
-        tone === 'warn' && 'font-medium text-amber-700'
+        tone === 'bad' && 'text-destructive font-medium',
+        tone === 'warn' && 'text-warning-muted-foreground font-medium'
       )}
     >
       {n} {label}

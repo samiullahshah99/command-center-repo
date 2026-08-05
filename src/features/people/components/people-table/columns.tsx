@@ -51,7 +51,7 @@ export function buildColumns(
           <div className='flex items-center gap-3 py-1'>
             <Avatar className='size-9 shrink-0'>
               {/* No avatar_url column exists, so initials ARE the avatar. */}
-              <AvatarFallback className='bg-slate-100 text-xs font-medium text-slate-600'>
+              <AvatarFallback className='bg-muted text-muted-foreground text-xs font-medium'>
                 {initialsOf(p.name)}
               </AvatarFallback>
             </Avatar>
@@ -151,8 +151,8 @@ export function buildColumns(
             }
             className={
               pendingNeedsReview > 0
-                ? 'border-amber-200 bg-amber-50 font-normal text-amber-800'
-                : 'border-slate-200 bg-slate-50 font-normal text-slate-700'
+                ? 'border-warning/20 bg-warning-muted text-warning-muted-foreground font-normal'
+                : 'border-border bg-muted text-muted-foreground font-normal'
             }
           >
             {pendingCount} pending

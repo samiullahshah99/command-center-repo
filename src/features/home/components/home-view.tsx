@@ -65,7 +65,7 @@ function NeedsAttention({ data }: { data: HomeSnapshot }) {
             case look like a broken page.
           */
           <div className='flex flex-col items-center gap-2 py-10 text-center'>
-            <span className='flex size-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200'>
+            <span className='bg-success-muted text-success-muted-foreground ring-success/20 flex size-10 items-center justify-center rounded-full ring-1'>
               <Icons.check className='size-5' />
             </span>
             <span className='text-base font-medium'>Nothing needs attention</span>
@@ -97,9 +97,9 @@ function NeedsAttention({ data }: { data: HomeSnapshot }) {
 function AttentionItem({ row }: { row: AttentionRow }) {
   const tone =
     row.severity === 'red'
-      ? 'text-red-600'
+      ? 'text-destructive'
       : row.severity === 'amber'
-        ? 'text-amber-700'
+        ? 'text-warning-muted-foreground'
         : 'text-muted-foreground';
 
   return (
@@ -109,9 +109,9 @@ function AttentionItem({ row }: { row: AttentionRow }) {
           aria-hidden
           className={cn(
             'size-1.5 shrink-0 rounded-full',
-            row.severity === 'red' && 'bg-red-500',
-            row.severity === 'amber' && 'bg-amber-500',
-            row.severity === 'unowned' && 'bg-slate-300'
+            row.severity === 'red' && 'bg-destructive',
+            row.severity === 'amber' && 'bg-warning',
+            row.severity === 'unowned' && 'bg-muted-foreground/40'
           )}
         />
         <span className='flex min-w-0 flex-1 flex-col'>
@@ -125,7 +125,7 @@ function AttentionItem({ row }: { row: AttentionRow }) {
           <span className='hidden items-center gap-1.5 sm:flex'>
             <span
               aria-hidden
-              className='flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[9px] font-medium text-slate-600'
+              className='bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-medium'
             >
               {row.actorName.slice(0, 2).toUpperCase()}
             </span>
@@ -192,7 +192,10 @@ function ActivityPulse({ data, now }: { data: HomeSnapshot; now: Date }) {
               <div
                 key={d.day}
                 title={`${d.day}: ${d.count} event${d.count === 1 ? '' : 's'}`}
-                className={cn('flex-1 rounded-sm', d.count > 0 ? 'bg-slate-300' : 'bg-slate-100')}
+                className={cn(
+                  'flex-1 rounded-sm',
+                  d.count > 0 ? 'bg-muted-foreground/40' : 'bg-muted'
+                )}
                 style={{
                   height: d.count > 0 ? `${Math.max(12, (d.count / peak) * 100)}%` : '2px'
                 }}
@@ -231,10 +234,20 @@ function PipelineStrip({ data }: { data: HomeSnapshot }) {
             const amber = state === 'sent_back' && n > 0;
             return (
               <span key={state} className='flex items-baseline gap-1.5 text-sm'>
-                <span className={cn('font-medium tabular-nums', amber && 'text-amber-700')}>
+                <span
+                  className={cn(
+                    'font-medium tabular-nums',
+                    amber && 'text-warning-muted-foreground'
+                  )}
+                >
                   {n}
                 </span>
-                <span className={cn('text-xs', amber ? 'text-amber-700' : 'text-muted-foreground')}>
+                <span
+                  className={cn(
+                    'text-xs',
+                    amber ? 'text-warning-muted-foreground' : 'text-muted-foreground'
+                  )}
+                >
                   {STATE_LABEL[state]}
                 </span>
               </span>
@@ -257,7 +270,7 @@ function TeamStrip({ data }: { data: HomeSnapshot }) {
               <span key={m.id} className='relative' title={m.name}>
                 <span
                   aria-hidden
-                  className='flex size-7 items-center justify-center rounded-full bg-slate-100 text-[10px] font-medium text-slate-600'
+                  className='bg-muted text-muted-foreground flex size-7 items-center justify-center rounded-full text-[10px] font-medium'
                 >
                   {m.initials}
                 </span>
@@ -270,7 +283,7 @@ function TeamStrip({ data }: { data: HomeSnapshot }) {
                   aria-hidden
                   className={cn(
                     'ring-background absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2',
-                    m.active24h ? 'bg-emerald-500' : 'bg-slate-300'
+                    m.active24h ? 'bg-success' : 'bg-muted-foreground/40'
                   )}
                 />
                 <span className='sr-only'>

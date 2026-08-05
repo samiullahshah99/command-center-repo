@@ -126,7 +126,7 @@ function BriefCardView({ card, now, onOpen }: { card: BriefCard; now: Date; onOp
           <>
             <span
               aria-hidden
-              className='flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[9px] font-medium text-slate-600'
+              className='bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-medium'
             >
               {card.strategist.name.slice(0, 2).toUpperCase()}
             </span>
@@ -152,8 +152,8 @@ function BriefCardView({ card, now, onOpen }: { card: BriefCard; now: Date; onOp
         <span
           className={cn(
             'tabular-nums',
-            tone === 'red' && 'font-medium text-red-600',
-            tone === 'amber' && 'font-medium text-amber-700',
+            tone === 'red' && 'text-destructive font-medium',
+            tone === 'amber' && 'text-warning-muted-foreground font-medium',
             !tone && 'text-muted-foreground'
           )}
         >

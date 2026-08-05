@@ -1676,6 +1676,7 @@ imports it directly. Use it rather than writing another Intl call.
 - **nuqs** for URL search params — `searchParamsCache` on server, `useQueryStates` on client, `getSortingStateParser` for sort on both
 - **Icons** — only import from `@/components/icons`, never from `@tabler/icons-react` directly
 - **Forms** — use `useAppForm` + `useFormFields<T>()` from `@/components/ui/tanstack-form`
+- **Navigation styled as a button** = `<Link>` + `buttonVariants`, never `<Button>` wrapping a link (Base UI `nativeButton` semantics)
 - **Page headers** — use `PageContainer` props (`pageTitle`, `pageDescription`, `pageHeaderAction`), never import `<Heading>` manually
 - **Formatting** — single quotes, JSX single quotes, no trailing comma, 2-space indent. Tooling is **oxfmt + oxlint** (`pnpm format`, `pnpm lint`), not Prettier/ESLint
 - **LLM calls** — always `complete()` from `@/lib/ai/client`, requested by TIER, never an inline `fetch` and never a slug in feature code

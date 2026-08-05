@@ -12,8 +12,9 @@
  */
 
 import { AI_SEARCH_URL, navGroups } from '@/config/nav-config';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { SidebarTrigger } from '../ui/sidebar';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { ThemeSelector } from '../themes/theme-selector';
@@ -91,17 +92,19 @@ export function HeaderBar({ copilot }: { copilot: CopilotVariant }) {
 
       {copilot === 'input' && <CopilotInput />}
       {copilot === 'button' && (
-        <Button
-          variant='outline'
-          size='sm'
-          className='h-[34px] text-[13px]'
-          // aria-label on the RENDERED anchor: the a11y rule inspects the element
-          // inside `render` and cannot see that its text arrives as the Button's
-          // children. Same pattern as the sidebar's nav rows.
-          render={<Link href={AI_SEARCH_URL} aria-label='Ask the AI brain' />}
+        /*
+          ⚠️ A <Link> STYLED WITH buttonVariants, not a <Button> wrapping a link.
+          `ButtonPrimitive` declares `nativeButton = true`, so composing an <a>
+          into it violates its contract and Base UI warns. Navigation is an
+          anchor: it belongs in the accessibility tree as a link, it middle-clicks
+          and it copies its URL. Only the styling is borrowed.
+        */
+        <Link
+          href={AI_SEARCH_URL}
+          className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'h-[34px] text-[13px]')}
         >
           Ask the AI brain
-        </Button>
+        </Link>
       )}
 
       {/* ⚠️ KEPT for the same reason as the trigger: theme switching is existing,

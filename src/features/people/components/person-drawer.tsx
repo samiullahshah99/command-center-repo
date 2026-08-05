@@ -10,8 +10,9 @@ import {
   SheetTitle
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { formatRelativeTime } from '@/lib/format-date';
+import { cn } from '@/lib/utils';
 import { personPanelOptions } from '../api/queries';
 import type { PersonBoardRow } from '../api/types';
 
@@ -164,16 +165,21 @@ export function PersonDrawer({
             </>
           )}
 
-          {/* aria-label goes on the RENDERED anchor: the a11y rules inspect the
-              element inside `render` and cannot see that its text arrives as
-              Button's children. Same fix as the sidebar and StatusCell. */}
+          {/*
+            ⚠️ A <Link> STYLED WITH buttonVariants, not a <Button> wrapping a link.
+            `ButtonPrimitive` declares `nativeButton = true`, so composing an <a>
+            into it violates its contract and Base UI warns. Navigation is an
+            anchor: it belongs in the accessibility tree as a link, it
+            middle-clicks and it copies its URL. Only the styling is borrowed.
+
+            No aria-label needed now — the accessible name comes from the link's
+            own text. It was only there because the a11y rule inspected the
+            element inside `render` and could not see Button's children.
+          */}
           {editHref && (
-            <Button
-              variant='outline'
-              render={<Link href={editHref} aria-label={`Edit ${person?.name ?? 'person'}`} />}
-            >
+            <Link href={editHref} className={cn(buttonVariants({ variant: 'outline' }))}>
               Edit person
-            </Button>
+            </Link>
           )}
         </div>
       </SheetContent>

@@ -2,14 +2,22 @@
 
 import { useMemo } from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { Panel, Screen } from '@/components/ui/panel';
+import { Screen } from '@/components/ui/panel';
 import { personProfileOptions } from '../api/queries';
 import { ActivityStrip } from './activity-strip';
 import { AiSummaryCard } from './ai-summary-card';
 import { ProfileHeader } from './profile-header';
-import { ProfileItemList } from './profile-item-list';
+import { ProfileTabs } from './profile-tabs';
 
-export function ProfileBody({ personId }: { personId: string }) {
+export function ProfileBody({
+  personId,
+  backHref,
+  backLabel
+}: {
+  personId: string;
+  backHref: string;
+  backLabel: string;
+}) {
   const { data: profile } = useSuspenseQuery(personProfileOptions(personId));
 
   /**
@@ -24,13 +32,22 @@ export function ProfileBody({ personId }: { personId: string }) {
   if (!profile) return null;
 
   return (
-    // `narrow` — the mock caps the person profile at 1080px rather than the
-    // 1180px it gives the Control Tower. A detail view reads as a column.
+    // `narrow` — 1080px, the mockup's cap for the person profile. A detail view
+    // reads as a column; the Control Tower gets 1180px because it is a grid.
     <Screen width='narrow'>
-      <ProfileHeader profile={profile} />
+      <ProfileHeader profile={profile} backHref={backHref} backLabel={backLabel} />
 
-      {/* The AI layer above the list: the ask was "leadership stops chasing",
-          and the summary is the thing that answers all three questions at once. */}
+      {/*
+        ⚠️ KEPT, and placed here deliberately. The mockup's layout has no slot for
+        a page-level AI summary, and the brief's constraint is explicit: this
+        card's two-gate cache (input_hash, then TTL), its stale-over-empty
+        fallback, its zero-data code guard and its double labelling are all
+        load-bearing. Dropping it to match the mockup would delete the one
+        component on this page designed against a billing incident.
+
+        Under the signal cards, above the tabs: it answers all three chase
+        questions at once, so it belongs before the reader starts drilling.
+      */}
       <AiSummaryCard
         personId={profile.person.id}
         personName={profile.person.name}
@@ -38,18 +55,19 @@ export function ProfileBody({ personId }: { personId: string }) {
         unavailable={profile.summaryUnavailable}
       />
 
+      {/*
+        ⚠️ ALSO KEPT, though the mockup does not show it. The strip distinguishes
+        "no linked accounts" from "no recent events" — a fact about OUR data with
+        a fix the reader can act on, versus a fact about the person. Most of the
+        roster is in the first state, and collapsing the two hides a task.
+      */}
       <ActivityStrip
         events={profile.events}
         gap={profile.activityGap}
         personName={profile.person.name}
       />
 
-      <Panel
-        title='Assigned work'
-        meta={`${profile.counts.total} item${profile.counts.total === 1 ? '' : 's'} · grouped by status`}
-      >
-        <ProfileItemList items={profile.items} now={now} />
-      </Panel>
+      <ProfileTabs profile={profile} now={now} />
     </Screen>
   );
 }

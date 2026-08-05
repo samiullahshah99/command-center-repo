@@ -19,6 +19,82 @@ and flipping one field in one file removes both.
 
 ---
 
+## My day — "Today" timeline
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/my-day` → "Today" card |
+| **Generator** | `sampleToday()` in `src/features/my-day/api/service.ts` |
+| **Marker** | `TODO(backend): calendar` |
+| **DTO flag** | `MyDay.today.isSample` |
+| **Renderer** | `TodayCard` in `src/features/my-day/components/my-day-body.tsx` |
+| **Audit ref** | §2.5, and §5 integration row "Calendar (Google?)" |
+
+Same root cause as the person profile's Calendar tab: no provider client, no
+credentials, no `calendar_event` table. Three fixed blocks with fixed times, so
+the card is stable across reloads rather than reshuffling — a timeline that
+changes on refresh reads as live data.
+
+---
+
+## My day — recurring task STATE and EVIDENCE (hybrid)
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/my-day` → "Recurring tasks" card |
+| **Generator** | `sampleRecurringState()` in `src/features/my-day/api/service.ts` |
+| **Marker** | `TODO(backend): completion engine (audit D5)` |
+| **DTO flag** | `MyDay.recurring.stateIsSample` |
+| **Renderer** | `RecurringCard` / `RecurringRow` in `my-day-body.tsx` |
+| **Audit ref** | D5, §1.2 `completionType`/`evidence`, §2.10, §2.14 |
+
+⚠️ **THE ONLY HYBRID ENTRY IN THIS FILE — read the split carefully.**
+
+**Real:** the task rows themselves (`recurring_task` filtered by
+`owner_person_id = me`), their `cadence`, their `fallback_manual`, and the
+watched signal built from `auto_complete_rule.source` + `.event`. The seed
+aligned these rows to the mockup's Automations table, so the five tasks and their
+cadences are genuine.
+
+**Invented:** each row's completion `state` and its `evidence` line. The
+completion engine does not exist — `completion_event` has **0 rows and no
+writer**, and nothing evaluates `auto_complete_rule`.
+
+The card's caption says exactly this ("state and evidence are illustrative — the
+tasks and cadences are real") rather than a blanket "Sample data", because
+labelling the whole card as fake would be its own inaccuracy.
+
+⚠️ **The task NAME is a display mapping, not invented data.** `recurring_task`
+has no name column and the seed spec forbids adding one, so
+`RECURRING_LABEL` maps the real `auto_complete_rule.event` to the mockup's
+wording. The underlying value is real; only the phrasing is ours. An unmapped
+event falls back to a humanised form of itself rather than a blank row.
+
+> ⚠️ **NEVER seed `completion_event` to fix this.** A seeded row makes a
+> fabricated state indistinguishable from a measured one at the database level.
+
+---
+
+## My day — latest meeting card
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/my-day` → "Latest meeting" card |
+| **Generator** | `sampleLatestMeeting()` in `src/features/my-day/api/service.ts` |
+| **Marker** | `TODO(backend): fireflies attribution` |
+| **DTO flag** | `MyDay.latestMeeting.isSample` |
+| **Renderer** | `@/components/meeting-card` (shared with the person profile) |
+| **Audit ref** | D4, §2.10, §3.6 |
+
+Same root cause as the person profile's Meetings tab: the transcripts are real and
+stored, but Fireflies webhooks carry a `meeting_id` and no actor, so attribution is
+0% and "my meetings" has no honest join.
+
+⚠️ The card renders "**ACTION ITEMS → TRACKER**", not the mockup's "→ ClickUp" —
+the 2026-08-04 amendment made the Command Centre the task system of record.
+
+---
+
 ## Control Tower — "Auto-completed from activity" row
 
 | | |

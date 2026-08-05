@@ -73,23 +73,3 @@ export function ProfileTabs({ profile, now }: { profile: PersonProfile; now: Dat
     </Tabs>
   );
 }
-
-/**
- * The caption that marks a tab as invented.
- *
- * ⚠️ RENDERED FROM THE DATA'S OWN `isSample` FLAG, never from a hardcoded
- * boolean in the component. When a real integration lands, the service flips one
- * field and the caption disappears everywhere at once — there is no second place
- * to remember.
- *
- * ⚠️ Not a toast, not a tooltip, not a dev-only banner: it has to survive a
- * screenshot. Someone will screenshot this page for a stakeholder, and a
- * placeholder that looks like data is how a fabricated number gets quoted back.
- */
-export function SampleDataCaption({ what }: { what: string }) {
-  return (
-    <p className='text-muted-foreground mb-[10px] text-[11.5px]'>
-      <span className='text-warning-muted-foreground font-semibold'>Sample data</span> — {what}
-    </p>
-  );
-}

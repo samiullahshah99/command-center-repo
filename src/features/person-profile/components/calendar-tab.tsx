@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card';
+import { SampleDataCaption } from '@/components/sample-data-caption';
 import type { ProfileCalendar } from '../api/types';
-import { SampleDataCaption } from './profile-tabs';
 
 /**
  * Mon–Fri grid, one card per weekday.

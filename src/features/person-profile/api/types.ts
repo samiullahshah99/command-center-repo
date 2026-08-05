@@ -7,6 +7,7 @@
 
 import type { TrackedItemStatus } from '@/db/schema/tracked-item';
 import type { OwnerConfidence } from '@/features/tracker/api/types';
+import type { MeetingAction, MeetingActionState, MeetingView } from '@/lib/meeting-view';
 
 export type { OwnerConfidence, TrackedItemStatus };
 
@@ -108,26 +109,13 @@ export type ProfileCalendar = {
   days: CalendarDay[];
 };
 
-export type MeetingActionState = 'open' | 'in_progress' | 'done';
-
-export type MeetingAction = {
-  id: string;
-  text: string;
-  ownerName: string;
-  state: MeetingActionState;
-};
-
-export type ProfileMeeting = {
-  id: string;
-  title: string;
-  /** Only Fireflies produces transcripts today. */
-  tool: 'Fireflies';
-  /** Pre-formatted server-side via formatMeetingDate. */
-  when: string;
-  attendees: string[];
-  aiSummary: string;
-  actions: MeetingAction[];
-};
+/**
+ * ⚠️ MEETING SHAPES MOVED to `@/lib/meeting-view` when My day became a second
+ * consumer of the same card. Imported for local use in `ProfileMeetings` below and
+ * re-exported so this feature's DTO still reads whole to its own components.
+ */
+export type { MeetingAction, MeetingActionState };
+export type ProfileMeeting = MeetingView;
 
 export type ProfileMeetings = {
   /** ⚠️ TRUE TODAY, ALWAYS — see `sampleMeetings()` in ./service.ts. */

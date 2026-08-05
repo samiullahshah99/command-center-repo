@@ -6,7 +6,7 @@ import { useDataTable } from '@/hooks/use-data-table';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs';
 import { getSortingStateParser } from '@/lib/parsers';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { identitySourceOptionsQuery, unresolvedIdentitiesQueryOptions } from '../../api/queries';
 import { buildColumns } from './columns';
 
@@ -37,7 +37,27 @@ export function IdentityTable() {
   const { data } = useSuspenseQuery(unresolvedIdentitiesQueryOptions(filters));
   const { data: sourceOptions } = useSuspenseQuery(identitySourceOptionsQuery());
 
-  const columns = useMemo(() => buildColumns(sourceOptions), [sourceOptions]);
+  /**
+   * ⚠️ `now` IS RESOLVED AFTER MOUNT, AND IS NULL ON THE SERVER. This is the fix
+   * for the violation CLAUDE.md flags as "the one most likely to bite next":
+   * `columns.tsx` used to call `Date.now()` inside a cell renderer.
+   *
+   * That mismatches BY CONSTRUCTION — the server clock and the browser clock are
+   * never the same instant, so any render where the string ticks over
+   * (`2m ago` → `3m ago`) is a hydration mismatch, and React responds by
+   * discarding the subtree. The symptom is this table rendering its toolbar and
+   * its row-count footer with NO ROWS, which reads exactly like a failed query
+   * and sends the investigation into the data layer. It cost an afternoon once
+   * already on the meetings table.
+   *
+   * With `now` null on the server and on the first client render, both sides emit
+   * the same pinned absolute date; the effect then swaps in the relative label.
+   * No mismatch is possible because the two renders never disagree.
+   */
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => setNow(new Date()), []);
+
+  const columns = useMemo(() => buildColumns(sourceOptions, now), [sourceOptions, now]);
   const pageCount = Math.ceil(data.total_identities / params.perPage);
 
   const { table } = useDataTable({

@@ -63,7 +63,7 @@ export function ProfileItemList({ items, now }: { items: ProfileItem[]; now: Dat
 
                     {item.riskFlag && !terminal && (
                       <Icons.alertCircle
-                        className='size-3.5 shrink-0 text-red-500'
+                        className='size-3.5 shrink-0 text-destructive'
                         aria-label='At risk'
                       />
                     )}
@@ -73,7 +73,7 @@ export function ProfileItemList({ items, now }: { items: ProfileItem[]; now: Dat
                         waved through, which is worth a second look, not an alarm. */}
                     {uncertain && (
                       <Icons.alertCircle
-                        className='size-3.5 shrink-0 text-amber-600 dark:text-amber-400'
+                        className='size-3.5 shrink-0 text-warning-muted-foreground'
                         aria-label={`Owner match was '${item.originOwnerConfidence}' — unverified`}
                       />
                     )}
@@ -90,8 +90,8 @@ export function ProfileItemList({ items, now }: { items: ProfileItem[]; now: Dat
                     <span
                       className={cn(
                         'w-[130px] shrink-0 text-right text-xs',
-                        due.overdue && 'font-semibold text-red-600 dark:text-red-400',
-                        due.dueToday && 'font-semibold text-amber-700 dark:text-amber-300',
+                        due.overdue && 'font-semibold text-destructive',
+                        due.dueToday && 'font-semibold text-warning-muted-foreground',
                         due.absent && 'text-muted-foreground italic'
                       )}
                     >

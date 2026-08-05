@@ -118,7 +118,7 @@ function StatusGroup({
                       <div className='flex items-start gap-2'>
                         {item.riskFlag && (
                           <Icons.alertCircle
-                            className='mt-0.5 size-4 shrink-0 text-red-500'
+                            className='mt-0.5 size-4 shrink-0 text-destructive'
                             aria-label='At risk'
                           />
                         )}

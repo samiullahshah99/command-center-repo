@@ -33,7 +33,10 @@ export function DataTableColumnHeader<TData, TValue>({
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          'hover:bg-accent focus:ring-ring data-popup-open:bg-accent [&_svg]:text-muted-foreground -ml-1.5 flex h-8 items-center gap-1.5 rounded-md px-2 py-1.5 focus:ring-1 focus:outline-none [&_svg]:size-4 [&_svg]:shrink-0',
+          // Icons drop to 14px alongside the 11px uppercase header the portal
+          // scale sets on `TableHead` — a 16px chevron next to 11px text reads as
+          // the control, not the label.
+          'hover:bg-accent focus:ring-ring data-popup-open:bg-accent [&_svg]:text-muted-foreground -ml-1.5 flex h-7 items-center gap-1.5 rounded-md px-2 py-1 focus:ring-1 focus:outline-none [&_svg]:size-3.5 [&_svg]:shrink-0',
           className
         )}
         {...props}

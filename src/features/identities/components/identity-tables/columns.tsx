@@ -3,27 +3,29 @@
 import { Badge } from '@/components/ui/badge';
 import { DataTableColumnHeader } from '@/components/ui/table/data-table-column-header';
 import { Icons } from '@/components/icons';
+import { formatDateOnly, formatRelativeTime } from '@/lib/format-date';
 import type { Column, ColumnDef } from '@tanstack/react-table';
 import type { UnresolvedIdentityRow } from '../../api/types';
 import { CellAction } from './cell-action';
-
-function relative(date: Date): string {
-  const ms = Date.now() - new Date(date).getTime();
-  const days = Math.floor(ms / 86_400_000);
-  if (days > 0) return `${days}d ago`;
-  const hours = Math.floor(ms / 3_600_000);
-  if (hours > 0) return `${hours}h ago`;
-  const mins = Math.max(1, Math.floor(ms / 60_000));
-  return `${mins}m ago`;
-}
 
 /**
  * Filter options are injected rather than module-level, as in people-table:
  * the source list is read from the database so the dropdown only offers sources
  * that actually have unresolved identities.
+ *
+ * ⚠️ `now` IS NULLABLE, AND NULL IS THE SERVER. This used to be a local
+ * `relative()` helper calling `Date.now()` in the cell renderer — the violation
+ * CLAUDE.md singles out as the likeliest to bite, because it mismatches by
+ * construction rather than only when locales differ. See the long note at the
+ * `useState`/`useEffect` pair in `./index.tsx` for the failure mode.
+ *
+ * While null, cells render the pinned absolute date. Both formatters come from
+ * `@/lib/format-date`, which pins locale AND timezone — the local helper this
+ * replaced did neither.
  */
 export function buildColumns(
-  sourceOptions: { value: string; label: string }[]
+  sourceOptions: { value: string; label: string }[],
+  now: Date | null
 ): ColumnDef<UnresolvedIdentityRow>[] {
   return [
     {
@@ -101,9 +103,18 @@ export function buildColumns(
       header: ({ column }: { column: Column<UnresolvedIdentityRow, unknown> }) => (
         <DataTableColumnHeader column={column} title='First seen' />
       ),
-      cell: ({ cell }) => (
-        <span className='text-muted-foreground text-sm'>{relative(cell.getValue<Date>())}</span>
-      )
+      cell: ({ cell }) => {
+        // Both helpers take an ISO string. The column value arrives as a Date
+        // (or as a string once it has round-tripped through the dehydrated
+        // cache), so normalise before formatting rather than assuming either.
+        const raw = cell.getValue<Date | string>();
+        const iso = raw instanceof Date ? raw.toISOString() : String(raw);
+        return (
+          <span className='text-muted-foreground'>
+            {now ? formatRelativeTime(iso, now) : formatDateOnly(iso)}
+          </span>
+        );
+      }
     },
     {
       id: 'eventCount',

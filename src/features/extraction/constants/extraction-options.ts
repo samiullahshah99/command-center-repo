@@ -12,6 +12,18 @@ import type { OwnerConfidenceLevel } from '../api/types';
  * another, which nobody goes looking for later. Uncertainty is the signal here,
  * so it gets the loud colour; a confident match is the boring case and is
  * styled like one.
+ *
+ * ⚠️ 'exact' AND 'email' ARE NEUTRAL, and that is a deliberate change from the
+ * green/blue they used to carry. Four tinted pills in one column meant the amber
+ * one no longer stood out — every row was coloured, so colour had stopped
+ * carrying information. The comment above already said the settled levels are
+ * "the boring case"; they are now styled like it. The distinction between exact
+ * and email is not lost, it just lives in the LABEL, which is where a reviewer
+ * reads it anyway.
+ *
+ * ⚠️ Semantic tokens only — no `amber-500`/`emerald-500`. Hardcoded palette
+ * values render a light surface in dark mode, which is what the token adoption
+ * existed to fix.
  */
 export const OWNER_CONFIDENCE_META: Record<
   OwnerConfidenceLevel,
@@ -19,24 +31,22 @@ export const OWNER_CONFIDENCE_META: Record<
 > = {
   exact: {
     label: 'exact',
-    className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+    className: 'text-muted-foreground',
     hint: 'Matched an identity already linked to this person'
   },
   email: {
     label: 'email',
-    className: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
+    className: 'text-muted-foreground',
     hint: 'Matched on a meeting participant email that resembles the spoken name'
   },
   fuzzy: {
     label: 'fuzzy — needs review',
-    className:
-      'border-amber-500/50 bg-amber-500/15 text-amber-800 dark:text-amber-200 font-semibold',
+    className: 'border-warning/50 bg-warning-muted text-warning-muted-foreground font-semibold',
     hint: 'A name-similarity SUGGESTION only. Never auto-applied — a human must confirm it'
   },
   unresolved: {
     label: 'unresolved',
-    className:
-      'border-amber-500/50 bg-amber-500/15 text-amber-800 dark:text-amber-200 font-semibold',
+    className: 'border-warning/50 bg-warning-muted text-warning-muted-foreground font-semibold',
     hint: 'No confident match. Ties are deliberately left unresolved rather than guessed'
   }
 };

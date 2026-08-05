@@ -71,7 +71,7 @@ export function BriefDetailPanel({
 
         <div className='flex flex-col gap-4 px-4 pb-6'>
           {isError && (
-            <p className='text-sm text-red-600'>
+            <p className='text-sm text-destructive'>
               Could not load this timeline. Close and reopen to retry.
             </p>
           )}

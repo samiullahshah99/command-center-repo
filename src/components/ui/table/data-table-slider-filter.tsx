@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
+import { DATE_LOCALE } from '@/lib/format-date';
 import { cn } from '@/lib/utils';
 import { Icons } from '@/components/icons';
 import { DataTableFilterClear } from '@/components/ui/table/data-table-filter-clear';
@@ -77,7 +78,15 @@ export function DataTableSliderFilter<TData>({ column, title }: DataTableSliderF
   }, [columnFilterValue, min, max]);
 
   const formatValue = React.useCallback((value: number) => {
-    return value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    /*
+      ⚠️ THE LOCALE IS PINNED. This passed `undefined`, which resolves to the
+      HOST's locale — Node's during SSR, the browser's during hydration — so
+      `1000` renders as `1,000` on one side and `1.000` on the other, React
+      declares a mismatch and discards the subtree. This is the third of the
+      three violations CLAUDE.md lists, and the widest: it is a shared component,
+      so it reaches every table with a numeric range filter.
+    */
+    return value.toLocaleString(DATE_LOCALE, { maximumFractionDigits: 0 });
   }, []);
 
   const onFromInputChange = React.useCallback(

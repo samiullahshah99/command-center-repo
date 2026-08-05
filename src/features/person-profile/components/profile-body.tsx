@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { Card, CardContent } from '@/components/ui/card';
+import { Panel, Screen } from '@/components/ui/panel';
 import { personProfileOptions } from '../api/queries';
 import { ActivityStrip } from './activity-strip';
 import { AiSummaryCard } from './ai-summary-card';
@@ -24,7 +24,9 @@ export function ProfileBody({ personId }: { personId: string }) {
   if (!profile) return null;
 
   return (
-    <div className='flex flex-col gap-6'>
+    // `narrow` — the mock caps the person profile at 1080px rather than the
+    // 1180px it gives the Control Tower. A detail view reads as a column.
+    <Screen width='narrow'>
       <ProfileHeader profile={profile} />
 
       {/* The AI layer above the list: the ask was "leadership stops chasing",
@@ -42,15 +44,12 @@ export function ProfileBody({ personId }: { personId: string }) {
         personName={profile.person.name}
       />
 
-      <Card>
-        <CardContent className='pt-6'>
-          <h3 className='mb-1 text-sm font-semibold'>Assigned work</h3>
-          <p className='text-muted-foreground mb-3 text-xs'>
-            {profile.counts.total} item{profile.counts.total === 1 ? '' : 's'} · grouped by status
-          </p>
-          <ProfileItemList items={profile.items} now={now} />
-        </CardContent>
-      </Card>
-    </div>
+      <Panel
+        title='Assigned work'
+        meta={`${profile.counts.total} item${profile.counts.total === 1 ? '' : 's'} · grouped by status`}
+      >
+        <ProfileItemList items={profile.items} now={now} />
+      </Panel>
+    </Screen>
   );
 }

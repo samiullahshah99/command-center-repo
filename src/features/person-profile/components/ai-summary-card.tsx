@@ -59,14 +59,26 @@ export function AiSummaryCard({
   }
 
   return (
-    <Card className='border-violet-500/30 bg-gradient-to-br from-violet-500/[0.07] to-transparent'>
+    /*
+      ⚠️ THIS CARD IS DELIBERATELY THE ONE TINTED SURFACE ON THE PROFILE, and the
+      tint is required rather than decorative: CLAUDE.md mandates double
+      labelling on every AI summary — a generated chip AND the footer caveat — on
+      the grounds that a summary written to be faithful to real data is read as
+      MORE authoritative, not less. The tint is what makes "this paragraph was
+      written by a model" legible before anyone reads the chip.
+
+      It was `violet-500`, an off-palette hue that rendered a light wash in dark
+      mode. `--primary` is the same job done with a token: still visibly not-data,
+      correct in both themes, and it moves with the theme instead of against it.
+    */
+    <Card className='border-primary/30 from-primary/[0.07] bg-gradient-to-br to-transparent'>
       <CardContent className='flex flex-col gap-3 pt-6'>
         <div className='flex flex-wrap items-center gap-2'>
-          <span className='flex size-6 items-center justify-center rounded-md bg-violet-500/15'>
-            <Icons.sun className='size-3.5 text-violet-600 dark:text-violet-400' />
+          <span className='bg-primary/15 flex size-6 items-center justify-center rounded-md'>
+            <Icons.sun className='text-primary size-3.5' />
           </span>
           <h3 className='text-sm font-semibold'>Summary</h3>
-          <span className='rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-violet-700 uppercase dark:text-violet-300'>
+          <span className='border-primary/30 bg-primary/10 text-primary rounded-md border px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase'>
             AI generated
           </span>
           <RegenerateButton personId={personId} mutation={m} className='ml-auto' />

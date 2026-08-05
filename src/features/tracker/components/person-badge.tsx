@@ -63,7 +63,7 @@ export function PersonBadge({
           title={`Owner came from a '${originOwnerConfidence}' match — a name-similarity suggestion, not a verified link`}
           className='inline-flex items-center'
         >
-          <Icons.alertCircle className='size-3.5 text-amber-600 dark:text-amber-400' />
+          <Icons.alertCircle className='size-3.5 text-warning-muted-foreground' />
         </span>
       )}
     </span>

@@ -43,7 +43,7 @@ export function BriefQuotaBar({ personId }: { personId: string }) {
     >
       <div className='bg-muted h-1.5 w-full overflow-hidden rounded-full'>
         <div
-          className={cn('h-full rounded-full', met ? 'bg-emerald-500' : 'bg-sky-500')}
+          className={cn('h-full rounded-full', met ? 'bg-success' : 'bg-muted-foreground/60')}
           style={{ width: `${pct}%` }}
         />
       </div>

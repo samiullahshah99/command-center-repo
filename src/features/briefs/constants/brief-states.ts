@@ -56,12 +56,30 @@ export const STALE_DAYS: Record<BriefState, { amber: number; red: number } | nul
   approved: null
 };
 
-/** Column accent — muted, since the palette is doing categorisation not alarm. */
+/**
+ * Column accent.
+ *
+ * ⚠️ ONLY TWO OF THE FOUR CARRY COLOUR, and that is the point. This used to be
+ * four saturated hues (slate / sky / amber / emerald), which had two problems:
+ * the hardcoded palette values rendered light accents against a dark surface,
+ * and — worse — a board where every column is coloured tells you nothing, because
+ * the two states that actually need a human are painted no louder than the two
+ * that do not.
+ *
+ * So the lifecycle reads as increasing neutral weight, and colour is reserved:
+ *
+ *   in_progress  faint grey   — work is happening, nothing to do
+ *   in_review    solid grey   — waiting on a reviewer, normal
+ *   sent_back    AMBER        — stalled hand-off, someone is blocked
+ *   approved     GREEN        — terminal, done
+ *
+ * Semantic tokens throughout, so both themes are correct by construction.
+ */
 export const STATE_ACCENT: Record<BriefState, string> = {
-  in_progress: 'bg-slate-400',
-  in_review: 'bg-sky-500',
-  sent_back: 'bg-amber-500',
-  approved: 'bg-emerald-500'
+  in_progress: 'bg-muted-foreground/30',
+  in_review: 'bg-muted-foreground/70',
+  sent_back: 'bg-warning',
+  approved: 'bg-success'
 };
 
 /**

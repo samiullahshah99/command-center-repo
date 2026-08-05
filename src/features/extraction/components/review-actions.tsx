@@ -145,7 +145,7 @@ function Decided({ item, result }: { item: ActionItemRow; result?: ReviewResult 
     <div className='flex flex-wrap items-center gap-2 border-t pt-3 text-xs'>
       {approved ? (
         <>
-          <span className='flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-300'>
+          <span className='flex items-center gap-1.5 font-medium text-success-muted-foreground'>
             <Icons.circleCheck className='size-3.5' />
             Approved
           </span>

@@ -58,7 +58,7 @@ export function PersonDrawer({
 
         <div className='flex flex-col gap-6 px-4 pb-6'>
           {isError && (
-            <p className='text-sm text-red-600'>
+            <p className='text-sm text-destructive'>
               Could not load this person&apos;s detail. Close and reopen to retry.
             </p>
           )}

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { LABEL_CAPS, ROW_TITLE, Screen } from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format-date';
 import { briefBoardQueryOptions } from '../api/queries';
@@ -44,23 +45,25 @@ export function BriefBoard() {
   const selected = data.cards.find((c) => c.id === openId) ?? null;
 
   return (
-    <div className='flex flex-col gap-4'>
-      <div className='grid gap-4 lg:grid-cols-4'>
+    <Screen>
+      <div className='grid gap-[14px] lg:grid-cols-4'>
         {BRIEF_STATES.map((state) => {
           const cards = byState.get(state) ?? [];
           return (
-            <section key={state} className='flex flex-col gap-2'>
-              <header className='flex items-center gap-2 px-1'>
+            <section key={state} className='flex flex-col gap-[8px]'>
+              <header className='flex items-center gap-[8px] px-[2px]'>
                 <span className={cn('size-2 rounded-full', STATE_ACCENT[state])} aria-hidden />
-                <h2 className='text-sm font-medium'>{STATE_LABEL[state]}</h2>
-                <span className='text-muted-foreground text-xs'>{cards.length}</span>
+                <h2 className={cn(LABEL_CAPS, 'flex-1')}>{STATE_LABEL[state]}</h2>
+                <span className='text-muted-foreground text-[11.5px] font-semibold tabular-nums'>
+                  {cards.length}
+                </span>
               </header>
 
               {cards.length === 0 ? (
                 /* Empty columns still render. A lifecycle board whose columns
                    appear and vanish changes shape under the reader; "Approved 0"
                    is a fact worth seeing, not an absence to hide. */
-                <div className='text-muted-foreground/70 rounded-lg border border-dashed px-3 py-6 text-center text-xs'>
+                <div className='text-muted-foreground/70 rounded-[10px] border border-dashed px-3 py-6 text-center text-[11.5px]'>
                   none
                 </div>
               ) : (
@@ -73,7 +76,7 @@ export function BriefBoard() {
         })}
       </div>
 
-      <p className='text-muted-foreground max-w-3xl text-xs'>
+      <p className='text-muted-foreground max-w-3xl text-[11.5px] leading-[1.6]'>
         State is <strong>derived</strong> by folding each brief&apos;s Vision events — there is no
         status field. Comments and script saves update activity but never change state. Vision is
         the system of record; this board is read-only and never writes back. {data.total} production
@@ -85,7 +88,7 @@ export function BriefBoard() {
         open={Boolean(selected)}
         onOpenChange={(next) => !next && setOpenId(null)}
       />
-    </div>
+    </Screen>
   );
 }
 
@@ -100,14 +103,14 @@ function BriefCardView({ card, now, onOpen }: { card: BriefCard; now: Date; onOp
         : null;
 
   return (
-    <Card className='gap-2 px-3 py-3'>
+    <Card className='hover:border-ring gap-[8px] p-[12px_13px] transition-colors'>
       <button
         type='button'
         onClick={onOpen}
         aria-label={`Open timeline for ${card.label ?? card.idFragment}`}
         className='text-left'
       >
-        <span className='block text-sm font-medium hover:underline'>
+        <span className={cn(ROW_TITLE, 'block hover:underline')}>
           {card.label ?? 'Untitled brief'}
         </span>
         {/*

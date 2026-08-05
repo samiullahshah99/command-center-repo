@@ -2,8 +2,15 @@
 
 import { useMemo } from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import {
+  CARD_TITLE,
+  LABEL_CAPS,
+  Panel,
+  Screen,
+  StatCard,
+  StatusDot,
+  TagPill
+} from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format-date';
 import { connectorHealthQueryOptions } from '../api/queries';
@@ -25,7 +32,7 @@ export function ConnectorHealthView() {
   const now = useMemo(() => new Date(data.now), [data.now]);
 
   return (
-    <div className='flex flex-col gap-4'>
+    <Screen>
       <HeaderStrip
         eventsToday={data.eventsToday}
         jobsFailed={data.jobsFailed}
@@ -35,7 +42,7 @@ export function ConnectorHealthView() {
         now={now}
       />
 
-      <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+      <div className='grid gap-[14px] md:grid-cols-2 xl:grid-cols-3'>
         {data.sources.map((s) => (
           <SourceCard key={s.source} row={s} now={now} />
         ))}
@@ -46,14 +53,14 @@ export function ConnectorHealthView() {
         per card. It is the most important sentence here: nothing on this page
         measures webhook subscription health, because no provider exposes it.
       */}
-      <p className='text-muted-foreground max-w-3xl text-xs'>
+      <p className='text-muted-foreground max-w-3xl text-[11.5px] leading-[1.6]'>
         Webhook subscription health is <strong>not queryable</strong> — no provider offers an
         endpoint that answers &ldquo;is my subscription still alive?&rdquo;. &ldquo;Last event
         received&rdquo; is the honest proxy: a silent source and a broken subscription look
         identical from here. Freshness thresholds are per source, because Vision emits tens of
         events a day while ClickUp can legitimately be quiet for a fortnight.
       </p>
-    </div>
+    </Screen>
   );
 }
 
@@ -73,60 +80,32 @@ function HeaderStrip({
   now: Date;
 }) {
   return (
-    <Card>
-      <CardContent className='grid gap-4 py-4 sm:grid-cols-3'>
-        <Stat label='Events today' value={String(eventsToday)} />
-        <Stat
-          label='Jobs failed · 7d'
-          value={String(jobsFailed)}
-          tone={jobsFailed > 0 ? 'bad' : undefined}
-          note={deadLettered > 0 ? `${deadLettered} dead-lettered` : undefined}
-        />
-        {/*
-          The single most useful number here. A growing age means the worker is
-          not draining; zero unprocessed means ingestion and normalisation are
-          keeping up, which is why the healthy state says so explicitly rather
-          than rendering an empty slot.
-        */}
-        <Stat
-          label='Oldest unprocessed'
-          value={oldestUnprocessedAt ? formatRelativeTime(oldestUnprocessedAt, now) : 'none'}
-          tone={oldestUnprocessedAt ? 'warn' : undefined}
-          note={
-            oldestUnprocessedAt
-              ? `${unprocessedCount} awaiting normalisation`
-              : 'all events normalised'
-          }
-        />
-      </CardContent>
-    </Card>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  tone,
-  note
-}: {
-  label: string;
-  value: string;
-  tone?: 'bad' | 'warn';
-  note?: string;
-}) {
-  return (
-    <div className='flex flex-col gap-0.5'>
-      <span className='text-muted-foreground text-xs'>{label}</span>
-      <span
-        className={cn(
-          'text-2xl leading-none font-medium tabular-nums',
-          tone === 'bad' && 'text-destructive',
-          tone === 'warn' && 'text-warning-muted-foreground'
-        )}
-      >
-        {value}
-      </span>
-      {note && <span className='text-muted-foreground text-[11px]'>{note}</span>}
+    <div className='grid gap-[14px] sm:grid-cols-3'>
+      <StatCard label='Events today' value={eventsToday} />
+      <StatCard
+        label='Jobs failed · 7d'
+        value={<span className={cn(jobsFailed > 0 && 'text-destructive')}>{jobsFailed}</span>}
+        sub={deadLettered > 0 ? `${deadLettered} dead-lettered` : undefined}
+      />
+      {/*
+        The single most useful number here. A growing age means the worker is
+        not draining; zero unprocessed means ingestion and normalisation are
+        keeping up, which is why the healthy state says so explicitly rather
+        than rendering an empty slot.
+      */}
+      <StatCard
+        label='Oldest unprocessed'
+        value={
+          <span className={cn(oldestUnprocessedAt && 'text-warning-muted-foreground')}>
+            {oldestUnprocessedAt ? formatRelativeTime(oldestUnprocessedAt, now) : 'none'}
+          </span>
+        }
+        sub={
+          oldestUnprocessedAt
+            ? `${unprocessedCount} awaiting normalisation`
+            : 'all events normalised'
+        }
+      />
     </div>
   );
 }
@@ -145,93 +124,66 @@ function SourceCard({ row, now }: { row: ConnectorRow; now: Date }) {
   const isQuiet = ageHours !== null && ageHours > row.staleAfterHours;
 
   return (
-    <Card>
-      <CardHeader className='pb-2'>
-        <CardTitle className='flex items-center gap-2 text-base'>
-          <span
-            aria-hidden
-            className={cn(
-              'size-2 shrink-0 rounded-full',
-              indicator === 'bad' && 'bg-destructive',
-              indicator === 'warn' && 'bg-warning',
-              indicator === 'ok' && 'bg-success',
-              indicator === 'idle' && 'bg-muted-foreground/40'
+    <Panel>
+      <div className='flex flex-wrap items-center gap-[8px]'>
+        <StatusDot
+          tone={
+            indicator === 'bad'
+              ? 'destructive'
+              : indicator === 'warn'
+                ? 'warning'
+                : indicator === 'ok'
+                  ? 'success'
+                  : 'neutral'
+          }
+          className='size-2'
+        />
+        <span className={CARD_TITLE}>{SOURCE_LABEL[row.source]}</span>
+        {queue.failed > 0 && <TagPill tone='destructive'>{queue.failed} failed</TagPill>}
+        {queue.retry > 0 && <TagPill tone='warning'>{queue.retry} retrying</TagPill>}
+      </div>
+
+      {/* Last event received — the proxy, labelled as such. */}
+      <div className='flex flex-col gap-[2px]'>
+        <span className={LABEL_CAPS}>Last event received</span>
+        {row.lastEventAt ? (
+          <span className={cn('text-[13px]', isQuiet && 'text-warning-muted-foreground')}>
+            {formatRelativeTime(row.lastEventAt, now)}
+            {isQuiet && (
+              <span className='text-muted-foreground'> · quiet beyond {row.staleAfterHours}h</span>
             )}
-          />
-          {SOURCE_LABEL[row.source]}
-          {queue.failed > 0 && (
-            <Badge
-              variant='outline'
-              className='border-destructive/20 bg-destructive-muted text-destructive-muted-foreground text-xs'
-            >
-              {queue.failed} failed
-            </Badge>
-          )}
-          {queue.retry > 0 && (
-            <Badge
-              variant='outline'
-              className='border-warning/20 bg-warning-muted text-warning-muted-foreground text-xs'
-            >
-              {queue.retry} retrying
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
+          </span>
+        ) : (
+          // "Never" is a distinct fact from "quiet" and must not read as an error:
+          // a connector that has never fired may simply not be wired up yet.
+          <span className='text-muted-foreground text-[13px]'>never</span>
+        )}
+        <span className='text-muted-foreground/80 text-[11px]'>{CADENCE_NOTE[row.source]}</span>
+      </div>
 
-      <CardContent className='flex flex-col gap-3'>
-        {/* Last event received — the proxy, labelled as such. */}
-        <div className='flex flex-col gap-0.5'>
-          <span className='text-muted-foreground text-xs'>Last event received</span>
-          {row.lastEventAt ? (
-            <span className={cn('text-sm', isQuiet && 'text-warning-muted-foreground')}>
-              {formatRelativeTime(row.lastEventAt, now)}
-              {isQuiet && (
-                <span className='text-muted-foreground'>
-                  {' '}
-                  · quiet beyond {row.staleAfterHours}h
-                </span>
-              )}
-            </span>
-          ) : (
-            // "Never" is a distinct fact from "quiet" and must not read as an error:
-            // a connector that has never fired may simply not be wired up yet.
-            <span className='text-muted-foreground text-sm'>never</span>
-          )}
-          <span className='text-muted-foreground/80 text-[11px]'>{CADENCE_NOTE[row.source]}</span>
-        </div>
+      <div className='grid grid-cols-2 gap-[8px] border-t pt-[10px]'>
+        <Metric label='events · 24h' value={row.count24h} />
+        <Metric label='events · 7d' value={row.count7d} />
+      </div>
 
-        <div className='grid grid-cols-2 gap-2 border-t pt-2'>
-          <Metric label='events · 24h' value={row.count24h} />
-          <Metric label='events · 7d' value={row.count7d} />
+      <div className='flex flex-col gap-[4px] border-t pt-[10px]'>
+        <span className={LABEL_CAPS}>Worker queue · 7d</span>
+        <div className='flex flex-wrap gap-x-[14px] gap-y-[2px] text-[11.5px]'>
+          <QueueStat label='completed' n={queue.completed} />
+          <QueueStat label='retrying' n={queue.retry} tone={queue.retry > 0 ? 'warn' : undefined} />
+          <QueueStat label='failed' n={queue.failed} tone={queue.failed > 0 ? 'bad' : undefined} />
+          <QueueStat label='waiting' n={queue.pending} />
         </div>
-
-        <div className='flex flex-col gap-1 border-t pt-2'>
-          <span className='text-muted-foreground text-xs'>Worker queue · 7d</span>
-          <div className='flex flex-wrap gap-x-4 gap-y-1 text-xs'>
-            <QueueStat label='completed' n={queue.completed} />
-            <QueueStat
-              label='retrying'
-              n={queue.retry}
-              tone={queue.retry > 0 ? 'warn' : undefined}
-            />
-            <QueueStat
-              label='failed'
-              n={queue.failed}
-              tone={queue.failed > 0 ? 'bad' : undefined}
-            />
-            <QueueStat label='waiting' n={queue.pending} />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Panel>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className='flex flex-col'>
-      <span className='text-lg leading-none font-medium tabular-nums'>{value}</span>
-      <span className='text-muted-foreground text-[11px]'>{label}</span>
+      <span className='text-[17px] leading-none font-bold tabular-nums'>{value}</span>
+      <span className='text-muted-foreground mt-[3px] text-[11px]'>{label}</span>
     </div>
   );
 }

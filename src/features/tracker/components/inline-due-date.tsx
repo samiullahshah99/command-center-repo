@@ -55,8 +55,8 @@ export function InlineDueDate({
               'h-8 justify-start px-2 font-normal',
               view.absent && 'text-muted-foreground italic',
               // Overdue is the one thing on this row that should catch the eye.
-              view.overdue && 'font-medium text-red-600 dark:text-red-400',
-              view.dueToday && 'font-medium text-amber-700 dark:text-amber-300'
+              view.overdue && 'font-medium text-destructive',
+              view.dueToday && 'font-medium text-warning-muted-foreground'
             )}
           />
         }

@@ -4,12 +4,27 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * ⚠️ THE TYPE SCALE HERE IS THE PORTAL'S, NOT shadcn's DEFAULT.
+ *
+ * Transcribed from the tabular sections of
+ * `docs/design-reference/Command_Center_dc.html` (the auto-completion ledger and
+ * the department backlog): 11px uppercase `.05em` headers, 12.5px rows.
+ *
+ * This is the one edit that reaches every table in the app — people, identities,
+ * role profiles, meetings, users, products all render through these primitives.
+ * Restyling them individually would have meant six copies of the same numbers,
+ * drifting apart from the first time one of them was touched.
+ *
+ * See `@/components/ui/panel` for the rest of the scale and for why these
+ * arbitrary values are deliberately not "canonicalised".
+ */
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
   return (
     <div data-slot='table-container' className='relative w-full'>
       <table
         data-slot='table'
-        className={cn('w-full caption-bottom text-sm', className)}
+        className={cn('w-full caption-bottom text-[12.5px]', className)}
         {...props}
       />
     </div>
@@ -58,7 +73,10 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot='table-head'
       className={cn(
-        'text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        // Mock: 11px, 600, .05em, uppercase, muted. The uppercase cascades to the
+        // sort button inside `DataTableColumnHeader`, which is intended — the
+        // whole header row reads as one label strip.
+        'text-muted-foreground h-9 px-[10px] text-left align-middle text-[11px] font-semibold tracking-[0.05em] whitespace-nowrap uppercase [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
         className
       )}
       {...props}
@@ -71,7 +89,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
     <td
       data-slot='table-cell'
       className={cn(
-        'p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
+        'px-[10px] py-[9px] align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]',
         className
       )}
       {...props}

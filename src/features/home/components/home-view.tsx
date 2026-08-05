@@ -3,9 +3,22 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useSuspenseQuery } from '@tanstack/react-query';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Icons } from '@/components/icons';
+import {
+  EmptyState,
+  InitialsAvatar,
+  Panel,
+  Row,
+  ROW_META,
+  ROW_TITLE,
+  RowList,
+  Screen,
+  SectionLabel,
+  StatCard,
+  StatGrid,
+  StatusDot,
+  TagPill
+} from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/format-date';
 import { BRIEF_STATES } from '@/lib/brief-states';
@@ -14,15 +27,26 @@ import { homeSnapshotQueryOptions } from '../api/queries';
 import type { AttentionRow, HomeSnapshot } from '../api/types';
 
 /**
- * The Command Center landing page. One question: what needs my attention?
+ * The Command Center landing page. One question: what needs your attention?
  *
- * ⚠️ Red and amber appear in EXACTLY TWO places on this page — the Needs
- * Attention rows and the sent-back pipeline count. Everything else is neutral.
- * Colour that appears everywhere stops meaning anything, and this page's whole
- * job is that a glance tells you whether to act.
+ * ── Styling provenance ──────────────────────────────────────────────────────
+ * Laid out to the Control Tower screen of
+ * `docs/design-reference/Command_Center_dc.html`, using the shared primitives in
+ * `@/components/ui/panel` so the type scale is stated once rather than
+ * re-transcribed per screen.
  *
- * ⚠️ Every number is real. There are no sample values and no placeholders, so a
- * zero renders as a zero rather than as an empty state — see the Review card.
+ * ⚠️ THE MOCK'S LAYOUT, NEVER ITS CONTENT. That screen is populated with
+ * invented data — "482 tickets · CSAT 4.6", four departments, a Zendesk feed, a
+ * founder copilot. None of it exists here. Where the mock shows a metric we
+ * cannot compute, the slot is filled with one we can (its four "Department
+ * health" cards became the four real brief states) or dropped entirely. Adding a
+ * card to match the mock's shape would be exactly the failure `api/types.ts`
+ * forbids: a number that is not true either invents urgency or hides it.
+ *
+ * ⚠️ RED AND AMBER APPEAR IN EXACTLY TWO PLACES — the attention widget (its stat
+ * sub-line and its rows, which are one thing) and the sent-back brief count.
+ * Everything else is neutral. Colour that appears everywhere stops meaning
+ * anything, and this page's whole job is that a glance tells you whether to act.
  */
 export function HomeView() {
   const { data } = useSuspenseQuery(homeSnapshotQueryOptions());
@@ -33,19 +57,138 @@ export function HomeView() {
   const now = useMemo(() => new Date(data.now), [data.now]);
 
   return (
-    <div className='flex flex-col gap-4'>
-      <div className='grid gap-4 lg:grid-cols-5'>
-        <NeedsAttention data={data} />
-
-        <div className='flex flex-col gap-4 lg:col-span-2'>
-          <ReviewCard data={data} now={now} />
-          <ActivityPulse data={data} now={now} />
-        </div>
+    <Screen>
+      {/*
+        The mock puts this pill on the title row's right end. Our page title is
+        owned by PageContainer (CLAUDE.md: never import <Heading> manually), and
+        its `pageHeaderAction` renders outside this component's
+        HydrationBoundary — a pill there would open a second RPC for a string we
+        already have. So it sits tucked under the header instead.
+      */}
+      <div className='-mt-2 flex justify-end'>
+        <LivePill data={data} now={now} />
       </div>
 
-      <PipelineStrip data={data} />
-      <TeamStrip data={data} />
-    </div>
+      <HomeStats data={data} now={now} />
+
+      <section>
+        <SectionLabel>Brief pipeline</SectionLabel>
+        <PipelineGrid data={data} />
+      </section>
+
+      <div className='grid gap-[14px] lg:grid-cols-[3fr_2fr]'>
+        <NeedsAttention data={data} />
+        <div className='flex flex-col gap-[14px]'>
+          <ActivityPulse data={data} now={now} />
+          <TeamCard data={data} />
+        </div>
+      </div>
+    </Screen>
+  );
+}
+
+/**
+ * Mock: "Live · synced 2m ago". Ours is anchored to the newest `unified_event`,
+ * which is the only liveness signal we actually hold — an uptime claim we cannot
+ * substantiate would be decoration pretending to be telemetry.
+ */
+function LivePill({ data, now }: { data: HomeSnapshot; now: Date }) {
+  const last = data.lastEvent;
+
+  return (
+    <span className='text-muted-foreground inline-flex items-center gap-[6px] rounded-full border px-[10px] py-[2px] text-[11.5px] font-semibold'>
+      <StatusDot tone={last ? 'success' : 'neutral'} />
+      {last ? <>Live · last event {formatRelativeTime(last.at, now)}</> : 'No events yet'}
+    </span>
+  );
+}
+
+function HomeStats({ data, now }: { data: HomeSnapshot; now: Date }) {
+  /*
+    The worst row after the service's severity sort, used for the sub-line.
+    ⚠️ Read from `attention[0]`, not from a count over the shown rows: the array
+    is capped at ATTENTION_CAP, so tallying it would understate the total that
+    the headline number already reports honestly.
+  */
+  const worst = data.attention[0];
+  const attentionSub =
+    data.attentionTotal === 0
+      ? 'all clear'
+      : worst?.days != null
+        ? `worst ${worst.days}d in state`
+        : 'needs an owner';
+
+  return (
+    <StatGrid>
+      <StatCard
+        label='Needs attention'
+        value={data.attentionTotal}
+        sub={attentionSub}
+        subClassName={
+          data.attentionTotal === 0
+            ? 'text-success-muted-foreground'
+            : worst?.severity === 'red'
+              ? 'text-destructive'
+              : 'text-warning-muted-foreground'
+        }
+      />
+      {/* TODO: re-point to /dashboard/review when that route exists (Day 4). */}
+      <StatCard
+        label='Awaiting review'
+        value={data.reviewPending}
+        sub={
+          data.reviewOldestAt
+            ? `oldest ${formatRelativeTime(data.reviewOldestAt, now)}`
+            : 'nothing pending'
+        }
+        href='/dashboard/extraction'
+      />
+      <StatCard
+        label='Events · 7d'
+        value={data.activityTotal}
+        sub={data.lastEvent ? `last from ${data.lastEvent.source}` : 'no events yet'}
+      />
+      {/*
+        ⚠️ THE PAGE'S OWN ACCURACY WARNING, promoted to a stat card. An unlinked
+        identity silently zeroes attribution in every widget here — team
+        presence, brief strategists, activity. A number that is quietly wrong is
+        worse than a number labelled as incomplete.
+      */}
+      <StatCard
+        label='Unlinked identities'
+        value={data.identitiesUnlinked}
+        sub={data.identitiesUnlinked > 0 ? 'attribution incomplete' : 'all linked'}
+        href='/dashboard/identities'
+      />
+    </StatGrid>
+  );
+}
+
+/**
+ * The mock's four "Department health" cards. We have no department model, so the
+ * slot holds the four real brief lifecycle states instead — same grid, same
+ * treatment, data that exists.
+ */
+function PipelineGrid({ data }: { data: HomeSnapshot }) {
+  return (
+    <StatGrid>
+      {BRIEF_STATES.map((state) => {
+        const n = data.pipeline[state];
+        // The ONLY amber outside the attention widget: a sent-back brief is
+        // stalled work waiting on a specific person.
+        const amber = state === 'sent_back' && n > 0;
+
+        return (
+          <StatCard
+            key={state}
+            href='/dashboard/briefs'
+            leading={<StatusDot tone={amber ? 'warning' : 'neutral'} />}
+            label={STATE_LABEL[state]}
+            value={<span className={cn(amber && 'text-warning-muted-foreground')}>{n}</span>}
+          />
+        );
+      })}
+    </StatGrid>
   );
 }
 
@@ -53,44 +196,30 @@ function NeedsAttention({ data }: { data: HomeSnapshot }) {
   const overflow = data.attentionTotal - data.attention.length;
 
   return (
-    <Card className='lg:col-span-3'>
-      <CardContent className='flex flex-col gap-3 py-4'>
-        <h2 className='text-sm font-medium'>Needs attention</h2>
+    <Panel title='Needs attention' meta={data.attentionTotal > 0 ? 'worst first' : undefined}>
+      {data.attention.length === 0 ? (
+        <EmptyState
+          icon={<Icons.check className='size-5' />}
+          title='Nothing needs attention'
+          detail='No stalled briefs and no action items missing an owner.'
+        />
+      ) : (
+        <RowList>
+          {data.attention.map((row) => (
+            <AttentionItem key={row.key} row={row} />
+          ))}
+        </RowList>
+      )}
 
-        {data.attention.length === 0 ? (
-          /*
-            ⚠️ THE ZERO STATE IS THE PRODUCT WORKING, and it is styled as a
-            result rather than an absence. On a seven-person team this is the
-            COMMON state; an apologetic grey "no data" box would make the normal
-            case look like a broken page.
-          */
-          <div className='flex flex-col items-center gap-2 py-10 text-center'>
-            <span className='bg-success-muted text-success-muted-foreground ring-success/20 flex size-10 items-center justify-center rounded-full ring-1'>
-              <Icons.check className='size-5' />
-            </span>
-            <span className='text-base font-medium'>Nothing needs attention</span>
-            <span className='text-muted-foreground max-w-xs text-xs'>
-              No stalled briefs and no action items missing an owner.
-            </span>
-          </div>
-        ) : (
-          <ul className='flex flex-col divide-y'>
-            {data.attention.map((row) => (
-              <AttentionItem key={row.key} row={row} />
-            ))}
-          </ul>
-        )}
-
-        {overflow > 0 && (
-          <Link
-            href='/dashboard/briefs'
-            className='text-muted-foreground hover:text-foreground text-xs'
-          >
-            +{overflow} more
-          </Link>
-        )}
-      </CardContent>
-    </Card>
+      {overflow > 0 && (
+        <Link
+          href='/dashboard/briefs'
+          className='text-muted-foreground hover:text-foreground text-[11.5px]'
+        >
+          +{overflow} more →
+        </Link>
+      )}
+    </Panel>
   );
 }
 
@@ -103,212 +232,122 @@ function AttentionItem({ row }: { row: AttentionRow }) {
         : 'text-muted-foreground';
 
   return (
-    <li>
-      <Link href={row.href} className='hover:bg-muted/40 -mx-2 flex items-center gap-3 px-2 py-2'>
-        <span
-          aria-hidden
-          className={cn(
-            'size-1.5 shrink-0 rounded-full',
-            row.severity === 'red' && 'bg-destructive',
-            row.severity === 'amber' && 'bg-warning',
-            row.severity === 'unowned' && 'bg-muted-foreground/40'
-          )}
-        />
-        <span className='flex min-w-0 flex-1 flex-col'>
-          <span className='truncate text-sm'>{row.title}</span>
-          {row.detail && (
-            <span className='text-muted-foreground/70 font-mono text-[10px]'>{row.detail}</span>
-          )}
+    <Row href={row.href} className='py-[10px]'>
+      <StatusDot
+        tone={
+          row.severity === 'red' ? 'destructive' : row.severity === 'amber' ? 'warning' : 'neutral'
+        }
+        className='size-2'
+      />
+
+      <span className='flex min-w-0 flex-1 flex-col'>
+        <span className={cn(ROW_TITLE, 'truncate')}>{row.title}</span>
+        {row.detail && (
+          <span className='text-muted-foreground/70 mt-[2px] font-mono text-[10.5px]'>
+            {row.detail}
+          </span>
+        )}
+      </span>
+
+      {row.actorName && (
+        <span className='hidden items-center gap-[6px] sm:flex'>
+          <InitialsAvatar initials={row.actorName.slice(0, 2).toUpperCase()} size={22} />
+          <span className={cn(ROW_META, 'max-w-24 truncate')}>{row.actorName}</span>
         </span>
+      )}
 
-        {row.actorName && (
-          <span className='hidden items-center gap-1.5 sm:flex'>
-            <span
-              aria-hidden
-              className='bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-full text-[9px] font-medium'
-            >
-              {row.actorName.slice(0, 2).toUpperCase()}
-            </span>
-            <span className='text-muted-foreground max-w-24 truncate text-xs'>{row.actorName}</span>
-          </span>
-        )}
-
-        {row.days !== null ? (
-          <span className={cn('shrink-0 text-xs tabular-nums', tone)}>{row.days}d</span>
-        ) : (
-          <Badge variant='outline' className='shrink-0 text-[10px] font-normal'>
-            needs owner
-          </Badge>
-        )}
-      </Link>
-    </li>
-  );
-}
-
-function ReviewCard({ data, now }: { data: HomeSnapshot; now: Date }) {
-  return (
-    <Card>
-      <CardContent className='py-4'>
-        {/* TODO: re-point to /dashboard/review when that route exists (Day 4).
-            The count already comes from the shared cached nav count, so the badge
-            in the sidebar and this number cannot disagree. */}
-        <Link href='/dashboard/extraction' className='flex flex-col gap-1'>
-          <span className='text-muted-foreground text-xs'>Awaiting review</span>
-          {/* Zero is DATA, not an empty state — it renders as 0. */}
-          <span className='text-2xl leading-none font-medium tabular-nums'>
-            {data.reviewPending}
-          </span>
-          <span className='text-muted-foreground text-[11px]'>
-            {data.reviewOldestAt
-              ? `oldest ${formatRelativeTime(data.reviewOldestAt, now)}`
-              : 'nothing pending'}
-          </span>
-        </Link>
-      </CardContent>
-    </Card>
+      {row.days !== null ? (
+        <span className={cn('shrink-0 text-[11.5px] font-semibold tabular-nums', tone)}>
+          {row.days}d
+        </span>
+      ) : (
+        <TagPill>needs owner</TagPill>
+      )}
+    </Row>
   );
 }
 
 /**
- * Liveness, not analytics. Deliberately small and neutral so it cannot compete
- * with Needs Attention — the founder should never mistake "the pipes are warm"
- * for "something is wrong".
+ * Liveness, not analytics. Deliberately neutral so it cannot compete with Needs
+ * Attention — the founder should never mistake "the pipes are warm" for
+ * "something is wrong".
  */
 function ActivityPulse({ data, now }: { data: HomeSnapshot; now: Date }) {
   const peak = Math.max(...data.activity.map((d) => d.count), 1);
 
   return (
-    <Card>
-      <CardContent className='flex flex-col gap-2 py-4'>
-        <span className='text-muted-foreground text-xs'>Activity · 7d</span>
-
-        {data.activityTotal > 0 ? (
-          <div
-            className='flex h-8 items-end gap-1'
-            role='img'
-            aria-label={`${data.activityTotal} events in the last 7 days`}
-          >
-            {data.activity.map((d) => (
+    <Panel
+      title='Activity · 7d'
+      meta={data.lastEvent ? formatRelativeTime(data.lastEvent.at, now) : '—'}
+    >
+      {data.activityTotal > 0 ? (
+        <div
+          className='flex h-[64px] items-end gap-[6px]'
+          role='img'
+          aria-label={`${data.activityTotal} events in the last 7 days`}
+        >
+          {data.activity.map((d) => (
+            <div key={d.day} className='flex flex-1 flex-col items-center gap-[6px]'>
+              <span className='text-[11px] font-semibold tabular-nums'>{d.count || ''}</span>
               <div
-                key={d.day}
                 title={`${d.day}: ${d.count} event${d.count === 1 ? '' : 's'}`}
                 className={cn(
-                  'flex-1 rounded-sm',
+                  'w-full rounded-t-[4px]',
                   d.count > 0 ? 'bg-muted-foreground/40' : 'bg-muted'
                 )}
                 style={{
-                  height: d.count > 0 ? `${Math.max(12, (d.count / peak) * 100)}%` : '2px'
+                  height: d.count > 0 ? `${Math.max(10, (d.count / peak) * 100)}%` : '2px'
                 }}
               />
-            ))}
-          </div>
-        ) : (
-          <span className='text-muted-foreground text-xs'>no events in 7 days</span>
-        )}
-
-        <span className='text-muted-foreground text-[11px]'>
-          {data.lastEvent ? (
-            <>
-              last: <span className='capitalize'>{data.lastEvent.source}</span> ·{' '}
-              {formatRelativeTime(data.lastEvent.at, now)}
-            </>
-          ) : (
-            'no events yet'
-          )}
-        </span>
-      </CardContent>
-    </Card>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <span className='text-muted-foreground text-[12px]'>no events in 7 days</span>
+      )}
+    </Panel>
   );
 }
 
-function PipelineStrip({ data }: { data: HomeSnapshot }) {
+/** Mock's "Team" card: avatar + name rows, separated by top borders. */
+function TeamCard({ data }: { data: HomeSnapshot }) {
   return (
-    <Card>
-      <CardContent className='py-3'>
-        <Link href='/dashboard/briefs' className='flex flex-wrap items-center gap-x-6 gap-y-2'>
-          <span className='text-muted-foreground text-xs'>Briefs</span>
-          {BRIEF_STATES.map((state) => {
-            const n = data.pipeline[state];
-            // The ONLY amber outside Needs Attention: a sent-back brief is
-            // stalled work waiting on a person.
-            const amber = state === 'sent_back' && n > 0;
-            return (
-              <span key={state} className='flex items-baseline gap-1.5 text-sm'>
-                <span
-                  className={cn(
-                    'font-medium tabular-nums',
-                    amber && 'text-warning-muted-foreground'
-                  )}
-                >
-                  {n}
-                </span>
-                <span
-                  className={cn(
-                    'text-xs',
-                    amber ? 'text-warning-muted-foreground' : 'text-muted-foreground'
-                  )}
-                >
-                  {STATE_LABEL[state]}
-                </span>
-              </span>
-            );
-          })}
+    <Panel
+      title='Team'
+      meta={
+        <Link href='/dashboard/people' className='hover:text-foreground'>
+          All →
         </Link>
-      </CardContent>
-    </Card>
-  );
-}
+      }
+    >
+      {/*
+        An empty <ul> under a header reads as a failed fetch rather than as an
+        empty roster, which is the same misdiagnosis the locale bug caused.
+      */}
+      {data.team.length === 0 && (
+        <span className='text-muted-foreground text-[12px]'>no people on the roster</span>
+      )}
 
-function TeamStrip({ data }: { data: HomeSnapshot }) {
-  return (
-    <Card>
-      <CardContent className='flex flex-col gap-2 py-3'>
-        <Link href='/dashboard/people' className='flex items-center gap-3'>
-          <span className='text-muted-foreground text-xs'>Team</span>
-          <span className='flex items-center gap-2'>
-            {data.team.map((m) => (
-              <span key={m.id} className='relative' title={m.name}>
-                <span
-                  aria-hidden
-                  className='bg-muted text-muted-foreground flex size-7 items-center justify-center rounded-full text-[10px] font-medium'
-                >
-                  {m.initials}
-                </span>
-                {/*
-                  Presence only — no counts, no ranking. Green means an
-                  attributed event landed in 24h; grey means it did not, which is
-                  NOT a judgement about the person.
-                */}
-                <span
-                  aria-hidden
-                  className={cn(
-                    'ring-background absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2',
-                    m.active24h ? 'bg-success' : 'bg-muted-foreground/40'
-                  )}
-                />
-                <span className='sr-only'>
-                  {m.name} — {m.active24h ? 'active in the last 24 hours' : 'no recent activity'}
-                </span>
-              </span>
-            ))}
-          </span>
-        </Link>
-
-        {/*
-          ⚠️ THE PAGE'S OWN ACCURACY WARNING. An unlinked identity silently zeroes
-          attribution in every widget above — team dots, brief strategists,
-          activity. Rendered only when nonzero, muted, but present: a number that
-          is quietly wrong is worse than a number labelled as incomplete.
-        */}
-        {data.identitiesUnlinked > 0 && (
-          <Link
-            href='/dashboard/identities'
-            className='text-muted-foreground hover:text-foreground text-[11px]'
-          >
-            {data.identitiesUnlinked} identities unlinked → fix
-          </Link>
-        )}
-      </CardContent>
-    </Card>
+      <RowList>
+        {data.team.map((m) => (
+          <Row key={m.id}>
+            <InitialsAvatar initials={m.initials} />
+            <span className={cn(ROW_TITLE, 'min-w-0 flex-1 truncate')}>{m.name}</span>
+            {/*
+              Presence only — no counts, no ranking. The dot means an attributed
+              event landed in 24h; grey means it did not, which is NOT a
+              judgement about the person.
+            */}
+            <span className='flex shrink-0 items-center gap-[6px]'>
+              <StatusDot tone={m.active24h ? 'success' : 'neutral'} />
+              <span className={ROW_META}>{m.active24h ? 'active' : '—'}</span>
+            </span>
+            <span className='sr-only'>
+              {m.name} — {m.active24h ? 'active in the last 24 hours' : 'no recent activity'}
+            </span>
+          </Row>
+        ))}
+      </RowList>
+    </Panel>
   );
 }

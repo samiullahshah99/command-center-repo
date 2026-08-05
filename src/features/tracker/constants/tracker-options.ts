@@ -11,27 +11,44 @@ export { TRACKED_ITEM_STATUSES, PROJECT_STATUSES };
  * without also being valid — the map is keyed by the union, so TypeScript fails
  * the build if one is added and not styled here.
  */
+/**
+ * ⚠️ ONLY THE STATUSES THAT DEMAND SOMETHING CARRY COLOUR.
+ *
+ * These were five saturated hues (slate / sky / red / emerald / grey). Two
+ * problems: the hardcoded palette values render light chips against a dark
+ * surface, which is what the semantic-token adoption existed to fix; and a lane
+ * header where every status is coloured conveys nothing, because `blocked` — the
+ * only one that means "a human must act" — is painted no louder than `open`.
+ *
+ * So the ladder is neutral weight, with two exceptions:
+ *
+ *   open         faint grey  — queued, nothing to do
+ *   in_progress  solid grey  — someone is on it
+ *   blocked      RED         — stalled, needs a human
+ *   done         GREEN       — terminal, succeeded
+ *   cancelled    faint grey  — terminal, no outcome
+ */
 export const STATUS_META: Record<TrackedItemStatus, { label: string; dot: string; badge: string }> =
   {
     open: {
       label: 'Open',
-      dot: 'bg-slate-400',
-      badge: 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300'
+      dot: 'bg-muted-foreground/40',
+      badge: 'text-muted-foreground'
     },
     in_progress: {
       label: 'In progress',
-      dot: 'bg-sky-500',
-      badge: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+      dot: 'bg-muted-foreground/70',
+      badge: 'border-muted-foreground/30 text-foreground'
     },
     blocked: {
       label: 'Blocked',
-      dot: 'bg-red-500',
-      badge: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300'
+      dot: 'bg-destructive',
+      badge: 'border-destructive/40 text-destructive font-semibold'
     },
     done: {
       label: 'Done',
-      dot: 'bg-emerald-500',
-      badge: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+      dot: 'bg-success',
+      badge: 'border-success/30 bg-success-muted text-success-muted-foreground'
     },
     cancelled: {
       label: 'Cancelled',
@@ -40,18 +57,19 @@ export const STATUS_META: Record<TrackedItemStatus, { label: string; dot: string
     }
   };
 
+/** Same rule: `paused` is the only project state anyone needs to look at. */
 export const PROJECT_STATUS_META: Record<ProjectStatus, { label: string; badge: string }> = {
   active: {
     label: 'Active',
-    badge: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+    badge: 'border-success/30 bg-success-muted text-success-muted-foreground'
   },
   paused: {
     label: 'Paused',
-    badge: 'border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200'
+    badge: 'border-warning/40 bg-warning-muted text-warning-muted-foreground'
   },
   complete: {
     label: 'Complete',
-    badge: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300'
+    badge: 'border-muted-foreground/30 text-foreground'
   },
   archived: { label: 'Archived', badge: 'text-muted-foreground' }
 };

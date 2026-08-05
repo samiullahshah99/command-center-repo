@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/luckyfours-portal-ui-5e793c95-2fbd-4e66-9561-645e700000b4/styles.css">
+  <script src="_ds/luckyfours-portal-ui-5e793c95-2fbd-4e66-9561-645e700000b4/_ds_bundle.js"></script>
+  <style>
+    html,body{margin:0;padding:0;height:100%}
+    body{font-family:var(--font-sans,ui-sans-serif,system-ui,sans-serif);background:var(--background);color:var(--foreground)}
+    a{color:var(--foreground);text-decoration:none}
+    a:hover{color:var(--muted-foreground)}
+    *{box-sizing:border-box}
+    .cc-root [data-slot="card"]{padding:16px 18px;gap:10px}
+    .cc-fillcard{height:100%}
+    .cc-fillcard [data-slot="card"]{height:100%}
+  </style>
+</helmet>
+<div class="cc-root {{ rootClass }}" style="display:flex;height:100vh;overflow:hidden;background:var(--background);color:var(--foreground);font-size:14px">
+  <div data-screen-label="Sidebar" style="width:240px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--sidebar-border);display:flex;flex-direction:column;padding:14px 10px;gap:4px;overflow-y:auto;min-height:0">
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px 16px 10px">
+      <div style="width:30px;height:30px;border-radius:8px;background:var(--sidebar-primary);color:var(--sidebar-primary-foreground);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">CC</div>
+      <div style="display:flex;flex-direction:column">
+        <div style="font-weight:700;font-size:13.5px;color:var(--sidebar-foreground)">Command Center</div>
+        <div style="font-size:11px;color:var(--muted-foreground)">Lucky Fours · internal</div>
+      </div>
+    </div>
+    <div style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);padding:2px 10px 4px 10px">Overview</div>
+    <div onClick="{{ goTower }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--sidebar-foreground);background:{{ towerBg }}" style-hover="background:var(--sidebar-accent)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>
+      <span>Control Tower</span>
+    </div>
+    <div onClick="{{ goCapture }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--sidebar-foreground);background:{{ captureBg }}" style-hover="background:var(--sidebar-accent)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-6l-2 3h-4l-2-3H2"></path><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>
+      <span style="flex:1">Capture queue</span>
+      <span style="background:var(--primary);color:var(--primary-foreground);border-radius:999px;font-size:10.5px;font-weight:700;padding:1px 7px">{{ queueCount }}</span>
+    </div>
+    <div onClick="{{ goSearch }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--sidebar-foreground);background:{{ searchBg }}" style-hover="background:var(--sidebar-accent)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+      <span>AI search</span>
+    </div>
+    <div style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);padding:14px 10px 4px 10px">Departments</div>
+    <sc-for list="{{ deptNav }}" as="item" hint-placeholder-count="4">
+      <div onClick="{{ item.go }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--sidebar-foreground);background:{{ item.bg }}" style-hover="background:var(--sidebar-accent)">
+        <span style="width:8px;height:8px;border-radius:999px;background:{{ item.color }}"></span>
+        <span style="flex:1">{{ item.label }}</span>
+        <span style="width:7px;height:7px;border-radius:999px;background:{{ item.healthColor }}"></span>
+      </div>
+    </sc-for>
+    <div style="font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);padding:14px 10px 4px 10px">Company</div>
+    <div onClick="{{ goPeople }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--sidebar-foreground);background:{{ peopleBg }}" style-hover="background:var(--sidebar-accent)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+      <span>People &amp; org</span>
+    </div>
+    <div onClick="{{ goOffload }}" style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;font-weight:500;font-size:13.5px;color:var(--sidebar-foreground);background:{{ offloadBg }}" style-hover="background:var(--sidebar-accent)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg>
+      <span>Founder offload</span>
+    </div>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-top:1px solid var(--sidebar-border)">
+      <div style="width:30px;height:30px;border-radius:999px;background:var(--color-violet-600);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">D</div>
+      <div style="display:flex;flex-direction:column">
+        <div style="font-size:13px;font-weight:600;color:var(--sidebar-foreground)">Damian</div>
+        <div style="font-size:11px;color:var(--muted-foreground)">Founder</div>
+      </div>
+    </div>
+  </div>
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div style="height:52px;flex-shrink:0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;padding:0 22px">
+      <div style="font-size:13.5px;font-weight:600;color:var(--muted-foreground)">{{ crumb }}</div>
+      <div style="flex:1"></div>
+      <x-import component-from-global-scope="LuckyFoursUI.Input" placeholder="Ask the copilot — @command-center…" style="width:280px;height:34px;font-size:13px" hint-size="280px,34px"></x-import>
+      <x-import component-from-global-scope="LuckyFoursUI.Button" size="sm" variant="outline" onClick="{{ goSearch }}" hint-size="60px,32px">Ask</x-import>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:22px;min-width:0">
+
+      <sc-if value="{{ isTower }}" hint-placeholder-val="{{ true }}">
+        <div data-screen-label="Control Tower" style="display:flex;flex-direction:column;gap:18px;max-width:1180px">
+          <div style="display:flex;align-items:baseline;gap:12px">
+            <div style="font-size:21px;font-weight:700;letter-spacing:-.01em">Executive Control Tower</div>
+            <div style="font-size:12.5px;color:var(--muted-foreground)">Company state · Tue, Aug 4</div>
+            <div style="flex:1"></div>
+            <span style="display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;border:1px solid var(--border);font-size:11.5px;font-weight:600;color:var(--muted-foreground)"><span style="width:7px;height:7px;border-radius:999px;background:var(--color-emerald-500)"></span>Live · synced 2m ago</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+            <sc-for list="{{ companyStats }}" as="item" hint-placeholder-count="4">
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:16px 18px;gap:6px" hint-size="100%,104px">
+                <div style="font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground)">{{ item.label }}</div>
+                <div style="font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ item.value }}</div>
+                <div style="font-size:12px;color:{{ item.subColor }}">{{ item.sub }}</div>
+              </x-import>
+            </sc-for>
+          </div>
+          <div>
+            <div style="font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);margin-bottom:10px">Department health</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+              <sc-for list="{{ deptCards }}" as="item" hint-placeholder-count="4">
+                <div onClick="{{ item.open }}" class="cc-fillcard" style="cursor:pointer">
+                  <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:16px 18px;gap:10px;height:100%" hint-size="100%,150px">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="width:8px;height:8px;border-radius:999px;background:{{ item.color }}"></span>
+                      <div style="font-weight:600;font-size:14px;flex:1">{{ item.name }}</div>
+                    </div>
+                    <span style="align-self:flex-start;display:inline-flex;padding:2px 9px;border-radius:999px;border:1px solid currentColor;font-size:11px;font-weight:600;white-space:nowrap;color:{{ item.healthColor }}">{{ item.healthLabel }}</span>
+                    <div style="font-size:12.5px;color:var(--muted-foreground);line-height:1.45">{{ item.note }}</div>
+                    <div style="font-size:12px;font-weight:600;color:var(--foreground)">{{ item.keyStat }}</div>
+                  </x-import>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px">
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,320px">
+              <div style="font-size:14px;font-weight:600">Active projects</div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ towerProjects }}" as="item" hint-placeholder-count="5">
+                  <div style="display:grid;grid-template-columns:1fr 90px 110px 70px;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--border)">
+                    <div style="display:flex;align-items:center;gap:9px;min-width:0">
+                      <span style="width:7px;height:7px;border-radius:999px;flex-shrink:0;background:{{ item.color }}"></span>
+                      <div style="min-width:0">
+                        <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ item.name }}</div>
+                        <div style="font-size:11.5px;color:var(--muted-foreground)">{{ item.owner }}</div>
+                      </div>
+                    </div>
+                    <x-import component-from-global-scope="LuckyFoursUI.Progress" value="{{ item.progress }}" style="height:6px" hint-size="90px,6px"></x-import>
+                    <div style="font-size:12px;color:var(--muted-foreground)">{{ item.due }}</div>
+                    <span style="justify-self:end;font-size:11px;font-weight:600;color:{{ item.statusColor }}">{{ item.status }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </x-import>
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,320px">
+              <div style="font-size:14px;font-weight:600">Needs attention</div>
+              <div style="display:flex;flex-direction:column">
+                <sc-for list="{{ attention }}" as="item" hint-placeholder-count="4">
+                  <div style="display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--border)">
+                    <span style="width:8px;height:8px;border-radius:999px;margin-top:5px;flex-shrink:0;background:{{ item.color }}"></span>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px;font-weight:600;line-height:1.4">{{ item.text }}</div>
+                      <div style="font-size:11.5px;color:var(--muted-foreground);margin-top:2px">{{ item.meta }}</div>
+                    </div>
+                    <span style="align-self:flex-start;font-size:10.5px;font-weight:600;color:var(--muted-foreground);border:1px solid var(--border);border-radius:999px;padding:2px 8px;white-space:nowrap">{{ item.tag }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </x-import>
+          </div>
+          <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px">
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,240px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="font-size:14px;font-weight:600;flex:1">Founder copilot</div>
+                <span style="font-size:11px;color:var(--muted-foreground)">@command-center in Slack</span>
+              </div>
+              <div style="display:flex;gap:10px">
+                <div style="width:28px;height:28px;border-radius:8px;background:var(--color-violet-600);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;flex-shrink:0">D</div>
+                <div style="background:var(--muted);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5">What's going on with Commercive on the sample request?</div>
+              </div>
+              <div style="display:flex;gap:10px">
+                <div style="width:28px;height:28px;border-radius:8px;background:var(--primary);color:var(--primary-foreground);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;flex-shrink:0">CC</div>
+                <div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.55">Samples shipped Jul 30; Commercive confirmed receipt Aug 1. Revised specs are the open item — Ardin owes them the updated doc (suggested task in the capture queue, due Aug 6). No one is behind yet; last update was 3 days ago.<div style="font-size:11px;color:var(--muted-foreground);margin-top:6px">Sources: #proj-sourcing · ClickUp · Shopify</div></div>
+              </div>
+            </x-import>
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,240px">
+              <div style="font-size:14px;font-weight:600">This week's capture</div>
+              <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--muted-foreground)">Action items captured</span><span style="font-weight:600;font-variant-numeric:tabular-nums">34</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--muted-foreground)">From meetings (Fireflies)</span><span style="font-weight:600;font-variant-numeric:tabular-nums">22</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--muted-foreground)">From Slack (MCP)</span><span style="font-weight:600;font-variant-numeric:tabular-nums">12</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--muted-foreground)">Auto-completed from activity</span><span style="font-weight:600;font-variant-numeric:tabular-nums">18</span></div>
+              </div>
+              <x-import component-from-global-scope="LuckyFoursUI.Button" variant="outline" size="sm" onClick="{{ goCapture }}" style="align-self:flex-start" hint-size="150px,32px">Open review queue</x-import>
+            </x-import>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isDept }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Department" style="display:flex;flex-direction:column;gap:18px;max-width:1180px">
+          <div>
+            <div onClick="{{ goTower }}" style="font-size:12px;color:var(--muted-foreground);cursor:pointer;margin-bottom:8px">← Control Tower</div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="width:10px;height:10px;border-radius:999px;background:{{ dept.color }}"></span>
+              <div style="font-size:21px;font-weight:700;letter-spacing:-.01em">{{ dept.name }}</div>
+              <span style="display:inline-flex;padding:2px 10px;border-radius:999px;border:1px solid currentColor;font-size:11.5px;font-weight:600;white-space:nowrap;color:{{ dept.healthColor }}">{{ dept.healthLabel }}</span>
+            </div>
+            <div style="font-size:13px;color:var(--muted-foreground);margin-top:6px;max-width:640px;line-height:1.5">{{ dept.summary }}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px">
+            <sc-for list="{{ dept.stats }}" as="item" hint-placeholder-count="4">
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:14px 16px;gap:5px" hint-size="100%,92px">
+                <div style="font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground)">{{ item.label }}</div>
+                <div style="font-size:22px;font-weight:700;font-variant-numeric:tabular-nums">{{ item.value }}</div>
+                <div style="font-size:11.5px;color:var(--muted-foreground)">{{ item.sub }}</div>
+              </x-import>
+            </sc-for>
+          </div>
+          <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px">
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,240px">
+              <div style="font-size:14px;font-weight:600">Current projects</div>
+              <sc-for list="{{ dept.projects }}" as="item" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1fr 90px 100px 80px;gap:12px;align-items:center;padding:9px 0;border-top:1px solid var(--border)">
+                  <div>
+                    <div style="font-size:13px;font-weight:600">{{ item.name }}</div>
+                    <div style="font-size:11.5px;color:var(--muted-foreground)">{{ item.owner }}</div>
+                  </div>
+                  <x-import component-from-global-scope="LuckyFoursUI.Progress" value="{{ item.progress }}" style="height:6px" hint-size="90px,6px"></x-import>
+                  <div style="font-size:12px;color:var(--muted-foreground)">{{ item.due }}</div>
+                  <span style="justify-self:end;font-size:11px;font-weight:600;color:{{ item.statusColor }}">{{ item.status }}</span>
+                </div>
+              </sc-for>
+            </x-import>
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,240px">
+              <div style="font-size:14px;font-weight:600">At risk / blocked</div>
+              <sc-for list="{{ dept.risks }}" as="item" hint-placeholder-count="2">
+                <div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--border)">
+                  <span style="width:8px;height:8px;border-radius:999px;margin-top:5px;flex-shrink:0;background:{{ item.color }}"></span>
+                  <div>
+                    <div style="font-size:13px;font-weight:600;line-height:1.4">{{ item.text }}</div>
+                    <div style="font-size:11.5px;color:var(--muted-foreground);margin-top:2px">{{ item.meta }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </x-import>
+          </div>
+          <sc-if value="{{ dept.isCreative }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:3fr 2fr;gap:14px">
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,280px">
+                <div style="display:flex;align-items:center">
+                  <div style="font-size:14px;font-weight:600;flex:1">Brief backlog</div>
+                  <span style="font-size:11.5px;color:var(--muted-foreground)">via Brief Tracker</span>
+                </div>
+                <div style="display:grid;grid-template-columns:1.4fr .8fr .7fr .5fr .8fr;gap:10px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);padding-bottom:4px">
+                  <span>Brief</span><span>Product</span><span>Owner</span><span>Age</span><span>Status</span>
+                </div>
+                <sc-for list="{{ dept.backlog }}" as="item" hint-placeholder-count="5">
+                  <div style="display:grid;grid-template-columns:1.4fr .8fr .7fr .5fr .8fr;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:12.5px">
+                    <span style="font-weight:600">{{ item.name }}</span>
+                    <span style="color:var(--muted-foreground)">{{ item.product }}</span>
+                    <span style="color:var(--muted-foreground)">{{ item.owner }}</span>
+                    <span style="color:var(--muted-foreground)">{{ item.age }}</span>
+                    <span style="font-size:11px;font-weight:600;color:{{ item.statusColor }}">{{ item.status }}</span>
+                  </div>
+                </sc-for>
+              </x-import>
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,280px">
+                <div style="font-size:14px;font-weight:600">Past performance</div>
+                <div style="font-size:12px;color:var(--muted-foreground)">Briefs submitted vs quota, last 6 weeks</div>
+                <div style="display:flex;align-items:flex-end;gap:14px;height:130px;padding-top:8px">
+                  <sc-for list="{{ dept.perf }}" as="item" hint-placeholder-count="6">
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+                      <div style="font-size:11px;font-weight:600;font-variant-numeric:tabular-nums">{{ item.v }}</div>
+                      <div style="width:100%;max-width:34px;border-radius:6px 6px 2px 2px;background:{{ item.barColor }};height:{{ item.h }}"></div>
+                      <div style="font-size:10.5px;color:var(--muted-foreground)">{{ item.w }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="font-size:11.5px;color:var(--muted-foreground);border-top:1px solid var(--border);padding-top:10px">Quota: 16/wk. Hit 4 of last 6 weeks; W31 dip = product launch freeze.</div>
+              </x-import>
+            </div>
+          </sc-if>
+          <sc-if value="{{ dept.isCx }}" hint-placeholder-val="{{ false }}">
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,200px">
+              <div style="display:flex;align-items:center">
+                <div style="font-size:14px;font-weight:600;flex:1">Agent performance</div>
+                <span style="font-size:11.5px;color:var(--muted-foreground)">via Zendesk · this week</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1.2fr .7fr .7fr .7fr .9fr;gap:10px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);padding-bottom:4px">
+                <span>Agent</span><span>Tickets</span><span>Resolved</span><span>CSAT</span><span>Cadence</span>
+              </div>
+              <sc-for list="{{ dept.agents }}" as="item" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1.2fr .7fr .7fr .7fr .9fr;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:12.5px">
+                  <span style="font-weight:600">{{ item.name }}</span>
+                  <span style="font-variant-numeric:tabular-nums">{{ item.tickets }}</span>
+                  <span style="font-variant-numeric:tabular-nums">{{ item.resolved }}</span>
+                  <span style="font-variant-numeric:tabular-nums">{{ item.csat }}</span>
+                  <span style="font-size:11px;font-weight:600;color:{{ item.cadenceColor }}">{{ item.cadence }}</span>
+                </div>
+              </sc-for>
+            </x-import>
+          </sc-if>
+          <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,200px">
+            <div style="font-size:14px;font-weight:600">Team</div>
+            <sc-for list="{{ dept.team }}" as="item" hint-placeholder-count="3">
+              <div onClick="{{ item.open }}" style="display:flex;align-items:center;gap:12px;padding:9px 6px;border-top:1px solid var(--border);cursor:pointer;border-radius:8px" style-hover="background:var(--muted)">
+                <div style="width:32px;height:32px;border-radius:999px;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;background:{{ item.color }}">{{ item.initials }}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:13px;font-weight:600">{{ item.name }}</div>
+                  <div style="font-size:11.5px;color:var(--muted-foreground)">{{ item.role }}</div>
+                </div>
+                <div style="font-size:12px;color:var(--muted-foreground)">{{ item.signal }}</div>
+                <span style="font-size:12px;color:var(--muted-foreground)">→</span>
+              </div>
+            </sc-for>
+          </x-import>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPerson }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Person profile" style="display:flex;flex-direction:column;gap:18px;max-width:1080px">
+          <div>
+            <div onClick="{{ person.back }}" style="font-size:12px;color:var(--muted-foreground);cursor:pointer;margin-bottom:8px">← {{ person.backLabel }}</div>
+            <div style="display:flex;align-items:center;gap:16px">
+              <div style="width:52px;height:52px;border-radius:999px;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;background:{{ person.color }}">{{ person.initials }}</div>
+              <div style="flex:1">
+                <div style="font-size:20px;font-weight:700;letter-spacing:-.01em">{{ person.name }}</div>
+                <div style="font-size:13px;color:var(--muted-foreground);margin-top:2px">{{ person.role }} · {{ person.deptName }} · {{ person.slack }}</div>
+              </div>
+              <x-import component-from-global-scope="LuckyFoursUI.Button" variant="outline" size="sm" onClick="{{ goCapture }}" hint-size="160px,32px">Capture from Slack</x-import>
+            </div>
+            <div style="font-size:12px;color:var(--muted-foreground);margin-top:10px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:inline-block">Role profile: {{ person.roleProfile }}</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+            <sc-for list="{{ person.signals }}" as="item" hint-placeholder-count="3">
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:14px 16px;gap:5px" hint-size="100%,86px">
+                <div style="font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground)">{{ item.label }}</div>
+                <div style="font-size:21px;font-weight:700;font-variant-numeric:tabular-nums">{{ item.value }}</div>
+                <div style="font-size:11.5px;color:var(--muted-foreground)">{{ item.sub }}</div>
+              </x-import>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:6px;border-bottom:1px solid var(--border);padding-bottom:0">
+            <div onClick="{{ person.setTabTasks }}" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid {{ person.tabTasksBorder }};color:{{ person.tabTasksColor }}">Tasks · {{ person.taskCount }}</div>
+            <div onClick="{{ person.setTabCalendar }}" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid {{ person.tabCalBorder }};color:{{ person.tabCalColor }}">Calendar</div>
+            <div onClick="{{ person.setTabMeetings }}" style="padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid {{ person.tabMeetBorder }};color:{{ person.tabMeetColor }}">Meetings · {{ person.meetingCount }}</div>
+          </div>
+          <sc-if value="{{ person.tabTasks }}" hint-placeholder-val="{{ true }}">
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:6px 18px;gap:0" hint-size="100%,260px">
+              <sc-for list="{{ person.taskRows }}" as="item" hint-placeholder-count="4">
+                <div style="display:grid;grid-template-columns:16px 1fr 130px 90px 110px;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)">
+                  <span style="width:9px;height:9px;border-radius:999px;background:{{ item.dotColor }}"></span>
+                  <div>
+                    <div style="font-size:13px;font-weight:600;text-decoration:{{ item.deco }}">{{ item.title }}</div>
+                    <div style="font-size:11.5px;color:var(--muted-foreground)">{{ item.project }}</div>
+                  </div>
+                  <span style="font-size:11px;font-weight:600;color:var(--muted-foreground);border:1px solid var(--border);border-radius:999px;padding:2px 9px;justify-self:start">{{ item.source }}</span>
+                  <span style="font-size:12px;color:var(--muted-foreground)">{{ item.due }}</span>
+                  <span style="font-size:11.5px;font-weight:600;justify-self:end;color:{{ item.statusColor }}">{{ item.statusLabel }}</span>
+                </div>
+              </sc-for>
+            </x-import>
+          </sc-if>
+          <sc-if value="{{ person.tabCalendar }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+              <sc-for list="{{ person.week }}" as="item" hint-placeholder-count="5">
+                <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:12px;gap:8px;min-height:220px" hint-size="100%,220px">
+                  <div style="font-size:12px;font-weight:700;color:{{ item.dayColor }}">{{ item.d }}</div>
+                  <div style="display:flex;flex-direction:column;gap:8px;min-height:170px">
+                    <sc-for list="{{ item.ev }}" as="e" hint-placeholder-count="2">
+                      <div style="border-left:3px solid {{ e.c }};background:var(--muted);border-radius:6px;padding:7px 9px">
+                        <div style="font-size:10.5px;color:var(--muted-foreground);font-variant-numeric:tabular-nums">{{ e.t }}</div>
+                        <div style="font-size:12px;font-weight:600;line-height:1.35">{{ e.title }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </x-import>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ person.tabMeetings }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <sc-for list="{{ person.meetings }}" as="item" hint-placeholder-count="2">
+                <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,200px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <div style="font-size:14px;font-weight:600;flex:1">{{ item.title }}</div>
+                    <span style="font-size:11px;font-weight:600;color:var(--muted-foreground);border:1px solid var(--border);border-radius:999px;padding:2px 9px">{{ item.tool }}</span>
+                    <span style="font-size:12px;color:var(--muted-foreground)">{{ item.when }}</span>
+                  </div>
+                  <div style="font-size:11.5px;color:var(--muted-foreground)">{{ item.attendees }}</div>
+                  <div style="background:var(--muted);border-radius:10px;padding:12px 14px">
+                    <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;color:var(--muted-foreground);margin-bottom:5px">AI summary</div>
+                    <div style="font-size:13px;line-height:1.55">{{ item.summary }}</div>
+                  </div>
+                  <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;color:var(--muted-foreground);margin-top:2px">Action items → ClickUp</div>
+                  <sc-for list="{{ item.actions }}" as="a" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:10px;font-size:13px;padding:5px 0;border-top:1px solid var(--border)">
+                      <span style="width:8px;height:8px;border-radius:999px;background:{{ a.color }}"></span>
+                      <span style="flex:1">{{ a.text }}</span>
+                      <span style="font-size:11.5px;color:var(--muted-foreground)">{{ a.owner }}</span>
+                      <span style="font-size:11px;font-weight:600;color:{{ a.stateColor }}">{{ a.state }}</span>
+                    </div>
+                  </sc-for>
+                </x-import>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCapture }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Capture queue" style="display:flex;flex-direction:column;gap:18px;max-width:1180px">
+          <div>
+            <div style="font-size:21px;font-weight:700;letter-spacing:-.01em">Agentic capture</div>
+            <div style="font-size:13px;color:var(--muted-foreground);margin-top:4px">Meetings and Slack become tracked, assigned, deadlined action items. Suggestions require approval before syncing to ClickUp.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,240px">
+                <div style="display:flex;align-items:center">
+                  <div style="font-size:14px;font-weight:600;flex:1">Slack MCP</div>
+                  <span style="font-size:11px;color:var(--muted-foreground)">#proj-retention · 11:38</span>
+                </div>
+                <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;gap:10px">
+                  <div style="width:30px;height:30px;border-radius:8px;background:oklch(0.5 0.13 237);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0">A</div>
+                  <div style="font-size:13px;line-height:1.5"><span style="font-weight:700">Ardin</span> · 11:38<br>Email agency still hasn't sent the July report — someone needs to chase them today. Also @Usama can you set up the ClickUp list for #proj-retention before Thursday?</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <x-import component-from-global-scope="LuckyFoursUI.Button" size="sm" onClick="{{ ingestSlack }}" disabled="{{ slackDone }}" hint-size="170px,32px">{{ slackBtnLabel }}</x-import>
+                  <span style="font-size:12px;color:var(--color-emerald-600);font-weight:600">{{ slackNote }}</span>
+                </div>
+              </x-import>
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,260px">
+                <div style="display:flex;align-items:center">
+                  <div style="font-size:14px;font-weight:600;flex:1">Fireflies transcript</div>
+                  <span style="font-size:11px;color:var(--muted-foreground)">Weekly CX sync · today 10:00</span>
+                </div>
+                <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6;color:var(--muted-foreground);font-style:italic">"…Ronalyn walked through the CX metrics recap in the meeting itself, so that one's covered. The macro pack for supplement returns needs updating before Friday, and Damian asked for the July CSAT deep-dive by Wednesday…"</div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <x-import component-from-global-scope="LuckyFoursUI.Button" size="sm" onClick="{{ ingestFF }}" disabled="{{ ffDone }}" hint-size="170px,32px">{{ ffBtnLabel }}</x-import>
+                  <span style="font-size:12px;color:var(--color-emerald-600);font-weight:600">{{ ffNote }}</span>
+                </div>
+              </x-import>
+            </div>
+            <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:12px" hint-size="100%,420px">
+              <div style="display:flex;align-items:center">
+                <div style="font-size:14px;font-weight:600;flex:1">Review queue</div>
+                <span style="font-size:11.5px;color:var(--muted-foreground)">{{ queueCount }} pending</span>
+              </div>
+              <sc-if value="{{ queueEmpty }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:13px;color:var(--muted-foreground);padding:20px 0;text-align:center">Queue clear — nothing awaiting review.</div>
+              </sc-if>
+              <sc-for list="{{ queue }}" as="item" hint-placeholder-count="2">
+                <div style="border:1px solid var(--border);border-radius:10px;padding:13px 14px;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="font-size:13px;font-weight:600;flex:1;line-height:1.4">{{ item.title }}</div>
+                    <span style="font-size:10.5px;font-weight:700;color:var(--color-emerald-600);border:1px solid currentColor;border-radius:999px;padding:1px 7px;flex-shrink:0">{{ item.conf }}%</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--muted-foreground);font-style:italic">{{ item.quote }}</div>
+                  <div style="display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--muted-foreground)">
+                    <span style="font-weight:600;color:var(--foreground)">{{ item.owner }}</span>
+                    <span>due {{ item.due }}</span>
+                    <span style="flex:1">{{ item.source }}</span>
+                    <x-import component-from-global-scope="LuckyFoursUI.Button" size="sm" variant="ghost" onClick="{{ item.dismiss }}" hint-size="66px,30px">Dismiss</x-import>
+                    <x-import component-from-global-scope="LuckyFoursUI.Button" size="sm" onClick="{{ item.approve }}" hint-size="70px,30px">Approve</x-import>
+                  </div>
+                </div>
+              </sc-for>
+              <sc-if value="{{ hasSynced }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;color:var(--muted-foreground);margin-top:4px">Synced to ClickUp</div>
+                <sc-for list="{{ synced }}" as="item" hint-placeholder-count="1">
+                  <div style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--muted-foreground);padding:4px 0">
+                    <span style="color:var(--color-emerald-600);font-weight:700">✓</span>
+                    <span style="flex:1">{{ item.title }}</span>
+                    <span>{{ item.owner }}</span>
+                  </div>
+                </sc-for>
+              </sc-if>
+            </x-import>
+          </div>
+          <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,220px">
+            <div style="display:flex;align-items:center">
+              <div style="font-size:14px;font-weight:600;flex:1">Auto-completion ledger</div>
+              <span style="font-size:11.5px;color:var(--muted-foreground)">completion is evidenced, not self-declared</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1.2fr .6fr 1.6fr .6fr;gap:10px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);padding-bottom:4px">
+              <span>Task</span><span>Owner</span><span>Evidence</span><span>When</span>
+            </div>
+            <sc-for list="{{ ledger }}" as="item" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:1.2fr .6fr 1.6fr .6fr;gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--border);font-size:12.5px">
+                <span style="font-weight:600">{{ item.task }}</span>
+                <span style="color:var(--muted-foreground)">{{ item.owner }}</span>
+                <span style="color:var(--muted-foreground)">{{ item.evidence }}</span>
+                <span style="color:var(--color-emerald-600);font-weight:600">{{ item.when }}</span>
+              </div>
+            </sc-for>
+          </x-import>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPeople }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="People and org" style="display:flex;flex-direction:column;gap:18px;max-width:1080px">
+          <div>
+            <div style="font-size:21px;font-weight:700;letter-spacing:-.01em">People &amp; org</div>
+            <div style="font-size:13px;color:var(--muted-foreground);margin-top:4px">Org chart seeded from Miro · live embed: luckyfours.app/embed/org</div>
+          </div>
+          <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:26px;gap:0;align-items:center" hint-size="100%,380px">
+            <div onClick="{{ org.lead.open }}" style="align-self:center;border:1px solid var(--border);border-radius:12px;padding:12px 20px;display:flex;align-items:center;gap:12px;cursor:pointer" style-hover="background:var(--muted)">
+              <div style="width:36px;height:36px;border-radius:999px;background:var(--color-violet-600);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">D</div>
+              <div><div style="font-size:13.5px;font-weight:700">Damian</div><div style="font-size:11.5px;color:var(--muted-foreground)">Founder</div></div>
+            </div>
+            <div style="align-self:center;width:1px;height:22px;background:var(--border)"></div>
+            <div onClick="{{ org.ops.open }}" style="align-self:center;border:1px solid var(--border);border-radius:12px;padding:10px 18px;display:flex;align-items:center;gap:12px;cursor:pointer" style-hover="background:var(--muted)">
+              <div style="width:32px;height:32px;border-radius:999px;background:oklch(0.5 0.13 237);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px">A</div>
+              <div><div style="font-size:13px;font-weight:700">Ardin</div><div style="font-size:11.5px;color:var(--muted-foreground)">Head of Ops</div></div>
+            </div>
+            <div style="align-self:center;width:1px;height:22px;background:var(--border)"></div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;width:100%">
+              <sc-for list="{{ org.groups }}" as="item" hint-placeholder-count="4">
+                <div style="border-top:3px solid {{ item.color }};border-radius:10px;background:var(--muted);padding:12px;display:flex;flex-direction:column;gap:8px">
+                  <div style="font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted-foreground)">{{ item.name }}</div>
+                  <sc-for list="{{ item.people }}" as="p" hint-placeholder-count="2">
+                    <div onClick="{{ p.open }}" style="display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:7px 9px;cursor:pointer" style-hover="border-color:var(--ring)">
+                      <div style="width:26px;height:26px;border-radius:999px;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:10.5px;flex-shrink:0;background:{{ p.color }}">{{ p.initials }}</div>
+                      <div style="min-width:0"><div style="font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div><div style="font-size:10.5px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.role }}</div></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </x-import>
+          <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,120px">
+            <div style="font-size:14px;font-weight:600">Recruiting</div>
+            <div style="display:flex;gap:24px;font-size:13px">
+              <div><span style="font-weight:600">Video editor</span> <span style="color:var(--muted-foreground)">· contract · 4 candidates in review</span></div>
+              <div><span style="font-weight:600">CX agent</span> <span style="color:var(--muted-foreground)">· full-time · sourcing</span></div>
+            </div>
+          </x-import>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isOffload }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="Founder offload" style="display:flex;flex-direction:column;gap:18px;max-width:1080px">
+          <div>
+            <div style="font-size:21px;font-weight:700;letter-spacing:-.01em">Founder task offload</div>
+            <div style="font-size:13px;color:var(--muted-foreground);margin-top:4px">Damian surfaces a task → Ardin assigns an owner → tracked here until verifiably handed off.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+            <sc-for list="{{ offloadStats }}" as="item" hint-placeholder-count="3">
+              <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:14px 16px;gap:5px" hint-size="100%,88px">
+                <div style="font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground)">{{ item.label }}</div>
+                <div style="font-size:22px;font-weight:700;font-variant-numeric:tabular-nums">{{ item.value }}</div>
+              </x-import>
+            </sc-for>
+          </div>
+          <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:18px;gap:10px" hint-size="100%,260px">
+            <div style="display:grid;grid-template-columns:1.6fr .7fr .6fr .8fr;gap:10px;font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--muted-foreground);padding-bottom:4px">
+              <span>Task</span><span>Proposed owner</span><span>Time / wk</span><span>Status</span>
+            </div>
+            <sc-for list="{{ offloadRows }}" as="item" hint-placeholder-count="4">
+              <div style="display:grid;grid-template-columns:1.6fr .7fr .6fr .8fr;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--border);font-size:13px">
+                <div><div style="font-weight:600">{{ item.task }}</div><div style="font-size:11.5px;color:var(--muted-foreground);margin-top:2px">{{ item.note }}</div></div>
+                <span>{{ item.owner }}</span>
+                <span style="font-variant-numeric:tabular-nums;color:var(--muted-foreground)">{{ item.time }}</span>
+                <span style="justify-self:start;display:inline-flex;padding:2px 10px;border-radius:999px;border:1px solid currentColor;font-size:11px;font-weight:600;color:{{ item.statusColor }}">{{ item.status }}</span>
+              </div>
+            </sc-for>
+          </x-import>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSearch }}" hint-placeholder-val="{{ false }}">
+        <div data-screen-label="AI search" style="display:flex;flex-direction:column;gap:18px;max-width:760px;margin:30px auto 0 auto">
+          <div style="text-align:center">
+            <div style="font-size:22px;font-weight:700;letter-spacing:-.01em">Company AI brain</div>
+            <div style="font-size:13px;color:var(--muted-foreground);margin-top:5px">Search across the portal, meeting docs, Slack, and Notion — answers respect role access boundaries.</div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <x-import component-from-global-scope="LuckyFoursUI.Input" placeholder="What's our return policy for opened supplements?" style="height:42px;font-size:14px;flex:1" hint-size="100%,42px"></x-import>
+            <x-import component-from-global-scope="LuckyFoursUI.Button" style="height:42px" hint-size="80px,42px">Search</x-import>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+            <span style="font-size:12px;border:1px solid var(--border);border-radius:999px;padding:4px 12px;color:var(--muted-foreground)">Which SKUs are on backorder?</span>
+            <span style="font-size:12px;border:1px solid var(--border);border-radius:999px;padding:4px 12px;color:var(--muted-foreground)">Who owns the Klaviyo flows?</span>
+            <span style="font-size:12px;border:1px solid var(--border);border-radius:999px;padding:4px 12px;color:var(--muted-foreground)">Summary of last exec weekly</span>
+          </div>
+          <x-import component-from-global-scope="LuckyFoursUI.Card" style="padding:20px;gap:12px" hint-size="100%,240px">
+            <div style="font-size:13.5px;font-weight:600">What's our return policy for opened supplements?</div>
+            <div style="font-size:13.5px;line-height:1.6">Opened supplements are refundable within 30 days if less than 25% used; issue store credit past 30 days. Route the ticket through the "supplement return" macro and flag anything over $80 for Ronalyn's approval before refunding.</div>
+            <div style="display:flex;flex-direction:column;gap:5px;border-top:1px solid var(--border);padding-top:10px">
+              <div style="font-size:11px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;color:var(--muted-foreground)">Sources</div>
+              <div style="font-size:12.5px;color:var(--muted-foreground)">Portal → CX Playbook → Returns (updated Jul 22)</div>
+              <div style="font-size:12.5px;color:var(--muted-foreground)">Notion → Policies → Refund thresholds</div>
+              <div style="font-size:12.5px;color:var(--muted-foreground)">Weekly CX sync (Jul 28) — macro routing decision</div>
+            </div>
+            <div style="font-size:11.5px;color:var(--muted-foreground)">Answer scoped to CX agent access — finance and HR sources excluded.</div>
+          </x-import>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;darkMode&quot;: {&quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Appearance&quot;}, &quot;accent&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;default&quot;: &quot;default&quot;, &quot;options&quot;: [&quot;default&quot;, &quot;blue&quot;, &quot;green&quot;, &quot;amber&quot;], &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Appearance&quot;}}">
+class Component extends DCLogic {
+  state = {
+    view: 'tower', deptId: 'creative', personId: 'hashim', tab: 'tasks',
+    slackDone: false, ffDone: false, autoDone: {},
+    queue: [
+      { id: 'q1', title: 'Send Commercive updated sample specs', owner: 'Ardin', due: 'Aug 6', source: 'Slack · #proj-sourcing', quote: '"can someone get Commercive the revised specs before Thursday?"', conf: 92 },
+      { id: 'q2', title: 'Draft returns-flow copy for portal banner', owner: 'Diane', due: 'Aug 7', source: 'Meeting · Ops weekly (Fireflies)', quote: '"Diane to draft the banner copy once legal signs off"', conf: 88 }
+    ],
+    synced: [],
+    ledger: [
+      { task: 'Review inventory returns (daily)', owner: 'Diane', evidence: 'Portal · returns awaiting-review tab acknowledged', when: 'Today 9:12' },
+      { task: 'Weekly brief quota (6/8)', owner: 'Hashim', evidence: 'Brief Tracker · 6 briefs submitted W32', when: '1h ago' },
+      { task: 'Daily standup notes posted', owner: 'Usama', evidence: 'Slack · #eng-standup message detected', when: 'Today 10:04' }
+    ]
+  };
+
+  C = { good: 'var(--color-emerald-600)', warn: 'var(--color-amber-600)', bad: 'var(--color-red-600)', mut: 'var(--muted-foreground)' };
+  HEALTH = { good: 'On track', warn: 'Watch', attention: 'Needs attention' };
+  HCOLOR = { good: 'var(--color-emerald-600)', warn: 'var(--color-amber-600)', attention: 'var(--color-red-600)' };
+
+  DB = {
+    depts: {
+      cx: {
+        name: 'CX / Support', color: 'oklch(0.68 0.14 237)', health: 'warn',
+        summary: 'Ticket volume up 14% after the July promo. Agent cadence solid; action-item follow-through from the weekly sync is the watch item.',
+        keyStat: '482 tickets · CSAT 4.6', note: '9 open action items from weekly sync; 2 overdue.',
+        stats: [
+          { label: 'Tickets this wk', value: '482', sub: '+14% vs 4-wk avg' },
+          { label: 'CSAT', value: '4.6', sub: 'target 4.5' },
+          { label: 'First response', value: '38m', sub: 'target < 45m' },
+          { label: 'Open action items', value: '9', sub: '2 overdue' }
+        ],
+        projects: [
+          { name: 'Zendesk macros refresh', owner: 'Ronalyn', due: 'Aug 14', progress: 60, status: 'On track', st: 'good' },
+          { name: 'Returns flow revamp', owner: 'Diane', due: 'Aug 28', progress: 35, status: 'On track', st: 'good' },
+          { name: 'Post-promo ticket backlog burn-down', owner: 'Jorge', due: 'Aug 8', progress: 70, status: 'Watch', st: 'warn' }
+        ],
+        risks: [
+          { text: 'QA of new macros overdue 2 days', meta: 'Ronalyn · flagged in Slack Mon', st: 'bad' },
+          { text: 'Returns backlog above threshold (61 awaiting)', meta: 'Diane · auto-flagged by portal signal', st: 'warn' }
+        ],
+        members: ['ronalyn', 'diane', 'jorge'],
+        agents: [
+          { name: 'Jorge', tickets: 126, resolved: '92%', csat: 4.7, cadence: 'On pace', cad: 'good' },
+          { name: 'Faye', tickets: 118, resolved: '89%', csat: 4.5, cadence: 'On pace', cad: 'good' },
+          { name: 'New hire (ramp)', tickets: 41, resolved: '81%', csat: 4.2, cadence: 'Ramping', cad: 'warn' }
+        ]
+      },
+      creative: {
+        name: 'Creative', color: 'var(--color-violet-500)', health: 'good',
+        summary: 'Briefs tracking slightly under quota (6/8 this week) with a healthy backlog. Video delivery is the constraint — editor hiring in progress.',
+        keyStat: '11/16 briefs · 7/10 videos', note: 'Backlog healthy at 14 items; video editing is the constraint.',
+        stats: [
+          { label: 'Briefs this wk', value: '11/16', sub: 'team quota' },
+          { label: 'Videos delivered', value: '7/10', sub: 'editor capacity-bound' },
+          { label: 'Backlog', value: '14', sub: '3 aging > 2 wks' },
+          { label: 'Brief → ad live', value: '4.2d', sub: 'avg, last 30d' }
+        ],
+        projects: [
+          { name: 'Q3 UGC push', owner: 'Hashim', due: 'Sep 5', progress: 45, status: 'On track', st: 'good' },
+          { name: 'Bron relaunch creatives', owner: 'Hashim', due: 'Aug 15', progress: 75, status: 'On track', st: 'good' },
+          { name: 'Evergreen hooks refresh', owner: 'Mika', due: 'Aug 21', progress: 30, status: 'Watch', st: 'warn' }
+        ],
+        risks: [
+          { text: 'Video queue exceeds editor capacity by ~3/wk', meta: 'Mika · recruiting contract editor', st: 'warn' }
+        ],
+        members: ['hashim', 'mika'],
+        backlog: [
+          { name: 'Santos "morning ritual" UGC', product: 'Santos', owner: 'Hashim', age: '3d', status: 'In edit', st: 'good' },
+          { name: 'Bron relaunch hero static', product: 'Bron', owner: 'Hashim', age: '5d', status: 'In edit', st: 'good' },
+          { name: 'Founder story cutdowns ×3', product: 'Brand', owner: 'Mika', age: '9d', status: 'Editing', st: 'warn' },
+          { name: 'Reviews-as-hooks batch', product: 'Santos', owner: 'Hashim', age: '12d', status: 'Not started', st: 'warn' },
+          { name: 'Q3 UGC creator briefs ×4', product: 'Multi', owner: 'Hashim', age: '16d', status: 'Aging', st: 'bad' }
+        ],
+        perf: [
+          { w: 'W27', v: 14 }, { w: 'W28', v: 17 }, { w: 'W29', v: 16 }, { w: 'W30', v: 12 }, { w: 'W31', v: 9 }, { w: 'W32', v: 11 }
+        ]
+      },
+      eng: {
+        name: 'Engineering', color: 'oklch(0.7 0.19 45)', health: 'attention',
+        summary: 'Portal v2 auth migration is 4 days overdue and blocks the returns-signal work. Contractor capacity being re-planned this week.',
+        keyStat: '6 in flight · 2 overdue', note: 'Portal v2 overdue 4d; blocks returns auto-completion signal.',
+        stats: [
+          { label: 'In flight', value: '6', sub: 'across 3 projects' },
+          { label: 'Overdue', value: '2', sub: 'Portal v2 · webhook svc' },
+          { label: 'Shipped this mo', value: '9', sub: 'PRs merged: 34' },
+          { label: 'Cycle time', value: '3.4d', sub: 'avg, last 30d' }
+        ],
+        projects: [
+          { name: 'Portal v2 auth migration', owner: 'Usama', due: 'Jul 31', progress: 80, status: 'Overdue', st: 'bad' },
+          { name: 'Command Center ingest svc', owner: 'Usama', due: 'Aug 20', progress: 40, status: 'On track', st: 'good' },
+          { name: 'ClickUp ↔ Slack sync', owner: 'Contractor', due: 'Aug 12', progress: 55, status: 'Watch', st: 'warn' }
+        ],
+        risks: [
+          { text: 'Portal v2 overdue 4 days — blocks returns activity signal', meta: 'Usama · Slack alert sent Aug 2', st: 'bad' },
+          { text: 'Contractor availability drops to 50% next sprint', meta: 'Ardin re-planning capacity', st: 'warn' }
+        ],
+        members: ['usama']
+      },
+      ops: {
+        name: 'Ops / Leadership', color: 'var(--color-emerald-500)', health: 'good',
+        summary: 'Action-item completion at 92%. Automation coverage growing — 76% of recurring ops tasks now auto-complete from activity signals.',
+        keyStat: '92% completion · 76% auto', note: 'Email agency July report still outstanding.',
+        stats: [
+          { label: 'Action items done', value: '92%', sub: 'last 30d' },
+          { label: 'Auto-completed', value: '76%', sub: 'of recurring tasks' },
+          { label: 'Agencies on time', value: '3/4', sub: 'email agency late' },
+          { label: 'Automations live', value: '12', sub: '+2 this month' }
+        ],
+        projects: [
+          { name: 'Command Center rollout (Ph. 1)', owner: 'Ardin', due: 'Aug 29', progress: 50, status: 'On track', st: 'good' },
+          { name: 'AI meeting tool evaluation', owner: 'Ardin', due: 'Aug 7', progress: 65, status: 'On track', st: 'good' }
+        ],
+        risks: [
+          { text: 'Email agency July report not received', meta: 'Ardin · chase task in capture queue', st: 'warn' }
+        ],
+        members: ['damian', 'ardin']
+      }
+    },
+    people: {
+      damian: {
+        name: 'Damian', initials: 'D', role: 'Founder', dept: 'ops', color: 'var(--color-violet-600)', slack: '@damian',
+        roleProfile: 'Founder — tracked via offload queue + copilot usage, not task volume.',
+        signals: [
+          { label: 'Offload queue', value: '4', sub: '2 handed off' },
+          { label: 'Copilot asks this wk', value: '18', sub: 'was ~40 manual pings' },
+          { label: 'Meeting load', value: '12h', sub: 'this week' }
+        ],
+        tasks: [
+          { id: 'dam1', title: 'Review Q3 agency scorecards', source: 'Manual', due: 'Aug 6', status: 'open', project: 'Control Tower' },
+          { id: 'dam2', title: 'Record founder context for copilot', source: 'Meeting', due: 'Aug 8', status: 'open', project: 'Command Center' },
+          { id: 'dam3', title: 'Approve Bron relaunch hero creative', source: 'Slack', due: 'Aug 4', status: 'done', project: 'Bron relaunch' }
+        ],
+        meetings: ['exec'],
+        week: { Mon: [{ t: '10:00', title: 'Exec weekly', c: 'var(--color-emerald-500)' }], Tue: [{ t: '14:00', title: 'Commercive check-in', c: 'oklch(0.68 0.14 237)' }], Wed: [{ t: '11:00', title: 'Creative review', c: 'var(--color-violet-500)' }], Thu: [], Fri: [{ t: '9:30', title: 'Founder deep work', c: 'var(--color-emerald-500)' }] }
+      },
+      ardin: {
+        name: 'Ardin', initials: 'A', role: 'Head of Ops', dept: 'ops', color: 'oklch(0.5 0.13 237)', slack: '@ardin',
+        roleProfile: 'Ops/leadership — action items + delivery cadence across teams; owns role configs and automations.',
+        signals: [
+          { label: 'Teams on track', value: '3/4', sub: 'Engineering flagged' },
+          { label: 'Open action items', value: '7', sub: '1 due today' },
+          { label: 'Automations live', value: '12', sub: 'owner of 9' }
+        ],
+        tasks: [
+          { id: 'ard1', title: 'Evaluate AI meeting tool vs Fireflies', source: 'Meeting', due: 'Aug 7', status: 'open', project: 'Command Center' },
+          { id: 'ard2', title: 'Structure review re-tagging handoff to Diane', source: 'Manual', due: 'Aug 5', status: 'open', project: 'Founder offload' },
+          { id: 'ard3', title: 'Re-plan contractor capacity for next sprint', source: 'Slack', due: 'Aug 6', status: 'open', project: 'Engineering' },
+          { id: 'ard4', title: 'Confirm agency report formats', source: 'Meeting', due: 'Jul 31', status: 'overdue', project: 'Agency capture' }
+        ],
+        meetings: ['exec', 'eng'],
+        week: { Mon: [{ t: '10:00', title: 'Exec weekly', c: 'var(--color-emerald-500)' }, { t: '15:00', title: 'Eng standup', c: 'oklch(0.7 0.19 45)' }], Tue: [{ t: '9:30', title: 'Ops weekly', c: 'var(--color-emerald-500)' }], Wed: [{ t: '13:00', title: 'Agency syncs ×2', c: 'var(--color-amber-500)' }], Thu: [{ t: '15:00', title: 'Eng standup', c: 'oklch(0.7 0.19 45)' }], Fri: [{ t: '11:00', title: 'Automation review', c: 'oklch(0.68 0.14 237)' }] }
+      },
+      ronalyn: {
+        name: 'Ronalyn', initials: 'R', role: 'Support Manager', dept: 'cx', color: 'oklch(0.68 0.14 237)', slack: '@ronalyn',
+        roleProfile: 'Ops/leadership — action items + daily ops cadence; agent-level visibility via Zendesk.',
+        signals: [
+          { label: 'Agent action items', value: '9', sub: '2 overdue' },
+          { label: 'Daily ops tasks', value: '5/6', sub: 'today, 4 auto-completed' },
+          { label: 'Team CSAT', value: '4.6', sub: 'target 4.5' }
+        ],
+        tasks: [
+          { id: 'ron1', title: 'Post weekly CX metrics recap', source: 'Meeting', due: 'Aug 4', status: 'open', project: 'Weekly CX sync' },
+          { id: 'ron2', title: 'Assign returns macro update to agents', source: 'Slack', due: 'Aug 5', status: 'open', project: 'Macros refresh' },
+          { id: 'ron3', title: 'QA new supplement-return macros', source: 'Meeting', due: 'Aug 2', status: 'overdue', project: 'Macros refresh' },
+          { id: 'ron4', title: 'Review agent ramp plan', source: 'Manual', due: 'Aug 3', status: 'done', project: 'Hiring' }
+        ],
+        meetings: ['cxsync'],
+        week: { Mon: [{ t: '9:00', title: 'Ticket triage', c: 'oklch(0.68 0.14 237)' }], Tue: [{ t: '10:00', title: 'Weekly CX sync', c: 'oklch(0.68 0.14 237)' }], Wed: [{ t: '14:00', title: '1:1 Jorge', c: 'oklch(0.68 0.14 237)' }], Thu: [{ t: '14:00', title: '1:1 Faye', c: 'oklch(0.68 0.14 237)' }], Fri: [{ t: '10:00', title: 'Metrics recap prep', c: 'var(--color-amber-500)' }] }
+      },
+      diane: {
+        name: 'Diane', initials: 'Di', role: 'CX Ops', dept: 'cx', color: 'var(--color-teal-600)', slack: '@diane',
+        roleProfile: 'Ops — recurring daily tasks auto-complete from portal activity (returns review, claims).',
+        signals: [
+          { label: 'Recurring auto-done', value: '8/9', sub: 'this week' },
+          { label: 'Returns cleared', value: '61', sub: 'today, above threshold' },
+          { label: 'Manual check-offs', value: '1', sub: 'automation pending' }
+        ],
+        tasks: [
+          { id: 'dia1', title: 'Review inventory returns (daily)', source: 'Auto', due: 'Daily', status: 'auto', project: 'Recurring ops' },
+          { id: 'dia2', title: 'Reconcile carrier claims', source: 'Auto', due: 'Weekly', status: 'auto', project: 'Recurring ops' },
+          { id: 'dia3', title: 'Draft returns-flow portal banner copy', source: 'Meeting', due: 'Aug 7', status: 'open', project: 'Returns revamp' }
+        ],
+        meetings: ['cxsync'],
+        week: { Mon: [{ t: '9:00', title: 'Returns review', c: 'oklch(0.7 0.12 183)' }], Tue: [{ t: '10:00', title: 'Weekly CX sync', c: 'oklch(0.68 0.14 237)' }], Wed: [{ t: '9:00', title: 'Returns review', c: 'oklch(0.7 0.12 183)' }], Thu: [{ t: '9:00', title: 'Returns review', c: 'oklch(0.7 0.12 183)' }], Fri: [{ t: '13:00', title: 'Claims reconciliation', c: 'oklch(0.7 0.12 183)' }] }
+      },
+      hashim: {
+        name: 'Hashim', initials: 'H', role: 'Creative strategist', dept: 'creative', color: 'var(--color-violet-500)', slack: '@hashim',
+        roleProfile: 'Creative — briefs/week vs quota, auto-tracked from Brief Tracker submissions.',
+        signals: [
+          { label: 'Briefs this wk', value: '6/8', sub: 'quota · auto-tracked' },
+          { label: 'Avg turnaround', value: '2.1d', sub: 'concept → brief' },
+          { label: 'In ad testing', value: '3', sub: '1 early winner' }
+        ],
+        tasks: [
+          { id: 'has1', title: 'Q3 UGC creator briefs ×4', source: 'Meeting', due: 'Aug 8', status: 'open', project: 'Q3 UGC push' },
+          { id: 'has2', title: 'Bron relaunch hero static v2', source: 'Slack', due: 'Aug 5', status: 'open', project: 'Bron relaunch' },
+          { id: 'has3', title: 'Reviews-as-hooks batch (Santos)', source: 'Manual', due: 'Aug 12', status: 'open', project: 'Evergreen refresh' },
+          { id: 'has4', title: 'Submit W32 brief quota (6/8)', source: 'Auto', due: 'Fri', status: 'auto', project: 'Brief Tracker' },
+          { id: 'has5', title: 'Santos "morning ritual" UGC brief', source: 'Meeting', due: 'Aug 1', status: 'done', project: 'Q3 UGC push' }
+        ],
+        meetings: ['creative', 'briefrev'],
+        week: {
+          Mon: [{ t: '9:30', title: 'Creative sync', c: 'var(--color-violet-500)' }, { t: '14:00', title: 'Brief writing block', c: 'oklch(0.71 0.16 294)' }],
+          Tue: [{ t: '11:00', title: 'UGC creator calls ×2', c: 'var(--color-amber-500)' }],
+          Wed: [{ t: '11:00', title: 'Creative review w/ Damian', c: 'var(--color-violet-500)' }, { t: '15:00', title: 'Brief writing block', c: 'oklch(0.71 0.16 294)' }],
+          Thu: [{ t: '10:00', title: 'Brief review', c: 'var(--color-violet-500)' }],
+          Fri: [{ t: '9:30', title: 'Ad results readout', c: 'var(--color-emerald-500)' }, { t: '13:00', title: 'Quota wrap-up', c: 'oklch(0.71 0.16 294)' }]
+        }
+      },
+      mika: {
+        name: 'Mika', initials: 'M', role: 'Video editor', dept: 'creative', color: 'oklch(0.59 0.23 325)', slack: '@mika',
+        roleProfile: 'Creative — edits/videos vs quota, auto-tracked from Brief Tracker deliveries.',
+        signals: [
+          { label: 'Edits this wk', value: '7/10', sub: 'quota · auto-tracked' },
+          { label: 'Queue depth', value: '13', sub: '~3/wk over capacity' },
+          { label: 'Avg edit time', value: '1.6d', sub: 'per video' }
+        ],
+        tasks: [
+          { id: 'mik1', title: 'Founder story cutdowns ×3', source: 'Meeting', due: 'Aug 6', status: 'open', project: 'Evergreen refresh' },
+          { id: 'mik2', title: 'Santos UGC edit (morning ritual)', source: 'Auto', due: 'Aug 5', status: 'open', project: 'Q3 UGC push' },
+          { id: 'mik3', title: 'Bron relaunch 15s cut', source: 'Manual', due: 'Aug 3', status: 'done', project: 'Bron relaunch' }
+        ],
+        meetings: ['creative'],
+        week: { Mon: [{ t: '9:30', title: 'Creative sync', c: 'var(--color-violet-500)' }], Tue: [{ t: '10:00', title: 'Edit block', c: 'oklch(0.67 0.26 322)' }], Wed: [{ t: '10:00', title: 'Edit block', c: 'oklch(0.67 0.26 322)' }], Thu: [{ t: '10:00', title: 'Brief review', c: 'var(--color-violet-500)' }], Fri: [{ t: '10:00', title: 'Delivery + QC', c: 'var(--color-emerald-500)' }] }
+      },
+      usama: {
+        name: 'Usama', initials: 'U', role: 'FDE / Coder', dept: 'eng', color: 'oklch(0.64 0.19 45)', slack: '@usama',
+        roleProfile: 'Coder — assigned projects, timelines, progress; PR/commit activity as delivery signal.',
+        signals: [
+          { label: 'In flight', value: '4', sub: '1 overdue' },
+          { label: 'PRs merged', value: '11', sub: 'last 2 wks' },
+          { label: 'Portal v2', value: '-4d', sub: 'overdue · flagged' }
+        ],
+        tasks: [
+          { id: 'usa1', title: 'Portal v2 auth migration', source: 'Manual', due: 'Jul 31', status: 'overdue', project: 'Portal v2' },
+          { id: 'usa2', title: 'Ingest service: Fireflies webhook', source: 'Meeting', due: 'Aug 12', status: 'open', project: 'Command Center' },
+          { id: 'usa3', title: 'Set up #proj-retention ClickUp list', source: 'Slack', due: 'Aug 6', status: 'open', project: 'Retention' },
+          { id: 'usa4', title: 'Returns-tab activity event emitter', source: 'Meeting', due: 'Aug 15', status: 'open', project: 'Auto-completion' }
+        ],
+        meetings: ['eng'],
+        week: { Mon: [{ t: '15:00', title: 'Eng standup', c: 'oklch(0.7 0.19 45)' }], Tue: [{ t: '9:00', title: 'Focus: auth migration', c: 'oklch(0.76 0.16 55)' }], Wed: [{ t: '9:00', title: 'Focus: auth migration', c: 'oklch(0.76 0.16 55)' }], Thu: [{ t: '15:00', title: 'Eng standup', c: 'oklch(0.7 0.19 45)' }], Fri: [{ t: '14:00', title: 'Sprint re-plan w/ Ardin', c: 'oklch(0.68 0.14 237)' }] }
+      },
+      jorge: {
+        name: 'Jorge', initials: 'J', role: 'CX agent', dept: 'cx', color: 'oklch(0.6 0.11 222)', slack: '@jorge',
+        roleProfile: 'CX agent — ticket volume, comments and resolutions tracked in Zendesk.',
+        signals: [
+          { label: 'Tickets this wk', value: '126', sub: 'resolved 92%' },
+          { label: 'CSAT', value: '4.7', sub: 'team-leading' },
+          { label: 'Action items', value: '2', sub: 'from CX sync' }
+        ],
+        tasks: [
+          { id: 'jor1', title: 'Burn down post-promo ticket backlog', source: 'Meeting', due: 'Aug 8', status: 'open', project: 'Backlog burn-down' },
+          { id: 'jor2', title: 'Test updated supplement-return macro', source: 'Slack', due: 'Aug 6', status: 'open', project: 'Macros refresh' }
+        ],
+        meetings: ['cxsync'],
+        week: { Mon: [{ t: '8:00', title: 'Queue shift', c: 'oklch(0.71 0.13 215)' }], Tue: [{ t: '10:00', title: 'Weekly CX sync', c: 'oklch(0.68 0.14 237)' }], Wed: [{ t: '8:00', title: 'Queue shift', c: 'oklch(0.71 0.13 215)' }, { t: '14:00', title: '1:1 Ronalyn', c: 'oklch(0.68 0.14 237)' }], Thu: [{ t: '8:00', title: 'Queue shift', c: 'oklch(0.71 0.13 215)' }], Fri: [{ t: '8:00', title: 'Queue shift', c: 'oklch(0.71 0.13 215)' }] }
+      }
+    },
+    meetings: {
+      exec: {
+        title: 'Exec weekly', when: 'Mon Aug 3 · 10:00', tool: 'Fireflies', attendees: 'Damian, Ardin, Ronalyn, Hashim',
+        summary: 'Engineering flagged red: Portal v2 auth migration slipped 4 days and blocks the returns auto-completion signal. Creative slightly under brief quota but ad testing shows an early winner on Santos UGC. Decision: adopt #proj- channel convention for all new projects; Ardin to finish the AI meeting tool evaluation by Friday.',
+        actions: [
+          { text: 'Finish AI meeting tool vs Fireflies evaluation', owner: 'Ardin', done: false },
+          { text: 'Re-plan contractor capacity for next sprint', owner: 'Ardin', done: false },
+          { text: 'Record founder context doc for copilot', owner: 'Damian', done: false }
+        ]
+      },
+      cxsync: {
+        title: 'Weekly CX sync', when: 'Tue Aug 4 · 10:00', tool: 'Fireflies', attendees: 'Ronalyn, Diane, Jorge, Faye',
+        summary: 'Ticket volume up 14% post-promo; backlog burn-down on pace for Aug 8. Ronalyn delivered the metrics recap live in the meeting. Macro pack for supplement returns needs updating before Friday; Damian requested the July CSAT deep-dive by Wednesday.',
+        actions: [
+          { text: 'Update supplement-returns macro pack', owner: 'Ronalyn', done: false },
+          { text: 'Share July CSAT deep-dive with Damian', owner: 'Ronalyn', done: false },
+          { text: 'Test updated macro on live tickets', owner: 'Jorge', done: false }
+        ]
+      },
+      creative: {
+        title: 'Creative sync', when: 'Mon Aug 3 · 9:30', tool: 'Fireflies', attendees: 'Hashim, Mika, Ardin',
+        summary: 'Six briefs in flight against the 8/wk quota; Bron relaunch hero needs a v2 after Damian\u2019s Slack feedback. Video queue is ~3/wk over Mika\u2019s capacity — contract editor candidates shortlisted. Santos UGC concept showing early winner signal in testing.',
+        actions: [
+          { text: 'Bron relaunch hero static v2', owner: 'Hashim', done: false },
+          { text: 'Shortlist top 2 contract editor candidates', owner: 'Mika', done: true },
+          { text: 'Q3 UGC creator briefs ×4', owner: 'Hashim', done: false }
+        ]
+      },
+      briefrev: {
+        title: 'Brief review', when: 'Thu Jul 30 · 10:00', tool: 'Fireflies', attendees: 'Hashim, Damian',
+        summary: 'Reviewed W31 briefs — quota missed (9/16) due to launch freeze; agreed the freeze exception applies. Reviews-as-hooks batch approved for Santos with 12 candidate review quotes pulled from the portal.',
+        actions: [
+          { text: 'Pull 12 review quotes for hooks batch', owner: 'Hashim', done: true },
+          { text: 'Kick off reviews-as-hooks batch', owner: 'Hashim', done: false }
+        ]
+      },
+      eng: {
+        title: 'Eng standup', when: 'Mon Aug 3 · 15:00', tool: 'Fireflies', attendees: 'Usama, Ardin, Contractor',
+        summary: 'Auth migration remains the blocker — third-party session bug reproduced; fix ETA Wed. Ingest service scaffolding merged. Agreed the returns-tab event emitter starts only after Portal v2 lands.',
+        actions: [
+          { text: 'Land session-bug fix for auth migration', owner: 'Usama', done: false },
+          { text: 'Spec returns-tab event emitter', owner: 'Usama', done: false }
+        ]
+      }
+    },
+    towerProjects: [
+      { name: 'Command Center rollout (Ph. 1)', owner: 'Ardin · Ops', dept: 'ops', due: 'Aug 29', progress: 50, st: 'good', status: 'On track' },
+      { name: 'Portal v2 auth migration', owner: 'Usama · Eng', dept: 'eng', due: 'Jul 31', progress: 80, st: 'bad', status: 'Overdue' },
+      { name: 'Bron relaunch creatives', owner: 'Hashim · Creative', dept: 'creative', due: 'Aug 15', progress: 75, st: 'good', status: 'On track' },
+      { name: 'Returns flow revamp', owner: 'Diane · CX', dept: 'cx', due: 'Aug 28', progress: 35, st: 'good', status: 'On track' },
+      { name: 'Q3 UGC push', owner: 'Hashim · Creative', dept: 'creative', due: 'Sep 5', progress: 45, st: 'good', status: 'On track' }
+    ],
+    attention: [
+      { text: 'Portal v2 auth migration overdue 4 days', meta: 'Usama · Engineering · blocks returns signal', st: 'bad', tag: 'Slack alert sent' },
+      { text: 'Email agency July report not received', meta: 'Ardin · Agencies · chase task queued', st: 'warn', tag: 'In capture queue' },
+      { text: 'QA of new CX macros overdue 2 days', meta: 'Ronalyn · CX / Support', st: 'bad', tag: 'Slack alert sent' },
+      { text: 'Creative backlog: 3 briefs aging > 2 weeks', meta: 'Hashim · Creative', st: 'warn', tag: 'Watching' }
+    ],
+    offload: [
+      { task: 'Re-tag mis-attributed photo reviews', note: 'e.g. Santos photo tagged under Bron, in reviews app', owner: 'Diane', time: '1.5h', status: 'Handed off', st: 'good' },
+      { task: 'Unpublish 1–3★ reviews from site', note: 'reviews app moderation pass', owner: 'Ronalyn', time: '1h', status: 'Assigned', st: 'warn' },
+      { task: 'Commercive sample-request follow-ups', note: 'external party — copilot tracks request status', owner: 'Ardin', time: '2h', status: 'Surfaced', st: 'warn' },
+      { task: 'Chasing weekly agency reports', note: 'now auto-captured from Slack', owner: 'Ardin', time: '2h', status: 'Verified', st: 'good' }
+    ]
+  };
+
+  nav(view, extra) { this.setState(Object.assign({ view }, extra || {})); }
+
+  approve(id) {
+    this.setState(s => {
+      const item = s.queue.find(q => q.id === id);
+      return { queue: s.queue.filter(q => q.id !== id), synced: item ? s.synced.concat([item]) : s.synced };
+    });
+  }
+  dismiss(id) { this.setState(s => ({ queue: s.queue.filter(q => q.id !== id) })); }
+
+  ingestSlack() {
+    if (this.state.slackDone) return;
+    this.setState(s => ({
+      slackDone: true,
+      queue: s.queue.concat([
+        { id: 'q3', title: 'Chase email agency for July report', owner: 'Ardin', due: 'Aug 5', source: 'Slack · #proj-retention', quote: '"someone needs to chase them today"', conf: 84 },
+        { id: 'q4', title: 'Set up ClickUp list for #proj-retention', owner: 'Usama', due: 'Aug 6', source: 'Slack · #proj-retention', quote: '"@Usama can you set up the ClickUp list… before Thursday?"', conf: 90 }
+      ])
+    }));
+  }
+
+  ingestFF() {
+    if (this.state.ffDone) return;
+    this.setState(s => ({
+      ffDone: true,
+      autoDone: Object.assign({}, s.autoDone, { ron1: true }),
+      queue: s.queue.concat([
+        { id: 'q5', title: 'Update supplement-returns macro pack', owner: 'Ronalyn', due: 'Aug 7', source: 'Meeting · Weekly CX sync', quote: '"needs updating before Friday"', conf: 91 },
+        { id: 'q6', title: 'Share July CSAT deep-dive with Damian', owner: 'Ronalyn', due: 'Aug 6', source: 'Meeting · Weekly CX sync', quote: '"Damian asked for the July CSAT deep-dive by Wednesday"', conf: 87 }
+      ]),
+      ledger: [{ task: 'Post weekly CX metrics recap', owner: 'Ronalyn', evidence: 'Fireflies · recap delivered live in Weekly CX sync', when: 'Just now' }].concat(s.ledger)
+    }));
+  }
+
+  statusMeta(status) {
+    const C = this.C;
+    if (status === 'done') return { dot: C.good, label: 'Done', color: C.good, deco: 'line-through' };
+    if (status === 'auto') return { dot: C.good, label: 'Auto-completed', color: C.good, deco: 'none' };
+    if (status === 'overdue') return { dot: C.bad, label: 'Overdue', color: C.bad, deco: 'none' };
+    return { dot: 'oklch(0.71 0 0)', label: 'Open', color: C.mut, deco: 'none' };
+  }
+
+  personRow(id) {
+    const p = this.DB.people[id];
+    return {
+      id, name: p.name, initials: p.initials, role: p.role, color: p.color,
+      signal: p.signals[0].label + ': ' + p.signals[0].value,
+      open: () => this.nav('person', { personId: id, tab: 'tasks' })
+    };
+  }
+
+  renderVals() {
+    const s = this.state, DB = this.DB, C = this.C;
+    const view = s.view;
+    const bg = v => (view === v ? 'var(--sidebar-accent)' : 'transparent');
+    const stColor = st => (st === 'good' ? C.good : st === 'warn' ? C.warn : C.bad);
+    const deptIds = ['cx', 'creative', 'eng', 'ops'];
+
+    const deptNav = deptIds.map(id => {
+      const d = DB.depts[id];
+      return {
+        label: d.name, color: d.color, healthColor: this.HCOLOR[d.health],
+        bg: view === 'dept' && s.deptId === id ? 'var(--sidebar-accent)' : 'transparent',
+        go: () => this.nav('dept', { deptId: id })
+      };
+    });
+
+    const vals = {
+      rootClass: ((this.props.accent && this.props.accent !== 'default') ? 'theme-' + this.props.accent + ' ' : '') + ((this.props.darkMode ?? false) ? 'dark' : ''),
+      isTower: view === 'tower', isDept: view === 'dept', isPerson: view === 'person',
+      isCapture: view === 'capture', isPeople: view === 'people', isOffload: view === 'offload', isSearch: view === 'search',
+      goTower: () => this.nav('tower'), goCapture: () => this.nav('capture'), goSearch: () => this.nav('search'),
+      goPeople: () => this.nav('people'), goOffload: () => this.nav('offload'),
+      towerBg: bg('tower'), captureBg: bg('capture'), searchBg: bg('search'), peopleBg: bg('people'), offloadBg: bg('offload'),
+      deptNav, queueCount: s.queue.length, queueEmpty: s.queue.length === 0,
+      crumb: { tower: 'Control Tower', dept: 'Departments / ' + DB.depts[s.deptId].name, person: 'People / ' + DB.people[s.personId].name, capture: 'Agentic capture', people: 'People & org', offload: 'Founder offload', search: 'AI search' }[view],
+      companyStats: [
+        { label: 'Open tracked items', value: '148', sub: 'across 4 departments', subColor: C.mut },
+        { label: 'Overdue', value: '12', sub: '-5 vs last week', subColor: C.good },
+        { label: 'Captured this wk', value: '34', sub: 'meetings + Slack, automatic', subColor: C.mut },
+        { label: 'Auto-completed', value: '76%', sub: 'of recurring tasks', subColor: C.good }
+      ],
+      deptCards: deptIds.map(id => {
+        const d = DB.depts[id];
+        return { name: d.name, color: d.color, healthLabel: this.HEALTH[d.health], healthColor: this.HCOLOR[d.health], note: d.note, keyStat: d.keyStat, open: () => this.nav('dept', { deptId: id }) };
+      }),
+      towerProjects: DB.towerProjects.map(p => Object.assign({}, p, { color: DB.depts[p.dept].color, statusColor: stColor(p.st) })),
+      attention: DB.attention.map(a => Object.assign({}, a, { color: stColor(a.st) })),
+      slackDone: s.slackDone, ffDone: s.ffDone,
+      slackBtnLabel: s.slackDone ? 'Ingested' : 'Ingest via Slack MCP',
+      ffBtnLabel: s.ffDone ? 'Processed' : 'Process transcript',
+      slackNote: s.slackDone ? '2 action items drafted → review queue' : '',
+      ffNote: s.ffDone ? '2 items drafted · 1 task auto-completed' : '',
+      ingestSlack: () => this.ingestSlack(), ingestFF: () => this.ingestFF(),
+      queue: s.queue.map(q => Object.assign({}, q, { approve: () => this.approve(q.id), dismiss: () => this.dismiss(q.id) })),
+      synced: s.synced, hasSynced: s.synced.length > 0,
+      ledger: s.ledger,
+      offloadStats: [
+        { label: 'Est. hours reclaimed / wk', value: '6.5' },
+        { label: 'Handed off or verified', value: '2/4' },
+        { label: 'Awaiting owner', value: '1' }
+      ],
+      offloadRows: DB.offload.map(o => Object.assign({}, o, { statusColor: stColor(o.st) })),
+      org: {
+        lead: { open: () => this.nav('person', { personId: 'damian', tab: 'tasks' }) },
+        ops: { open: () => this.nav('person', { personId: 'ardin', tab: 'tasks' }) },
+        groups: deptIds.map(id => ({
+          name: DB.depts[id].name, color: DB.depts[id].color,
+          people: DB.depts[id].members.filter(m => m !== 'damian' && m !== 'ardin').map(m => this.personRow(m))
+        }))
+      }
+    };
+    vals.org.groups[3].people = ['damian', 'ardin'].map(m => this.personRow(m));
+
+    if (view === 'dept') {
+      const d = DB.depts[s.deptId];
+      vals.dept = {
+        name: d.name, color: d.color, summary: d.summary,
+        healthLabel: this.HEALTH[d.health], healthColor: this.HCOLOR[d.health],
+        stats: d.stats,
+        projects: d.projects.map(p => Object.assign({}, p, { statusColor: stColor(p.st) })),
+        risks: d.risks.map(r => Object.assign({}, r, { color: stColor(r.st) })),
+        team: d.members.map(m => this.personRow(m)),
+        isCreative: s.deptId === 'creative', isCx: s.deptId === 'cx',
+        backlog: (d.backlog || []).map(b => Object.assign({}, b, { statusColor: stColor(b.st) })),
+        perf: (d.perf || []).map(w => ({ w: w.w, v: w.v, h: Math.round(w.v / 17 * 100) + 'px', barColor: w.v >= 16 ? 'var(--color-violet-500)' : 'var(--color-violet-300)' })),
+        agents: (d.agents || []).map(a => Object.assign({}, a, { cadenceColor: stColor(a.cad) }))
+      };
+    }
+
+    if (view === 'person') {
+      const p = DB.people[s.personId];
+      const dept = DB.depts[p.dept];
+      const tab = s.tab;
+      const active = 'var(--foreground)', inactive = 'var(--muted-foreground)';
+      const days = [['Mon', 'Mon 3'], ['Tue', 'Tue 4'], ['Wed', 'Wed 5'], ['Thu', 'Thu 6'], ['Fri', 'Fri 7']];
+      vals.person = {
+        name: p.name, initials: p.initials, role: p.role, color: p.color, slack: p.slack,
+        deptName: dept.name, roleProfile: p.roleProfile, signals: p.signals,
+        back: () => this.nav('dept', { deptId: p.dept }), backLabel: dept.name,
+        taskCount: p.tasks.length, meetingCount: p.meetings.length,
+        tabTasks: tab === 'tasks', tabCalendar: tab === 'calendar', tabMeetings: tab === 'meetings',
+        setTabTasks: () => this.setState({ tab: 'tasks' }),
+        setTabCalendar: () => this.setState({ tab: 'calendar' }),
+        setTabMeetings: () => this.setState({ tab: 'meetings' }),
+        tabTasksBorder: tab === 'tasks' ? 'var(--foreground)' : 'transparent',
+        tabCalBorder: tab === 'calendar' ? 'var(--foreground)' : 'transparent',
+        tabMeetBorder: tab === 'meetings' ? 'var(--foreground)' : 'transparent',
+        tabTasksColor: tab === 'tasks' ? active : inactive,
+        tabCalColor: tab === 'calendar' ? active : inactive,
+        tabMeetColor: tab === 'meetings' ? active : inactive,
+        taskRows: p.tasks.map(t => {
+          const status = s.autoDone[t.id] ? 'auto' : t.status;
+          const m = this.statusMeta(status);
+          return { title: t.title, project: t.project, source: t.source, due: t.due, dotColor: m.dot, statusLabel: m.label, statusColor: m.color, deco: m.deco };
+        }),
+        week: days.map(([key, label]) => ({ d: label, dayColor: key === 'Tue' ? 'var(--foreground)' : 'var(--muted-foreground)', ev: p.week[key] || [] })),
+        meetings: p.meetings.map(id => {
+          const m = DB.meetings[id];
+          return Object.assign({}, m, {
+            actions: m.actions.map(a => ({
+              text: a.text, owner: a.owner,
+              color: a.done ? C.good : 'oklch(0.71 0 0)',
+              state: a.done ? 'Done' : 'Synced', stateColor: a.done ? C.good : C.mut
+            }))
+          });
+        })
+      };
+    }
+    return vals;
+  }
+}
+</script>
+</body>
+</html>

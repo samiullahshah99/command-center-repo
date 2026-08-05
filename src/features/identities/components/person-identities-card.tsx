@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Icons } from '@/components/icons';
 import { IDENTITY_SOURCES } from '@/db/schema';
+import { formatMeetingDate } from '@/lib/format-date';
 import { identitiesForPersonQuery } from '../api/queries';
 import { unlinkIdentityMutation } from '../api/mutations';
 import { CONFIDENCE_LABELS } from '../constants/identity-options';
@@ -125,7 +126,17 @@ function IdentityRow({
           {identity.linkedBy
             ? `Linked by ${identity.linkedBy}`
             : 'Linked automatically by email match'}
-          {identity.linkedAt ? ` · ${new Date(identity.linkedAt).toLocaleString()}` : ''}
+          {/*
+            ⚠️ `formatMeetingDate`, not a bare `toLocaleString()`. That call
+            resolved to the HOST's locale — Node's during SSR, the browser's
+            during hydration — so the same timestamp rendered two different
+            strings and React discarded the subtree. This is the second of the
+            three violations CLAUDE.md lists; the shared helper pins both locale
+            and timezone.
+          */}
+          {identity.linkedAt
+            ? ` · ${formatMeetingDate(new Date(identity.linkedAt).toISOString())}`
+            : ''}
         </p>
       </div>
       <Button size='sm' variant='ghost' disabled={disabled} onClick={onUnlink}>

@@ -53,9 +53,11 @@ export default function PageContainer({
   const hasHeader = pageTitle || pageHeaderAction;
 
   return (
-    <div className='flex flex-1 flex-col px-4 pt-2 pb-4 md:px-6 md:pt-4'>
+    // Mock's content well: 22px padding. Held at 16px below `md` so the 13px row
+    // text is not pushed into a narrow column on a laptop half-screen.
+    <div className='flex flex-1 flex-col p-4 md:p-[22px]'>
       {hasHeader && (
-        <div className='mb-4 flex items-start justify-between gap-4'>
+        <div className='mb-[18px] flex items-start justify-between gap-4'>
           <Heading
             title={pageTitle ?? ''}
             description={pageDescription ?? ''}

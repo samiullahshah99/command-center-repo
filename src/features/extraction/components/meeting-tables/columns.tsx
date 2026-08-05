@@ -12,7 +12,10 @@ function StatusCell({ row }: { row: MeetingRow }) {
   switch (row.status) {
     case 'extracted':
       return (
-        <Badge variant='outline' className='border-emerald-500/30 bg-emerald-500/10 text-xs'>
+        <Badge
+          variant='outline'
+          className='border-success/30 bg-success-muted text-success-muted-foreground text-xs'
+        >
           fetched, {row.itemCount} item{row.itemCount === 1 ? '' : 's'}
         </Badge>
       );
@@ -24,7 +27,7 @@ function StatusCell({ row }: { row: MeetingRow }) {
       );
     case 'pending':
       return (
-        <Badge variant='outline' className='border-sky-500/30 bg-sky-500/10 text-xs'>
+        <Badge variant='outline' className='text-muted-foreground text-xs'>
           extracting…
         </Badge>
       );

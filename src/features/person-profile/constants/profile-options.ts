@@ -1,12 +1,30 @@
 import type { ActivityGap } from '../api/types';
 
-/** Source badge styling for the activity strip. */
+/**
+ * Source badge styling for the activity strip.
+ *
+ * ⚠️ NEUTRAL, DELIBERATELY — this was five per-vendor hues (violet / sky /
+ * orange / emerald / cyan) and both halves of that were wrong.
+ *
+ * Mechanically: hardcoded palette values render light chips on a dark surface,
+ * which is the exact bug the semantic-token adoption fixed everywhere else.
+ *
+ * More importantly, they were spending COLOUR ON A CATEGORY. Everywhere else in
+ * the portal, colour means "this needs you" — amber is a stalled hand-off, red is
+ * blocked or overdue. A strip of five vendor hues sitting next to those trains
+ * the eye to ignore colour, and the next genuinely urgent amber gets read as
+ * decoration. Which system an event came from is carried by the badge's TEXT,
+ * which is where anyone reads it anyway.
+ *
+ * The map is kept rather than deleted so a source can be given a deliberate
+ * treatment later without hunting call sites.
+ */
 export const SOURCE_BADGE: Record<string, string> = {
-  slack: 'border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300',
-  clickup: 'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  fireflies: 'border-orange-500/30 bg-orange-500/10 text-orange-700 dark:text-orange-300',
-  ugc: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  vision: 'border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300'
+  slack: 'text-muted-foreground',
+  clickup: 'text-muted-foreground',
+  fireflies: 'text-muted-foreground',
+  ugc: 'text-muted-foreground',
+  vision: 'text-muted-foreground'
 };
 
 /**

@@ -19,6 +19,38 @@ and flipping one field in one file removes both.
 
 ---
 
+## My projects — Slack nudge status note *(not a data mock)*
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/my-projects` → foot of the "Blocked / at risk" card |
+| **Renderer** | `SlackNudgeNote` in `src/features/my-projects/components/my-projects-body.tsx` |
+| **Marker** | `TODO(backend): slack post + alert rule` |
+| **Audit ref** | §2.13, §5 integration row "Slack — post" |
+
+⚠️ **Listed here for findability, but it is NOT invented data — it is the
+opposite.** No number, row or figure on that page is mocked.
+
+The mockup ends the risk panel with a claim: *"Overdue items are auto-flagged to
+Slack — 'deadline approaching, write an update.'"* **That automation does not
+exist.** Slack is ingest-only: there is no posting path, no `chat.postMessage`
+call anywhere in the codebase, and no alert-rule engine to decide when one should
+fire.
+
+Rendering the mockup's sentence verbatim would be the most damaging option on the
+page — a reader would stop chasing an overdue item believing Slack had already
+nudged its owner. So the claim is **inverted into a status note**: "Slack nudges
+pending — posting integration not yet built. Overdue items are not auto-flagged to
+anyone yet."
+
+**GitHub gets no such note, deliberately.** The mockup names it only in the
+subtitle, and the subtitle keeps the mention. Nothing on the page renders a
+delivery signal, so there is no invented surface to caption — inventing a commit
+column to match a phrase would be the failure this file exists to prevent. The
+integration is tracked in `docs/backend-audit.md` §5.
+
+---
+
 ## Briefs & quota — nudge and ad testing
 
 | | |

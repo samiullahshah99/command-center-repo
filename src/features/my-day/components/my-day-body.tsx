@@ -3,22 +3,13 @@
 import { useMemo } from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { Card } from '@/components/ui/card';
-import { Icons } from '@/components/icons';
 import { MeetingCard } from '@/components/meeting-card';
 import { SampleDataCaption } from '@/components/sample-data-caption';
-import {
-  EmptyState,
-  Panel,
-  Row,
-  ROW_META,
-  RowList,
-  Screen,
-  StatCard,
-  TagPill
-} from '@/components/ui/panel';
+import { TrackedItemRows } from '@/components/tracked-item-rows';
+import { Panel, Row, ROW_META, RowList, Screen, StatCard, TagPill } from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
-import { formatDateOnly, formatDueDate } from '@/lib/format-date';
-import { ROW_TONE, rowStateLabel, rowTone } from '@/lib/row-tone';
+import { formatDateOnly } from '@/lib/format-date';
+import { ROW_TONE } from '@/lib/row-tone';
 import { myDayQueryOptions } from '../api/queries';
 import type { MyDay, MyRecurringTask } from '../api/types';
 import { GREETING_TEXT, RECURRING_STATE } from '../constants/my-day-options';
@@ -142,75 +133,21 @@ function Alerts({ data }: { data: MyDay }) {
   );
 }
 
+/**
+ * My action items.
+ *
+ * ⚠️ The row markup moved to `@/components/tracked-item-rows` when My projects
+ * became a fifth consumer of the same anatomy. Only the panel framing lives here.
+ */
 function ActionItems({ data, now }: { data: MyDay; now: Date }) {
   return (
     <Panel title={`My action items · ${data.items.length}`} bodyClassName='divide-y'>
-      {data.items.length === 0 ? (
-        <EmptyState
-          icon={<Icons.check className='size-5' />}
-          title='Nothing assigned'
-          detail='Action items appear here once one is owned by you.'
-        />
-      ) : (
-        data.items.map((item) => {
-          const terminal = item.status === 'done' || item.status === 'cancelled';
-          const due = formatDueDate(item.dueDate, now, { terminal });
-          const toneInput = {
-            status: item.status,
-            overdue: due.overdue,
-            riskFlag: item.riskFlag
-          };
-          const tone = rowTone(toneInput);
-
-          return (
-            <div
-              key={item.id}
-              className={cn(
-                'grid grid-cols-[9px_1fr_auto] items-center gap-x-[10px] gap-y-[2px] py-[10px]',
-                'sm:grid-cols-[9px_1fr_auto_auto] sm:gap-x-[12px]',
-                terminal && 'opacity-55'
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn('size-[9px] shrink-0 rounded-full', ROW_TONE[tone].dot)}
-              />
-
-              <div className='col-start-2 min-w-0'>
-                <p className={cn('truncate text-[13px] font-semibold', terminal && 'line-through')}>
-                  {item.title ?? (
-                    <span className='text-muted-foreground font-normal italic'>
-                      title held in the source system
-                    </span>
-                  )}
-                </p>
-                <p className='text-muted-foreground truncate text-[11.5px]'>
-                  {item.projectName ?? 'Unfiled'} · {item.sourceLabel}
-                </p>
-              </div>
-
-              <span
-                className={cn(
-                  'col-start-2 text-[12px] tabular-nums sm:col-start-3 sm:w-[104px] sm:text-right',
-                  due.overdue ? 'text-destructive font-semibold' : 'text-muted-foreground',
-                  due.absent && 'italic'
-                )}
-              >
-                {due.label}
-              </span>
-
-              <span
-                className={cn(
-                  'col-start-3 row-start-1 text-[11.5px] font-semibold sm:col-start-4 sm:w-[82px] sm:text-right',
-                  ROW_TONE[tone].text
-                )}
-              >
-                {rowStateLabel(toneInput)}
-              </span>
-            </div>
-          );
-        })
-      )}
+      <TrackedItemRows
+        items={data.items}
+        now={now}
+        emptyTitle='Nothing assigned'
+        emptyDetail='Action items appear here once one is owned by you.'
+      />
     </Panel>
   );
 }

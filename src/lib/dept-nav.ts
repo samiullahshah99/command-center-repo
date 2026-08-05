@@ -60,28 +60,51 @@ export type DeptNavRow = {
   peopleCount: number;
 };
 
+/** One department's health inputs: the items rule A scores, plus its people. */
+export type DeptItemsBucket = {
+  id: string;
+  name: string;
+  deptType: DeptType;
+  /** Non-terminal items owned by this department's people. */
+  items: DeptHealthItem[];
+  /** Distinct people assigned to the department. */
+  people: Set<string>;
+};
+
 /**
  * The RAW per-department rows: one per (department × active item), LEFT JOINed.
  *
  * ⚠️ THIS IS THE SINGLE SOURCE OF TRUTH FOR DEPARTMENT WORK, and it is split out
- * from `getDeptNav` for exactly one reason: the sidebar health dot and the Control
- * Tower health card MUST NEVER DISAGREE. Two queries with the same intent drift —
- * one gets a filter the other does not, and then a department shows amber in the
- * rail and green on the card, and neither is obviously the wrong one.
+ * from `getDeptNav` for exactly one reason: the sidebar health dot, the Control
+ * Tower health card and the My team header MUST NEVER DISAGREE. Two queries with
+ * the same intent drift — one gets a filter the other does not, and then a
+ * department shows amber in the rail and green on the card, and neither is
+ * obviously the wrong one.
+ *
+ * ⚠️ EXPORTED for that reason, and only for callers that need HEALTH OR ITS
+ * COUNTS. It was private until `/dashboard/my-team` needed the same numbers;
+ * exporting it is the deliberate alternative to a third copy of "open items by
+ * department".
+ *
+ * ⚠️ NOT a general-purpose item query. `items` carries only what rule A scores —
+ * status, due date, risk flag. A surface needing titles, owners or projects writes
+ * its own query for those columns; that is a different SHAPE, not a duplicate of
+ * this one. Do not widen this select to serve a list view: every extra column is
+ * paid for on every dashboard page, because the sidebar calls it on all of them.
  *
  * ⚠️ NO ARGUMENTS, so React's `cache()` actually memoises. `getDeptNav(now)` is
- * called by the sidebar and again by the home rollup within one request, each
- * with its own `Date` — different arguments, so a `cache()` on THAT function
- * would key twice and run the query twice. Keying on nothing means one round trip
- * per request no matter how many callers derive from it.
+ * called by the sidebar and again by the home rollup within one request, each with
+ * its own `Date` — different arguments, so a `cache()` on THAT function would key
+ * twice and run the query twice. Keying on nothing means one round trip per
+ * request no matter how many callers derive from it.
  *
  * ⚠️ LEFT JOINed all the way down, so a department with no people and a person
  * with no items both still produce a row. An INNER join would silently drop empty
  * departments — which reads as "that department was deleted" rather than "nobody
- * has open work there", and `good` is the correct, informative answer for an
- * empty department.
+ * has open work there", and `good` is the correct, informative answer for an empty
+ * department.
  */
-const getDeptItems = cache(async () => {
+export const getDeptItems = cache(async (): Promise<DeptItemsBucket[]> => {
   const rows = await db
     .select({
       id: department.id,
@@ -117,15 +140,7 @@ const getDeptItems = cache(async () => {
   // `status` and `risk_flag` are NOT NULL in the table — a null here means "this
   // department had no matching row", not "the column was empty". DeptHealthItem
   // tolerates a nullish riskFlag for exactly this reason, so no cast is needed.
-  type Bucket = {
-    id: string;
-    name: string;
-    deptType: DeptType;
-    items: DeptHealthItem[];
-    people: Set<string>;
-  };
-
-  const byDept = new Map<string, Bucket>();
+  const byDept = new Map<string, DeptItemsBucket>();
 
   for (const r of rows) {
     let b = byDept.get(r.id);

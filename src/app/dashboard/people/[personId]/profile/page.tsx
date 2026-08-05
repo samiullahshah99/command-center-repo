@@ -22,7 +22,12 @@ type PageProps = {
 const BACK_TARGETS: Record<string, { href: string; label: string }> = {
   people: { href: '/dashboard/people', label: 'People & org' },
   tracker: { href: '/dashboard/tracker', label: 'Tracker' },
-  overview: { href: '/dashboard/overview', label: 'Control Tower' }
+  overview: { href: '/dashboard/overview', label: 'Control Tower' },
+  // Added deliberately for the My team member list. ⚠️ Adding an entry here is the
+  // ONLY way to add a back target — do not relax the lookup to accept arbitrary
+  // values, which is exactly what makes this an allow-list rather than a
+  // passthrough.
+  'my-team': { href: '/dashboard/my-team', label: 'My team' }
 };
 
 export default async function Page(props: PageProps) {

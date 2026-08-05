@@ -19,6 +19,50 @@ and flipping one field in one file removes both.
 
 ---
 
+## My team — Agent performance FIGURES (hybrid)
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/my-team` → "Agent performance" card |
+| **Generator** | `buildAgentPerformance()` in `src/features/my-team/api/service.ts` |
+| **Marker** | `TODO(backend): zendesk (audit §3.3)` |
+| **DTO flag** | `MyTeam.agents.figuresAreSample` |
+| **Renderer** | `AgentPerformanceCard` in `src/features/my-team/components/my-team-body.tsx` |
+| **Audit ref** | §3.3 AgentPerformance, §2.4 CX panel, §2.11, §5 integration row "Zendesk" |
+
+⚠️ **Hybrid — read the split.**
+
+**Real:** the AGENT column. Actual `person` rows in the actor's department, with
+their `role.display_name`.
+
+**Invented:** TICKETS, RESOLVED, CSAT and CADENCE. Zendesk has **no code at all** —
+no client, no credentials, no table — though it is confirmed in scope (frontend
+contract §4.1). `AgentPerformance` appears on three screens in the contract, so
+this is the shape those will share.
+
+The figures are derived from each person's real open-item count so they are stable
+per agent across reloads rather than reshuffling — a figure that changes on refresh
+reads as live telemetry. `cadence` in particular follows the one real signal
+available (open-item load), which keeps the mocked column at least directionally
+honest. It is still invented; the caption is what makes that legible.
+
+⚠️ **`cadence` here means ADHERENCE, not a schedule** — a named enum trap from the
+audit. `recurring_task.cadence` is a repetition interval
+(`daily | weekly | biweekly | monthly | quarterly`); this screen's column is
+whether an agent is keeping up. The type is `AgentCadence` and deliberately does
+**not** reuse `Cadence` from `@/db/schema/recurring-task` — importing that one
+would typecheck and mean the wrong thing.
+
+⚠️ **Agents = all department members**, not only those with `role.code = 'cx_agent'`.
+A manager viewing a department where nobody carries that role would otherwise get
+an empty table, which reads as a broken integration rather than "no agents here".
+
+**Everything else on that page is real** — the health badge (shared with the
+sidebar's dot), all four stat cards, the team action items, the at-risk panel and
+the member list.
+
+---
+
 ## Capture queue — auto-completion ledger EVIDENCE and WHEN (hybrid)
 
 | | |

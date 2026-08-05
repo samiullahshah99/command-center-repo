@@ -52,34 +52,45 @@ export type DeptNavRow = {
   /** Theme token reference, e.g. `var(--chart-3)`. Never a colour literal. */
   accentVar: string;
   health: DeptHealthStatus;
-  /** Why, worst trigger first. Rendered as the row's title attribute. */
+  /** Why, worst trigger first. The sidebar tooltip and the Control Tower note. */
   healthReasons: string[];
-  /** Active (non-terminal) item count, for the tooltip. */
+  /** Active (non-terminal) item count — i.e. open work. */
   activeItems: number;
+  /** People assigned to this department. */
+  peopleCount: number;
 };
 
 /**
- * Every department with its computed health.
+ * The RAW per-department rows: one per (department × active item), LEFT JOINed.
  *
- * ⚠️ MEMOISED PER REQUEST with React's `cache()`, not `unstable_cache`. The
- * sidebar renders on every dashboard page, so without memoisation a page with
- * nested server components would repeat the join; with a cross-request cache,
- * health would go stale exactly when someone is watching it change. `nav-counts`
- * may use `unstable_cache` because two integers tolerate a 60s lag — a red
- * department card does not.
+ * ⚠️ THIS IS THE SINGLE SOURCE OF TRUTH FOR DEPARTMENT WORK, and it is split out
+ * from `getDeptNav` for exactly one reason: the sidebar health dot and the Control
+ * Tower health card MUST NEVER DISAGREE. Two queries with the same intent drift —
+ * one gets a filter the other does not, and then a department shows amber in the
+ * rail and green on the card, and neither is obviously the wrong one.
  *
- * ⚠️ ONE query, LEFT JOINed all the way down, so a department with no people and
- * a person with no items both still produce a row. An INNER join would silently
- * drop empty departments from the sidebar — which reads as "that department was
- * deleted" rather than "nobody has open work there", and `good` is the correct,
- * informative answer for an empty department.
+ * ⚠️ NO ARGUMENTS, so React's `cache()` actually memoises. `getDeptNav(now)` is
+ * called by the sidebar and again by the home rollup within one request, each
+ * with its own `Date` — different arguments, so a `cache()` on THAT function
+ * would key twice and run the query twice. Keying on nothing means one round trip
+ * per request no matter how many callers derive from it.
+ *
+ * ⚠️ LEFT JOINed all the way down, so a department with no people and a person
+ * with no items both still produce a row. An INNER join would silently drop empty
+ * departments — which reads as "that department was deleted" rather than "nobody
+ * has open work there", and `good` is the correct, informative answer for an
+ * empty department.
  */
-export const getDeptNav = cache(async (now: Date): Promise<DeptNavRow[]> => {
+const getDeptItems = cache(async () => {
   const rows = await db
     .select({
       id: department.id,
       name: department.name,
       deptType: department.deptType,
+      // For the distinct people count. ⚠️ Counted in JS, not with SQL
+      // count(distinct …): the join fans out one row per (department × item), so a
+      // plain count would multiply a person by their item count.
+      personId: person.id,
       status: trackedItem.status,
       dueDate: trackedItem.dueDate,
       riskFlag: trackedItem.riskFlag
@@ -106,27 +117,65 @@ export const getDeptNav = cache(async (now: Date): Promise<DeptNavRow[]> => {
   // `status` and `risk_flag` are NOT NULL in the table — a null here means "this
   // department had no matching row", not "the column was empty". DeptHealthItem
   // tolerates a nullish riskFlag for exactly this reason, so no cast is needed.
-  const meta = new Map<string, Omit<DeptNavRow, 'health' | 'healthReasons' | 'activeItems'>>();
-  const items = new Map<string, DeptHealthItem[]>();
+  type Bucket = {
+    id: string;
+    name: string;
+    deptType: DeptType;
+    items: DeptHealthItem[];
+    people: Set<string>;
+  };
+
+  const byDept = new Map<string, Bucket>();
 
   for (const r of rows) {
-    if (!meta.has(r.id)) {
-      meta.set(r.id, {
+    let b = byDept.get(r.id);
+    if (!b) {
+      b = {
         id: r.id,
         name: r.name,
         deptType: r.deptType as DeptType,
-        accentVar: departmentAccentVar(r.id)
-      });
-      items.set(r.id, []);
+        items: [],
+        people: new Set()
+      };
+      byDept.set(r.id, b);
     }
+    if (r.personId !== null) b.people.add(r.personId);
     if (r.status !== null) {
-      items.get(r.id)!.push({ status: r.status, dueDate: r.dueDate, riskFlag: r.riskFlag });
+      b.items.push({ status: r.status, dueDate: r.dueDate, riskFlag: r.riskFlag });
     }
   }
 
-  return [...meta.values()].map((d) => {
-    const own = items.get(d.id) ?? [];
-    const { status, reasons } = computeDeptHealth(own, now);
-    return { ...d, health: status, healthReasons: reasons, activeItems: own.length };
+  return [...byDept.values()];
+});
+
+/**
+ * Every department with its computed health.
+ *
+ * ⚠️ THE ONLY WAY TO GET DEPARTMENT HEALTH. Both the sidebar's dot and the
+ * Control Tower's card call this, so they share one query (via `getDeptItems`),
+ * one accent function and one `computeDeptHealth` — they cannot disagree about a
+ * department's state, which is the whole point of the split above.
+ *
+ * ⚠️ `now` is a parameter, never read from the clock here. Callers resolve it once
+ * above their tree; see the note on `computeDeptHealth`. Two callers passing
+ * `now` values milliseconds apart get identical answers because rule A compares
+ * UTC DAY boundaries — the only instant where they could differ is the tick over
+ * midnight UTC, which is accepted.
+ */
+export const getDeptNav = cache(async (now: Date): Promise<DeptNavRow[]> => {
+  const buckets = await getDeptItems();
+
+  return buckets.map((b) => {
+    const { status, reasons } = computeDeptHealth(b.items, now);
+    return {
+      id: b.id,
+      name: b.name,
+      deptType: b.deptType,
+      accentVar: departmentAccentVar(b.id),
+      health: status,
+      healthReasons: reasons,
+      activeItems: b.items.length,
+      peopleCount: b.people.size
+    };
   });
 });

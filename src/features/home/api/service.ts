@@ -6,9 +6,16 @@
 //
 // READ-ONLY. This page observes; it has no mutations and must never gain one.
 //
-// ⚠️ REAL DATA ONLY. Every number returned here comes from a query against real
-// rows. Nothing is sampled, defaulted-to-plausible, or filled in. A wrong number
-// on this page either invents urgency or hides it.
+// ⚠️ REAL DATA, WITH EXACTLY ONE MARKED EXCEPTION. Every number returned here
+// comes from a query against real rows except `weekly.autoCompleted`, which is
+// invented because the completion engine does not exist — it carries
+// `weekly.autoCompletedIsSample: true` and the UI renders a "preview" caption
+// from that flag. See `sampleAutoCompleted` below and docs/gaps.md.
+//
+// Nothing else is sampled, defaulted-to-plausible, or filled in. A wrong number
+// on this page either invents urgency or hides it. If you add a widget whose data
+// does not exist yet, add a flag beside it — do not add an unlabelled number, and
+// do not seed a table to make one look measured.
 // ============================================================
 
 'use server';
@@ -18,11 +25,21 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { candidateActionItem } from '@/db/schema';
 import { foldBriefs } from '@/lib/brief-fold';
+import { TERMINAL_STATUSES } from '@/lib/dept-health';
+import { getDeptNav } from '@/lib/dept-nav';
 import { getNavCounts } from '@/lib/nav-counts';
 // Constants may cross a feature boundary (CLAUDE.md); the THRESHOLD NUMBERS are
 // not duplicated here — they are read from the briefs feature that owns them.
 import { STALE_DAYS } from '@/features/briefs/constants/brief-states';
-import type { ActivityDay, AttentionRow, HomeSnapshot, PipelineCounts } from './types';
+import type {
+  ActivityDay,
+  AttentionRow,
+  DeptCard,
+  HomeSnapshot,
+  PipelineCounts,
+  ProjectRow,
+  WeeklyCapture
+} from './types';
 
 async function requireUser(): Promise<void> {
   // Resource-based check, not a reliance on src/proxy.ts: a Server Action is its
@@ -44,15 +61,56 @@ function rowsOf<T>(res: unknown): T[] {
   return ((res as { rows?: unknown[] }).rows ?? (res as unknown[])) as T[];
 }
 
+/** Monday 00:00 UTC of `now`'s week. Sunday counts as the previous week. */
+function mondayOf(now: Date): Date {
+  const d = new Date(now);
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d;
+}
+
 /**
- * Everything the landing page renders, in FIVE queries plus the shared fold.
+ * TODO(backend): completion engine.
+ *
+ * ⚠️ RETURNS AN INVENTED NUMBER. `completion_event` has 0 rows and no writer, and
+ * nothing evaluates `recurring_task.auto_complete_rule` — the PRD's
+ * "evidenced, not self-declared" completion is unbuilt (audit §D5). The card
+ * renders a "Preview" caption from `autoCompletedIsSample`, so the number can
+ * never appear unlabelled.
+ *
+ * ⚠️ DERIVED FROM A REAL COUNT ON PURPOSE, so it moves with the data instead of
+ * being a frozen "18" that stays put while everything around it changes — a
+ * static number beside live ones is the version most likely to be believed.
+ * It is still invented; the flag is what makes that legible, not the arithmetic.
+ *
+ * ⚠️ DO NOT "fix" this by seeding `completion_event`. A seeded row makes a
+ * fabricated number indistinguishable from a measured one at the database level,
+ * which is strictly worse than a labelled placeholder.
+ */
+function sampleAutoCompleted(capturedThisWeek: number): number {
+  return Math.floor(capturedThisWeek / 2);
+}
+
+/**
+ * Everything the Control Tower renders, in SEVEN aggregates plus three shared
+ * helpers (`foldBriefs`, `getDeptNav`, `getNavCounts`).
+ *
+ * ⚠️ THE ONLY ROLLUP. The audit named this the compliant pre-aggregated endpoint
+ * and the hard rule is that a new widget EXTENDS it rather than adding a second
+ * one — two rollups mean two clocks, two definitions of "open", and two numbers
+ * for the same thing on one screen.
  *
  * ⚠️ One aggregate per widget, never per entity. This re-runs in the BROWSER as
  * an RPC on navigation, so an N+1 here would be N+1 network round trips.
  *
- * ⚠️ `getNavCounts` is the SAME cached function the sidebar badge uses, so the
- * Review count on this page and the badge in the rail cannot disagree, and the
- * count is queried once per 60s rather than once per surface.
+ * ⚠️ THREE NUMBERS ARE SHARED WITH OTHER SURFACES BY CONSTRUCTION, not by
+ * coincidence:
+ *   • `getNavCounts`  — the same cached call as the sidebar's review badge
+ *   • `getDeptNav`    — the same query AND the same `computeDeptHealth` call as
+ *                       the sidebar's department health dots
+ *   • `foldBriefs`    — one fold feeding both the attention rows and the pipeline
+ * Each of those could have been a local query. Each would then have been free to
+ * drift from the surface it is supposed to agree with.
  */
 export async function getHomeSnapshot(): Promise<HomeSnapshot> {
   await requireUser();
@@ -139,6 +197,87 @@ export async function getHomeSnapshot(): Promise<HomeSnapshot> {
   `);
   const teamRows = rowsOf<{ id: string; name: string; recent: number }>(teamRes);
 
+  /**
+   * ── This week's capture. ONE aggregate, split by the originating source.
+   *
+   * ⚠️ INNER JOIN to `unified_event`, not LEFT: `candidate_action_item.
+   * unified_event_id` is NOT NULL with an ON DELETE CASCADE, so every candidate
+   * has an event. A LEFT join would imply otherwise and invite a null branch that
+   * can never be reached.
+   *
+   * `captured` is the true total; the two splits are the only sources that
+   * currently produce candidates. They are reported separately rather than as
+   * "other" so a third source appearing shows up as total > meetings + slack
+   * instead of being silently absorbed.
+   */
+  const weekStart = mondayOf(now);
+
+  const weeklyRes = await db.execute(sql`
+    select count(*)::int                                              as captured,
+           count(*) filter (where ue.source = 'fireflies')::int        as from_meetings,
+           count(*) filter (where ue.source = 'slack')::int            as from_slack
+    from candidate_action_item c
+    join unified_event ue on ue.id = c.unified_event_id
+    where c.created_at >= ${weekStart.toISOString()}::timestamptz
+  `);
+  const weeklyRow = rowsOf<{ captured: number; from_meetings: number; from_slack: number }>(
+    weeklyRes
+  )[0];
+
+  /**
+   * ── Active projects with progress.
+   *
+   * ⚠️ QUERIED HERE rather than by calling the tracker's `getProjects()`.
+   * CLAUDE.md forbids one feature importing another's service — "services,
+   * queries and mutations may not [cross a boundary]" — and that rule is what
+   * stops two features' data layers becoming mutually dependent. What IS shared
+   * is the part that could drift: `TERMINAL_STATUSES`, imported rather than
+   * retyped, so "open" means the same thing here, on the tracker board, and in
+   * department health.
+   *
+   * ⚠️ `archived` is excluded in SQL. The Control Tower answers "what is in
+   * flight"; an archived project is neither in flight nor a risk, and listing it
+   * would push live work down the card.
+   */
+  const terminal = sql.join(
+    TERMINAL_STATUSES.map((s) => sql`${s}`),
+    sql`, `
+  );
+
+  const projectRes = await db.execute(sql`
+    select p.id,
+           p.name,
+           p.status,
+           owner.name                                                  as owner_name,
+           count(t.id)::int                                            as total_count,
+           count(t.id) filter (where t.status not in (${terminal}))::int as open_count
+    from project p
+    left join person owner on owner.id = p.lead_person_id
+    left join tracked_item t on t.project_id = p.id
+    where p.status <> 'archived'
+    group by p.id, p.name, p.status, owner.name
+    order by p.name
+  `);
+  const projectRows = rowsOf<{
+    id: string;
+    name: string;
+    status: string;
+    owner_name: string | null;
+    total_count: number;
+    open_count: number;
+  }>(projectRes);
+
+  /**
+   * ── Department health.
+   *
+   * ⚠️ THE SAME CALL THE SIDEBAR MAKES. `getDeptNav` shares one query
+   * (`getDeptItems`, memoised per request with no arguments) and one
+   * `computeDeptHealth` invocation path with the rail's health dots, so a card and
+   * a dot cannot report different states for the same department. That was the
+   * explicit requirement — see the header on @/lib/dept-nav.
+   */
+  const deptRows = await getDeptNav(now);
+
   // Shared with the sidebar badge — one cached call, not a second query.
   const navCounts = await getNavCounts();
 
@@ -212,6 +351,47 @@ export async function getHomeSnapshot(): Promise<HomeSnapshot> {
   const byDay = new Map(activityRows.map((r) => [r.day, r.n]));
   const activity: ActivityDay[] = dayKeys.map((day) => ({ day, count: byDay.get(day) ?? 0 }));
 
+  const captured = weeklyRow?.captured ?? 0;
+  const weekly: WeeklyCapture = {
+    captured,
+    fromMeetings: weeklyRow?.from_meetings ?? 0,
+    fromSlack: weeklyRow?.from_slack ?? 0,
+    // ⚠️ The one invented number on this page. See sampleAutoCompleted.
+    autoCompleted: sampleAutoCompleted(captured),
+    autoCompletedIsSample: true,
+    weekStart: weekStart.toISOString()
+  };
+
+  const departments: DeptCard[] = deptRows.map((d) => ({
+    id: d.id,
+    name: d.name,
+    accentVar: d.accentVar,
+    health: d.health,
+    healthReasons: d.healthReasons,
+    // `activeItems` IS the open count — non-terminal items. Renamed at the DTO
+    // because "open" is the word the card uses.
+    openCount: d.activeItems,
+    peopleCount: d.peopleCount
+  }));
+
+  const projects: ProjectRow[] = projectRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    ownerName: p.owner_name,
+    /**
+     * ⚠️ TERMINAL over total, which counts `cancelled` alongside `done`. The
+     * available aggregate does not split them, and a cancelled item genuinely is
+     * no longer outstanding — but this bar is therefore "resolved", not strictly
+     * "done". Null rather than 0 when a project has no items: an empty project is
+     * not 0% complete, and a 0% bar reads as failure.
+     */
+    progressPct:
+      p.total_count > 0 ? Math.round(((p.total_count - p.open_count) / p.total_count) * 100) : null,
+    openCount: p.open_count,
+    totalCount: p.total_count,
+    status: p.status as ProjectRow['status']
+  }));
+
   return {
     attention: attention.slice(0, ATTENTION_CAP),
     attentionTotal: attention.length,
@@ -223,6 +403,9 @@ export async function getHomeSnapshot(): Promise<HomeSnapshot> {
       ? { source: lastEventRow.source, at: new Date(lastEventRow.at).toISOString() }
       : null,
     pipeline,
+    weekly,
+    departments,
+    projects,
     team: teamRows.map((t) => ({
       id: t.id,
       name: t.name,

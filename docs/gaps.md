@@ -19,6 +19,73 @@ and flipping one field in one file removes both.
 
 ---
 
+## Control Tower — "Auto-completed from activity" row
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/overview` → "This week's capture" card, one row |
+| **Generator** | `sampleAutoCompleted()` in `src/features/home/api/service.ts` |
+| **Marker** | `TODO(backend): completion engine` |
+| **DTO flag** | `HomeSnapshot.weekly.autoCompletedIsSample` |
+| **Renderer** | `WeeklyCaptureCard` in `src/features/home/components/home-view.tsx` |
+| **Audit ref** | D5 (completion engine design), §1.2 `completionType`/`evidence`, §2.14 |
+
+**Why it is mocked:** the completion engine does not exist. `completion_event` has
+**0 rows and no writer**, and nothing evaluates
+`recurring_task.auto_complete_rule`. The PRD's core "evidenced, not
+self-declared" concept is unbuilt.
+
+**Shape of the invention:** derived as half the week's real captured count, so it
+moves with the data rather than sitting frozen while everything around it changes
+— a static number beside live ones is the version most likely to be believed. It
+is still invented; the `preview` caption beside the row label is what makes that
+legible.
+
+> ⚠️ **NEVER fix this by seeding `completion_event`.** A seeded row makes a
+> fabricated number indistinguishable from a measured one *at the database level*,
+> which is strictly worse than a labelled placeholder. The seed spec's hard rules
+> forbid it for the same reason.
+
+**To make it real:** build the engine (decision D5 — design it together with
+Founder offload's "verifiably handed off" evidence model), then count
+`completion_event` rows for the week and set `autoCompletedIsSample: false`.
+
+---
+
+## Control Tower — Founder copilot exchange
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/overview` → "Founder copilot" card |
+| **Generator** | `FounderCopilot()` in `src/features/home/components/home-view.tsx` — hardcoded JSX |
+| **Marker** | Card carries a `Preview` caption |
+| **Audit ref** | §2.3 (the panel), §2.9 (the retrieval it depends on) |
+
+**Why it is mocked:** there is no copilot backend — no retrieval layer, no index,
+no embeddings, no `POST /copilot/ask`. Notion, one of the four corpus sources, has
+no client at all.
+
+**Shape of the invention:** one question-and-answer pair as demo copy, styled to
+the mockup. ⚠️ **This one is hardcoded in the component rather than behind the
+service seam** — a deliberate exception to the pattern used elsewhere in this
+file, because there is no query shape to stand in for yet. Putting invented prose
+into `getHomeSnapshot()` would imply the rollup can answer questions.
+
+⚠️ **There is deliberately NO INPUT FIELD on the card.** A text box would invite a
+real question and answer it with a canned reply about a company that does not
+exist — the most misleading thing this page could do. The working affordance is
+the top bar's copilot field, which navigates to AI search.
+
+⚠️ **Sources read "Portal", not "Shopify".** The mockup cites Shopify; per audit
+§3.7 there is no Shopify client and none is to be built — internal backend
+endpoints replace it.
+
+**To make it real:** build the retrieval layer (§2.9), including role-filtered
+retrieval, which is a hard requirement and an index-partitioning decision that
+must be made *before* anything is indexed.
+
+---
+
 ## Person profile — Calendar tab
 
 | | |

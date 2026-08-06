@@ -214,34 +214,55 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>(initialColumnFilters);
 
+  /**
+   * ⚠️ THE SIDE EFFECT MUST STAY OUTSIDE `setColumnFilters`.
+   *
+   * This used to call `debouncedSetFilterValues(...)` from INSIDE the functional
+   * updater passed to `setColumnFilters`. A React state updater must be PURE:
+   * React is free to re-invoke it during the RENDER phase, and it does. When it
+   * did, the nuqs setter fired mid-render and pushed a Router update, producing:
+   *
+   *   Cannot update a component (`Router`) while rendering a different
+   *   component (`IdentityTable`).
+   *
+   * ⚠️ THE STACK TRACE BLAMED THE WRONG FILE — it pointed at
+   * `getUnresolvedIdentities` in the identities SERVICE, because that was the
+   * suspended queryFn on the stack. Nothing was wrong with the query, and nothing
+   * was wrong with `IdentityTable` either: the bug is here, in a hook shared by
+   * EVERY data table. Reading it as an identities problem sends you into the data
+   * layer, which is where an afternoon goes.
+   *
+   * The fix mirrors `onPaginationChange` and `onSortingChange` directly above:
+   * resolve the updater against the CURRENT state, set a plain value, then do the
+   * side effect. Those two were always written this way, which is why only the
+   * filter path ever produced the warning.
+   */
   const onColumnFiltersChange = React.useCallback(
     (updaterOrValue: Updater<ColumnFiltersState>) => {
       if (enableAdvancedFilter) return;
 
-      setColumnFilters((prev) => {
-        const next = typeof updaterOrValue === 'function' ? updaterOrValue(prev) : updaterOrValue;
+      const next =
+        typeof updaterOrValue === 'function' ? updaterOrValue(columnFilters) : updaterOrValue;
 
-        const filterUpdates = next.reduce<Record<string, string | string[] | null>>(
-          (acc, filter) => {
-            if (filterableColumns.find((column) => column.id === filter.id)) {
-              acc[filter.id] = filter.value as string | string[];
-            }
-            return acc;
-          },
-          {}
-        );
-
-        for (const prevFilter of prev) {
-          if (!next.some((filter) => filter.id === prevFilter.id)) {
-            filterUpdates[prevFilter.id] = null;
-          }
+      const filterUpdates = next.reduce<Record<string, string | string[] | null>>((acc, filter) => {
+        if (filterableColumns.find((column) => column.id === filter.id)) {
+          acc[filter.id] = filter.value as string | string[];
         }
+        return acc;
+      }, {});
 
-        debouncedSetFilterValues(filterUpdates);
-        return next;
-      });
+      // A filter present before and absent now is cleared, not merely omitted —
+      // nuqs needs an explicit null to drop the key from the URL.
+      for (const prevFilter of columnFilters) {
+        if (!next.some((filter) => filter.id === prevFilter.id)) {
+          filterUpdates[prevFilter.id] = null;
+        }
+      }
+
+      setColumnFilters(next);
+      debouncedSetFilterValues(filterUpdates);
     },
-    [debouncedSetFilterValues, filterableColumns, enableAdvancedFilter]
+    [columnFilters, debouncedSetFilterValues, filterableColumns, enableAdvancedFilter]
   );
 
   const table = useReactTable({

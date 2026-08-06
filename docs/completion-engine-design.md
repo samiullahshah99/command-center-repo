@@ -1,8 +1,12 @@
 # Completion engine — design
 
 **Status: DESIGN ONLY. No code has been written.** This document takes positions so
-the build session argues with a proposal rather than a blank page. Decisions that
-need the team lead's sign-off are listed in §7.
+the build session argues with a proposal rather than a blank page.
+
+**Decision status (2026-08-06):** §7 decisions **2, 4, 6, 7, 8 are TAKEN** and
+recorded inline. **1, 3, 5 are PENDING the team lead**, each with a stated
+recommendation. The build session may start on everything except the window
+logic (§3.3), which gates on decision 1.
 
 Resolves audit **D5** ("what evaluates a rule, what is the evidence model, when
 does `fallback_manual` apply") and the half of **§2.8** that says Founder offload's
@@ -51,6 +55,12 @@ migrating the five rules is a data task with a human in the loop, not a cast.
 > ⚠️ **This is also why `fallback_manual` cannot be an afterthought.** Two of the
 > five tasks already carry it. On the day the engine ships, the honest state for
 > most of these tasks is "no rule that can fire" — see §5.
+
+> **Display ripple (logged in docs/gaps.md):** the Automations screen's "watched
+> signal" labels and My day's recurring-task names derive from these same rules
+> via `recurring-label.ts` — they currently render intent-English as if it were
+> wiring. The rule-migration task (§7 decision 8) includes updating what those
+> surfaces display once rules are rewritten against real events.
 
 ---
 
@@ -119,7 +129,7 @@ Measured against `src/lib/queue/`, not against a generic pg-boss description:
 
 ### What the nightly sweep is for — and what it must NOT do
 
-One scheduled job, `completion.sweep`, running after the UTC day boundary:
+One scheduled job, `completion.sweep`, running after the day boundary (§3.3):
 
 - Close windows that ended with no completion: this is what makes
   `state = 'missed'` (or `manual_required`, per §5) real rather than inferred by
@@ -263,7 +273,8 @@ with no `founder_offload` value, and `ALTER TYPE … ADD VALUE` cannot run insid
 transaction and can never be removed.
 
 **Position: do not touch the enum. Offload gets its own table (§2.6), so the
-question does not arise.**
+question does not arise.** *(Pending team-lead confirmation of the inversion
+condition — §7 decision 3.)*
 
 | Option | Assessment |
 | --- | --- |
@@ -325,8 +336,8 @@ What each becomes — and the honest verdict for each:
 
 | Owner | Intent | Typed rule | Fires today? |
 | --- | --- | --- | --- |
-| Usama | daily standup in Slack | `source: 'slack', eventType: 'message', metadata: {channel: '<standup-id>'}, actor: 'must_be_owner'` | ✅ **Yes** — Slack is 90.9% attributed and emits `message`. Needs the channel id filled in |
-| Ardin | weekly ops review posted | `source: 'slack', eventType: 'message', metadata: {channel: '<ops-id>'}, actor: 'must_be_owner'` | ✅ Yes, same shape |
+| Usama | daily standup in Slack | `source: 'slack', eventType: 'message', metadata: {channel: '<standup-id>'}, actor: 'must_be_owner'` | ✅ **Yes** — Slack is 90.9% attributed and emits `message`. Needs the channel id filled in *(ask sent 2026-08-06)* |
+| Ardin | weekly ops review posted | `source: 'slack', eventType: 'message', metadata: {channel: '<ops-id>'}, actor: 'must_be_owner'` | ✅ Yes, same shape *(ask sent)* |
 | Hashim | weekly briefs submitted | `source: 'vision', eventType: 'brief.submitted', actor: 'must_be_owner'` | ⚠️ **Partly** — 17 events exist, 6 unattributed. `brief_tracker` was never a source; Vision is the real one |
 | Ronalyn | weekly recap delivered | `source: 'fireflies', eventType: 'meeting.transcribed', actor: 'must_be_owner'` | ❌ **No** — Fireflies is **0% attributed** (D4). With `must_be_owner` it can never fire. Keep `fallback_manual: true` |
 | Diane | daily returns acknowledged | *no rule expressible* | ❌ **No** — `portal` emits no events. This is a **manual-only task** until an internal endpoint exists. Keep `fallback_manual: true` |
@@ -336,33 +347,39 @@ What each becomes — and the honest verdict for each:
 > no signal at all. Shipping the engine does not make five rules work — it makes
 > two work, and makes the other three *visibly* manual instead of invisibly broken.
 
-### 3.3 Window logic — the 23:59 / 00:01 question
+### 3.3 Window logic — the 23:59 / 00:01 question ⚠️ GATES THE BUILD (§7 decision 1)
 
-**Reuse the UTC-day convention from `src/lib/dept-health.ts`** — `startOfUtcDay()`
-is `Date.UTC(y, m, d)`, and the "due today is not overdue" rule already depends on
-it.
+Two candidate conventions, both fully specified so the team lead picks between
+positions rather than between a position and a blank:
 
-- A completion is credited to the **UTC day of its `completed_at`** (= the event's
-  `occurred_at`, §2.4).
-- **23:59:59Z credits that day. 00:00:01Z credits the next.** No grace period.
+**Option A — UTC day (the doc's original position).** Reuse `startOfUtcDay()` from
+`src/lib/dept-health.ts`. 23:59:59Z credits that day, 00:00:01Z the next, no grace
+period. Consistent with every other date boundary in the codebase.
 
-Window keys (`window_start`, a `date`):
+**Option B — business-timezone day (RECOMMENDED, added 2026-08-06).** One
+constant, `COMPLETION_TZ = 'Asia/Karachi'`, used **for completion-window
+boundaries only**. Rationale:
+
+- Completion windows credit *human daily rituals*, unlike dept-health's due-date
+  arithmetic (coarse, and seeded at UTC midnight). The team is PKT (UTC+5): under
+  Option A, anyone whose ritual happens before 05:00 local credits the **previous
+  day** and looks permanently one day late — a correctness failure about people,
+  not a convention preference.
+- This is explicitly **not** per-user timezone (no preference exists; that is real
+  machinery) and **not** a change to dept-health's UTC convention (different
+  domain). One named constant beside the window logic.
+- The regret math: one constant now vs re-deriving every historical window later.
+  §7 ranks this the highest-regret decision in the document.
+
+Window keys (`window_start`, a `date`) under either option:
 
 | Cadence | Window |
 | --- | --- |
-| `daily` | that UTC day |
-| `weekly` | ISO week, **Monday** 00:00Z |
+| `daily` | that day (per the chosen convention) |
+| `weekly` | ISO week, **Monday** 00:00 (chosen tz) |
 | `biweekly` | ISO week pairs anchored on the task's `created_at` week |
-| `monthly` | first of the UTC month |
-| `quarterly` | first of the UTC quarter |
-
-> ⚠️ **The team is in PKT (UTC+5).** A 03:00 PKT standup is 22:00Z **the previous
-> day** — so under this rule it credits *yesterday*, and a person doing their
-> standup every morning would look like they are always one day late. This is a
-> real trade, and I have taken UTC because every other date boundary in the
-> codebase is UTC and a second convention is worse than a wrong one. **§7 flags
-> it: if the team wants local-day semantics, that is a deliberate decision and the
-> constant belongs beside `OVERDUE_BAD_DAYS`**, not inlined here.
+| `monthly` | first of the month |
+| `quarterly` | first of the quarter |
 
 ### 3.4 Matching twice in one window — idempotency
 
@@ -398,12 +415,12 @@ Measured, 604 events, **222 unattributed (36.8%)**:
 | `slack` | 90.9% | Works |
 | `vision` | ~43% | Fires sometimes — **under-reports silently** |
 | `clickup` | 50% | Works when the actor email is inline |
-| `ugc` | **0%** (94/94 `creator.rejected`, 20/20 `creator.approved`) | **Never fires** |
+| `ugc` | 0% at design time; **11/146 since the 2026-08-06 manual links** | Fires only for linked people (Ardin, Usama); Collab Manager events unattributed pending platform answer |
 | `fireflies` | **0%** | **Never fires** |
 
-A rule with `actor: 'must_be_owner'` on UGC or Fireflies is not "waiting for a
-signal" — it is *structurally incapable* of completing, forever, and it looks
-identical to a person not doing their work.
+A rule with `actor: 'must_be_owner'` on a zero-attribution source is not "waiting
+for a signal" — it is *structurally incapable* of completing, forever, and it
+looks identical to a person not doing their work.
 
 **Required behaviour — this is the part that must not be dropped in the build:**
 
@@ -413,7 +430,9 @@ identical to a person not doing their work.
 2. `actor: 'any'` on such a source completes the task for **anyone's** matching
    event. That is a real weakening and must be visible: the ledger row is marked
    `attribution: 'unattributed'` and the UI says *"completed by an unattributed
-   signal"*, never a person's name.
+   signal"*, never a person's name. *(Whether `actor: 'any'` is permitted at all
+   on zero-attribution sources is §7 decision 5 — pending, recommendation:
+   allow with the marker.)*
 3. **Never infer the actor from the task's owner.** If the event has
    `person_id IS NULL`, the completion is unattributed. Writing the owner's id in
    would fabricate the single fact the ledger exists to record — the same rule
@@ -448,14 +467,16 @@ week.
 across both kinds of work. `last_update_at` stops being consulted for this number
 (it remains a legitimate freshness signal elsewhere).
 
-### 4.3 ⚠️ Should `tracked_item` completion also write completion rows? **Yes.**
+### 4.3 Should `tracked_item` completion also write completion rows? **DECIDED 2026-08-06: yes, scoped to transitions INTO `done`.**
 
 Otherwise "done this week" means two different things in one number — recurring
 tasks measured by evidence, tracked items measured by a row-mutation timestamp —
 and no consumer could tell which half it was looking at.
 
-**Position: a `tracked_item` transitioning to `done` writes an evidence row too**,
-into a `tracked_item_completion` table with the same four fields:
+**A `tracked_item` transitioning to `done` writes an evidence row** into a
+`tracked_item_completion` table with the same four fields. **The write fires only
+on the transition into `done`** — not on every status change; edits, reassignments
+and other status moves write nothing:
 
 - `evidence_source = 'manual'`, `evidence_ref = <person.id>` when a human closed it
 - the real signal when auto-completion lands
@@ -470,11 +491,6 @@ Consequences worth stating plainly:
   they share one wrong answer.
 - **`tracked_item` gains no `completed_at` column.** A column would drift from the
   ledger, and the ledger is the append-only record.
-
-> **Cost, stated honestly:** this is a write on a hot path (every status change)
-> and a third table. The alternative — leaving `doneThisWeek` on `last_update_at`
-> for tracked items and evidence for recurring — is cheaper and produces a number
-> that is quietly wrong in a way nobody can see. §7 flags it for sign-off.
 
 ---
 
@@ -502,9 +518,12 @@ auto-complete nor be closed by hand, so it is permanently red for a reason that 
 nobody's fault. Two of the five (Hashim, Ardin) are in exactly that position if
 their channel ids are never supplied.
 
-### 5.2 Who may check it off?
+**DECIDED 2026-08-06 (§7 decision on surfacing):** when the engine ships, the
+Automations screen renders unsatisfiable rules explicitly as **"cannot fire"**
+with the reason (no source / attribution-blocked / channel id missing) — per this
+document's own empty-ledger warning, a rule that cannot fire must say so.
 
-**Position: the owner, plus `founder` / `ops_lead`.**
+### 5.2 Who may check it off? **DECIDED 2026-08-06: the owner, plus `founder` / `ops_lead`.**
 
 - Owner-only is too strict: people take leave, and an ops lead closing a window
   during someone's holiday is legitimate.
@@ -538,11 +557,11 @@ honestly instead of silently**:
 - `evidence_ref` is a person id, not a note. Free text here would become the
   place people explain themselves, and the field would stop being queryable.
 
-> ⚠️ **A manual check-off does NOT suppress a later signal.** The unique index
-> means the manual row wins the window (first write). That is deliberate and worth
-> knowing: closing a window by hand and then genuinely doing the work leaves the
-> ledger saying "manual". The alternative — letting a signal overwrite — breaks
-> append-only and lets a later row rewrite history.
+> ⚠️ **A manual check-off does NOT suppress a later signal — DECIDED 2026-08-06:
+> the manual row wins the window permanently** (first write, per the unique
+> index). Append-only requires it: closing a window by hand and then genuinely
+> doing the work leaves the ledger saying "manual". The alternative — letting a
+> signal overwrite — breaks append-only and lets a later row rewrite history.
 
 ---
 
@@ -556,7 +575,7 @@ honestly instead of silently**:
 | **My day — recurring state + evidence** | `sampleRecurringState(index, fallbackManual)` in `src/features/my-day/api/service.ts:155` | Real state from §5.1 (`auto_completed` / `awaiting_signal` / `manual_required` / `missed`) + real evidence line |
 | **Automations — FIRED count + last fired** | `sampleFired(index, cadence, hasRule, now)` in `src/features/automations/api/service.ts:125` | `count(*)` and `max(completed_at)` per task. `Automations.firedIsSample = false` |
 | **Control Tower — auto-completed stat** | `sampleAutoCompleted(capturedThisWeek)` in `src/features/home/api/service.ts:83` | Count of this week's rows with `evidence_source <> 'manual'` |
-| **Automations — rule STATUS** | `roleProfileStatus()` / `ruleStatus()` in the same file | Can key on whether the rule is *expressible and has fired*, not merely present |
+| **Automations — rule STATUS** | `roleProfileStatus()` / `ruleStatus()` in the same file | Can key on whether the rule is *expressible and has fired*, not merely present — including the §5.1 "cannot fire" state |
 | **My day — `doneThisWeek`** | §4.2 | Ledger count instead of the `last_update_at` proxy |
 
 Each of the four sample generators carries a `TODO(backend): completion engine
@@ -582,37 +601,22 @@ Ardin's need a human to supply a channel id.
 
 ---
 
-## 7. Decisions to sanity-check with the team lead
+## 7. Decisions — status as of 2026-08-06
 
 Ordered by how much rework a late reversal causes.
 
-1. **UTC day boundary vs PKT local day.** §3.3. A 03:00 PKT standup credits the
-   *previous* UTC day, so a punctual person can look permanently one day late.
-   Everything else in the codebase is UTC; changing later means re-deriving every
-   historical window. **Highest-regret decision in this document.**
+| # | Decision | Status |
+| --- | --- | --- |
+| 1 | **Window day boundary: UTC vs business timezone.** §3.3. Highest-regret decision — changing later re-derives every historical window. | ⏳ **PENDING team lead.** Recommendation sent: **Option B**, `COMPLETION_TZ = 'Asia/Karachi'` for window boundaries only (a 03:00 PKT standup must not credit the previous day); dept-health stays UTC. **The build's window logic gates on this answer.** |
+| 2 | Does `tracked_item` completion also write evidence rows? §4.3. | ✅ **DECIDED: yes — scoped to transitions INTO `done` only.** Uniform "done this week"; no write on other status changes. |
+| 3 | Offload gets its own table; `source_type` enum untouched. §2.7. | ✅ Position held; ⏳ **one yes/no PENDING team lead:** do offload items ever need to appear on the tracker board? Yes inverts this and schedules the TEXT+CHECK conversion as its own change. |
+| 4 | Who may manually check off? §5.2. | ✅ **DECIDED: owner + `founder`/`ops_lead`.** Owner-only fails during leave; acting person always recorded. |
+| 5 | `actor: 'any'` on zero-attribution sources — allowed with an "unattributed" marker, or forbidden? §3.5. | ⏳ **PENDING team lead.** Recommendation sent: **allow with the marker** — Ronalyn's rule stays useful and degrades honestly; forbidding moves it to the permanently-unsatisfiable list. |
+| 6 | Manual check-off wins the window permanently. §5.3. | ✅ **DECIDED: yes.** Append-only + first-write-wins; a later signal never overwrites. |
+| 7 | Two tasks misconfigured today (`fallback_manual: false` + no workable rule). §5.1. | ✅ **IN FLIGHT: channel-id ask sent to Ardin/Ronalyn 2026-08-06.** If unanswered by build time, both render as "cannot fire — channel id missing" per §5.1's decided surfacing. |
+| 8 | Rule migration is a human data task, not a cast. §0. | ✅ **DECIDED: yes.** Includes updating the Automations "watched signal" labels and My day recurring names (`recurring-label.ts`) that currently render intent-English — logged in docs/gaps.md. |
 
-2. **Does `tracked_item` completion write evidence rows too?** §4.3. Yes gives one
-   uniform "done this week" and costs a write on every status change plus a third
-   table. No is cheaper and leaves the number quietly meaning two things.
-
-3. **Offload gets its own table; `source_type` enum untouched.** §2.7. If the lead
-   wants offload items on the tracker board, this inverts and we owe a TEXT +
-   CHECK conversion of a populated column.
-
-4. **Who may manually check off — owner + founder/ops_lead?** §5.2. Owner-only is
-   defensible; it fails during leave.
-
-5. **`actor: 'any'` on zero-attribution sources — allowed with an "unattributed"
-   marker, or forbidden outright?** §3.5. Allowing it lets Ronalyn's rule fire on
-   *anyone's* Fireflies event, which may be worse than not firing.
-
-6. **Manual check-off wins the window permanently.** §5.3. Append-only says yes; it
-   means an early manual close cannot be superseded by the real signal.
-
-7. **Two of five tasks are misconfigured today** (`fallback_manual: false` + no
-   workable rule). §5.1. Someone must supply the two Slack channel ids or accept
-   that those tasks show as permanently unsatisfiable.
-
-8. **Rule migration is a human data task, not a cast.** §0. The five seeded rules
-   reference sources and event types that do not exist. Whoever owns the config
-   has to rewrite them against real events before the engine means anything.
+**Build-session readiness:** everything is buildable as designed except §3.3,
+which waits on decision 1. If decision 5 lands as "forbidden", the only change is
+deleting the `attribution: 'unattributed'` path and moving Ronalyn's rule to the
+"cannot fire" list — no structural impact.

@@ -3,8 +3,7 @@ import { getQueryClient } from '@/lib/query-client';
 import PageContainer from '@/components/layout/page-container';
 import { personByIdOptions, roleProfileOptionsQuery } from '@/features/people/api/queries';
 import PersonViewPage from '@/features/people/components/person-view-page';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = {
   title: 'Dashboard : Person'
@@ -13,8 +12,9 @@ export const metadata = {
 type PageProps = { params: Promise<{ personId: string }> };
 
 export default async function Page(props: PageProps) {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/people/[personId]');
 
   const params = await props.params;
   const queryClient = getQueryClient();

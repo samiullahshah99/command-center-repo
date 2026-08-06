@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
 import HomeListing from '@/features/home/components/home-listing';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = { title: 'Executive Control Tower' };
 
@@ -19,8 +18,9 @@ export const metadata = { title: 'Executive Control Tower' };
  * `createRouteMatcher`, whose path matching can diverge from how Next.js routes.
  */
 export default async function OverviewPage() {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/overview');
 
   return (
     // ⚠️ NO pageTitle. The Control Tower's own header row IS the page header —

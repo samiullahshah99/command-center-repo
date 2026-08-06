@@ -20,9 +20,10 @@
 
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { requireRole } from '@/lib/current-actor';
+import { rolesForRoute } from '@/lib/route-access';
 import { candidateActionItem } from '@/db/schema';
 import { foldBriefs } from '@/lib/brief-fold';
 import { TERMINAL_STATUSES } from '@/lib/dept-health';
@@ -40,14 +41,6 @@ import type {
   ProjectRow,
   WeeklyCapture
 } from './types';
-
-async function requireUser(): Promise<void> {
-  // Resource-based check, not a reliance on src/proxy.ts: a Server Action is its
-  // own POST endpoint and `createRouteMatcher` is deprecated because its path
-  // matching can diverge from how Next.js routes.
-  const { userId } = await auth();
-  if (!userId) throw new Error('Not authenticated');
-}
 
 /** Rows shown in the hero before it collapses to "+N more". */
 const ATTENTION_CAP = 7;
@@ -111,9 +104,18 @@ function sampleAutoCompleted(capturedThisWeek: number): number {
  *   • `foldBriefs`    — one fold feeding both the attention rows and the pipeline
  * Each of those could have been a local query. Each would then have been free to
  * drift from the surface it is supposed to agree with.
+ *
+ * ⚠️ ROLE GATE, INSIDE THE SERVICE — defence in depth, not the UX.
+ *
+ * The page guard (`requireRouteAccess`) already redirects an unauthorised reader.
+ * It does NOT protect this function: `'use server'` publishes every export as its
+ * own POST endpoint, reachable without ever loading the page. For the Control Tower rollup the
+ * RETURN VALUE is the thing worth protecting, so the check belongs here too.
+ *
+ * ⚠️ Roles come from `ROUTE_ACCESS`, so this list cannot drift from the page's.
  */
 export async function getHomeSnapshot(): Promise<HomeSnapshot> {
-  await requireUser();
+  await requireRole(rolesForRoute('/dashboard/overview'), 'the Control Tower rollup');
 
   const now = new Date();
   const since24h = new Date(now.getTime() - 24 * 3600_000);

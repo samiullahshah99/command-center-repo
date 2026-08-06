@@ -4,10 +4,9 @@ import { Icons } from '@/components/icons';
 import RoleProfilesListingPage from '@/features/role-profiles/components/role-profiles-listing';
 import { searchParamsCache } from '@/lib/searchparams';
 import { cn } from '@/lib/utils';
-import { auth } from '@clerk/nextjs/server';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { SearchParams } from 'nuqs/server';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = {
   title: 'Dashboard: Role Profiles'
@@ -20,8 +19,9 @@ type PageProps = {
 export default async function Page(props: PageProps) {
   // Resource-based auth check, per CLAUDE.md — does not rely on the deprecated
   // createRouteMatcher in src/proxy.ts.
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/role-profiles');
 
   const searchParams = await props.searchParams;
   searchParamsCache.parse(searchParams);

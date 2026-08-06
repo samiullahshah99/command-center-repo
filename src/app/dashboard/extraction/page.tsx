@@ -4,9 +4,8 @@ import { SectionLabel } from '@/components/ui/panel';
 import CaptureQueueListing from '@/features/extraction/components/capture-queue-listing';
 import MeetingListingPage from '@/features/extraction/components/meeting-listing';
 import { searchParamsCache } from '@/lib/searchparams';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
 import { SearchParams } from 'nuqs/server';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = {
   title: 'Capture queue'
@@ -21,8 +20,9 @@ export default async function Page(props: PageProps) {
   // /dashboard(.*), but createRouteMatcher is deprecated and its path matching can
   // diverge from how Next.js actually routes. This page renders REAL MEETING
   // CONTENT, so it does not rely on the matcher alone.
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/extraction');
 
   const searchParams = await props.searchParams;
   searchParamsCache.parse(searchParams);

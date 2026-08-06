@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
 import PageContainer from '@/components/layout/page-container';
 import AutomationsListing from '@/features/automations/components/automations-listing';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = { title: 'Role profiles & automations' };
 
@@ -25,8 +24,9 @@ export const metadata = { title: 'Role profiles & automations' };
  * handoff build the same query key from the same instant.
  */
 export default async function AutomationsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/automations');
 
   const nowIso = new Date().toISOString();
 

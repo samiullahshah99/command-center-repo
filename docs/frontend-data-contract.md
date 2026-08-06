@@ -270,6 +270,11 @@ AI search results are additionally **content-scoped** by role (§2.9), which is 
 3. **Agency AI search** — **excluded**. AI brain corpus is internal (portal, transcripts, Slack, Notion); PRD use case is internal staff; agencies are external vendors with reporting-capture needs only.
 4. **Retrieval-level role scoping for AI search** — confirmed as a hard backend requirement: the search index/retrieval layer must filter sources by the requesting user's role before answer generation, not merely hide UI.
 
+### 4.2 Resolved decisions (2026-08-06)
+5. **Role model (audit D1)** — dedicated `role` lookup table (`id`, `code` TEXT UNIQUE, `display_name`) with `person.role_id` FK. Code compares `role.code` ('founder', 'ops_lead', 'support_manager', 'cx_agent', 'creative', 'coder', 'agency'), never numeric ids; seeds use explicit fixed ids. Role resolved into the session at sign-in alongside the Clerk→person link (D3).
+6. **Brief quota semantics (audit D9)** — the quota counts briefs **approved** (per team lead: "6 approved out of 8"), not created (current `getBriefQuota()` behavior) and not submitted (contract's earlier guess). `brief-fold.ts` already derives `approved`; the quota query changes to count approved-within-week. ⚠ Pending one-line confirmation: a brief approved in a later week than created counts toward the approval week.
+7. **Department health rule (audit D2)** — **ADOPTED as rule A, 2026-08-06** (team-lead confirmation pending; thresholds are named constants, one-line tunable): `bad` = any item overdue >3 days OR ≥2 blocked; `needs_attention` = any overdue/blocked/at-risk; else `good`. Implemented in `src/lib/dept-health.ts` as `computeDeptHealth(items, now) → { status, reasons[] }` (UTC day-boundary comparison; 20 tests), consumed by four agreeing surfaces: sidebar dots, Control Tower cards, department pages, My team. No activity-based signals in v1 (attribution gap, audit D4). Still pending: whether "team" ≡ "department" (working assumption team=department, isolated in `resolveTeamScope()` in the my-team feature).
+
 ---
 
 ## 5. Integration inventory implied by the frontend

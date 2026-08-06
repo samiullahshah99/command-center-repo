@@ -20,8 +20,9 @@
 'use server';
 
 import { asc, eq, sql } from 'drizzle-orm';
-import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
+import { requireRole } from '@/lib/current-actor';
+import { rolesForRoute } from '@/lib/route-access';
 import { person, recurringTask, roleProfile } from '@/db/schema';
 import type { Cadence } from '@/db/schema/recurring-task';
 import { formatMeetingDate } from '@/lib/format-date';
@@ -33,12 +34,6 @@ import type {
   RoleProfileStatus,
   RuleStatus
 } from './types';
-
-/** Resource-based check on every export — a Server Action is its own endpoint. */
-async function requireUser(): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Not authenticated');
-}
 
 // ── Defensive JSONB parsing ─────────────────────────────────────────────────
 //
@@ -151,9 +146,18 @@ function sampleFired(
  * Everything the Automations page renders, in TWO queries.
  *
  * ⚠️ `now` is a PARAMETER, resolved once by the caller and threaded through.
+ *
+ * ⚠️ ROLE GATE, INSIDE THE SERVICE — defence in depth, not the UX.
+ *
+ * The page guard (`requireRouteAccess`) already redirects an unauthorised reader.
+ * It does NOT protect this function: `'use server'` publishes every export as its
+ * own POST endpoint, reachable without ever loading the page. For the automations overview the
+ * RETURN VALUE is the thing worth protecting, so the check belongs here too.
+ *
+ * ⚠️ Roles come from `ROUTE_ACCESS`, so this list cannot drift from the page's.
  */
 export async function getAutomations(now: Date): Promise<Automations> {
-  await requireUser();
+  await requireRole(rolesForRoute('/dashboard/automations'), 'the automations overview');
 
   /**
    * ── Role profiles, with their people.

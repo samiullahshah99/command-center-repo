@@ -1,7 +1,5 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
 import { SearchParams } from 'nuqs/server';
 import PageContainer from '@/components/layout/page-container';
 import { Icons } from '@/components/icons';
@@ -11,6 +9,7 @@ import PeopleListingPage from '@/features/people/components/people-listing';
 import PeopleOrgListing from '@/features/people/components/people-org-listing';
 import { searchParamsCache } from '@/lib/searchparams';
 import { cn } from '@/lib/utils';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = { title: 'People & org' };
 
@@ -30,8 +29,9 @@ type PageProps = {
  * not-linked card.
  */
 export default async function Page(props: PageProps) {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/people');
 
   /*
     ⚠️ STILL PARSED, for the roster board below. The org chart takes no filters,

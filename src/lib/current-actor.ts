@@ -50,11 +50,14 @@ import 'server-only';
  */
 
 import { cache } from 'react';
+import { redirect } from 'next/navigation';
 import { eq } from 'drizzle-orm';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import { person, role, type RoleCode } from '@/db/schema';
 import { resolvePerson } from '@/features/identity/resolve';
+import { AuthorizationError } from '@/lib/authorization-error';
+import { canAccessRoute, homeForRole, type GatedRoute } from '@/lib/route-access';
 
 /** The Clerk instance this app owns. Never parameterised — see the header. */
 const PORTAL_SOURCE = 'portal' as const;
@@ -217,4 +220,88 @@ export async function requirePersonId(): Promise<string> {
     );
   }
   return actor.personId;
+}
+
+// ── Role-based authorisation ────────────────────────────────────────────────
+
+/**
+ * THE PAGE GUARD. Call it at the top of every role-gated `page.tsx`.
+ *
+ * ⚠️ IT REDIRECTS, IT DOES NOT 403. Landing on a screen your role has no business
+ * on is a navigation mistake, not an attack — a founder following a stale
+ * bookmark to `/dashboard/my-day`, or anyone selecting a forbidden entry from
+ * Cmd+K, which still lists everything. An error page would make an ordinary
+ * mis-click look like a broken product; sending them to their own home is the
+ * behaviour they wanted anyway.
+ *
+ * ⚠️ DENY BY DEFAULT. A null `roleCode` — no linked person, or a person with no
+ * `role_id` — is denied everywhere and lands on the no-role page.
+ *
+ * ⚠️ RESOURCE-BASED, per CLAUDE.md, never the route matcher. `src/proxy.ts` uses
+ * Clerk's deprecated `createRouteMatcher`, whose path matching can diverge from
+ * how Next.js actually routes. This runs inside the page, where the route is not
+ * in question.
+ *
+ * ⚠️ FREE, ON EVERY PAGE. `getCurrentActor()` is memoised per request with React's
+ * `cache()`, so the sidebar, this guard and the page's own actor read share ONE
+ * database round trip.
+ *
+ * ⚠️ `route` is typed to the map's keys, so a typo is a compile error rather than
+ * a silent allow — the failure mode a string parameter would have.
+ *
+ * @returns the actor, so a page that needs it does not resolve it twice.
+ */
+export async function requireRouteAccess(route: GatedRoute): Promise<CurrentActor> {
+  const actor = await getCurrentActor();
+
+  // Not signed in at all — authentication, before authorisation.
+  if (!actor) redirect('/auth/sign-in');
+
+  if (!canAccessRoute(actor.roleCode, route)) {
+    /**
+     * ⚠️ `redirect()` throws a control-flow signal, so nothing after it runs and
+     * it must not sit inside a try/catch. `homeForRole(null)` returns the no-role
+     * page, which is deliberately absent from ROUTE_ACCESS — if it were gated
+     * this line would bounce a no-role actor forever. There is a test for that.
+     */
+    redirect(homeForRole(actor.roleCode));
+  }
+
+  return actor;
+}
+
+/**
+ * THE SERVICE GUARD — defence in depth for a `'use server'` function whose
+ * RETURN VALUE is the thing worth protecting.
+ *
+ * ⚠️ THE PAGE GUARD DOES NOT COVER THIS, which is the whole reason it exists.
+ * Every `'use server'` export is its own reachable POST endpoint. Guarding the
+ * page that renders a rollup does nothing to stop someone invoking the action
+ * that produces it — and for the founder rollups the payload IS the secret:
+ * company-wide attention items, every department's health, the whole roster.
+ *
+ * ⚠️ IT THROWS RATHER THAN REDIRECTING. A service has no business steering
+ * navigation, and a redirect thrown from a `queryFn` would surface as a hydration
+ * failure rather than a denial. The page guard is the UX; this is the backstop.
+ *
+ * ⚠️ NOT FOR ME-SCOPED SERVICES. `getMyDay`, `getMyProjects`, `getMyTeam`,
+ * `getBriefsQuotaScreen` and `getPersonProfile` already scope every query to the
+ * resolved actor, so there is nothing a role list would add — and adding one
+ * would actively break legitimate use, e.g. a founder opening a colleague's
+ * profile from the tracker.
+ */
+export async function requireRole(
+  allowed: readonly RoleCode[],
+  what: string
+): Promise<CurrentActor> {
+  const actor = await requireActor();
+
+  if (!actor.roleCode || !allowed.includes(actor.roleCode)) {
+    throw new AuthorizationError(
+      `${what} requires one of: ${allowed.join(', ')}. ` +
+        `Signed-in user ${actor.clerkUserId} has ${actor.roleCode ?? 'no role'}.`
+    );
+  }
+
+  return actor;
 }

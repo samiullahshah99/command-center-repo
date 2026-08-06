@@ -1,13 +1,11 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs/server';
 import PageContainer from '@/components/layout/page-container';
 import { Icons } from '@/components/icons';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { getCurrentActor } from '@/lib/current-actor';
+import { getCurrentActor, requireRouteAccess } from '@/lib/current-actor';
 import { resolveTeamScope } from '@/features/my-team/api/service';
 import MyTeamListing from '@/features/my-team/components/my-team-listing';
 
@@ -30,8 +28,9 @@ export const metadata = { title: 'My team' };
  * same query key.
  */
 export default async function MyTeamPage() {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/my-team');
 
   const actor = await getCurrentActor();
 

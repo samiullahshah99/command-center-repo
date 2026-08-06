@@ -14,21 +14,9 @@
 
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
+import { requireRole } from '@/lib/current-actor';
+import { rolesForRoute } from '@/lib/route-access';
 import type { FounderOffload, OffloadRow, OffloadStats } from './types';
-
-/**
- * Resource-based check, kept even though nothing here reads the database.
- *
- * ⚠️ NOT redundant. `'use server'` publishes this as its own POST endpoint, and
- * the day it starts returning real offload data — which is the entire point of
- * the seam — the check has to already be here. Adding auth at the same moment you
- * add the query is how an endpoint ships unauthenticated.
- */
-async function requireUser(): Promise<void> {
-  const { userId } = await auth();
-  if (!userId) throw new Error('Not authenticated');
-}
 
 /**
  * TODO(backend): founder offload model — design its verification concept
@@ -132,9 +120,18 @@ function deriveStats(rows: OffloadRow[]): OffloadStats {
  * so there is no clock to thread and no hydration surface — same call as
  * `getPeopleOrg`. Do not add one "for consistency": an unused instant in a query
  * key is a cache that misses on the hour.
+ *
+ * ⚠️ ROLE GATE, INSIDE THE SERVICE — defence in depth, not the UX.
+ *
+ * The page guard (`requireRouteAccess`) already redirects an unauthorised reader.
+ * It does NOT protect this function: `'use server'` publishes every export as its
+ * own POST endpoint, reachable without ever loading the page. For the founder offload queue the
+ * RETURN VALUE is the thing worth protecting, so the check belongs here too.
+ *
+ * ⚠️ Roles come from `ROUTE_ACCESS`, so this list cannot drift from the page's.
  */
 export async function getFounderOffload(): Promise<FounderOffload> {
-  await requireUser();
+  await requireRole(rolesForRoute('/dashboard/founder-offload'), 'the founder offload queue');
 
   const rows = await sampleOffload();
 

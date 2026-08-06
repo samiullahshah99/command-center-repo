@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
 import PageContainer from '@/components/layout/page-container';
 import { Panel, Screen } from '@/components/ui/panel';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = { title: 'Agency reporting' };
 
@@ -22,8 +21,9 @@ export const metadata = { title: 'Agency reporting' };
 export default async function Page() {
   // Resource-based check per CLAUDE.md — src/proxy.ts matches /dashboard(.*), but
   // createRouteMatcher is deprecated and can diverge from how Next.js routes.
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/reporting');
 
   return (
     <PageContainer

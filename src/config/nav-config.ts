@@ -1,4 +1,5 @@
 import type { NavGroup } from '@/types';
+import { navRolesForRoute, type GatedRoute } from '@/lib/route-access';
 
 /**
  * Navigation configuration — the roles-mockup information architecture.
@@ -7,12 +8,22 @@ import type { NavGroup } from '@/types';
  * `src/components/kbar/index.tsx` flattens `items` across every group to build
  * its command list, using `label` as the Cmd+K section heading.
  *
- * ⚠️ kbar IS NOT ROLE-FILTERED. It imports this module directly on the client,
- * where the actor is not available, so Cmd+K still offers every command. That is
- * a visibility inconsistency, not a security hole: every route behind these URLs
- * does its own `requireUser()`, and hiding a nav item was never the access
- * control. Fixing it means threading the filtered groups from the server layout
- * into KBar as a prop — deliberately out of scope here.
+ * ⚠️ kbar IS NOT ROLE-FILTERED, and that is now HARMLESS rather than a gap.
+ * It imports this module directly on the client, where the actor is not
+ * available, so Cmd+K still offers every command. Selecting a forbidden one no
+ * longer reaches the screen: `requireRouteAccess()` runs in the page and
+ * redirects to the caller's own role home. The remaining cost is cosmetic — a
+ * command that appears in the palette and quietly bounces you home.
+ *
+ * Threading the filtered groups from the server layout into KBar as a prop would
+ * tidy that up and is still worth doing; it is a presentation fix, not a security
+ * one.
+ *
+ * ⚠️ `roles` BELOW IS DERIVED, NOT DECLARED. Every value comes from
+ * `@/lib/route-access`, which is also what the page guard enforces — so nav
+ * visibility and page access cannot drift. Do not hand-write a `roles` array
+ * here: it would be presentation disagreeing with security, and the nav is the
+ * half with no teeth.
  *
  * ⚠️ ORDER IS THE SPEC'S ORDER. The Workspace items below are listed in the
  * exact sequence the mockup shows them; do not alphabetise.
@@ -35,6 +46,22 @@ import type { NavGroup } from '@/types';
  *   Briefs & quota  -> /dashboard/briefs       real Vision-event brief board
  *   People & org    -> /dashboard/people       real roster + identity coverage
  */
+/**
+ * Nav visibility for a route, from the shared access map.
+ *
+ * ⚠️ `navRolesForRoute` — NOT the access list. For all but one route they are the
+ * same value. The exception is the tracker: its nav item is founder/ops only
+ * because it is an operator surface, while the PAGE is open to everyone, because
+ * My day, My projects and My team all link into it. The map holds both; this
+ * reads the presentation half.
+ *
+ * ⚠️ Mutable copy: `NavItem.roles` is a mutable `RoleCode[]` and the map returns
+ * `readonly`. Spreading here keeps the map immutable rather than widening it.
+ */
+function rolesFor(route: GatedRoute) {
+  return [...navRolesForRoute(route)];
+}
+
 export const navGroups: NavGroup[] = [
   {
     id: 'workspace',
@@ -45,7 +72,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/my-day',
         icon: 'sun',
         shortcut: ['m', 'd'],
-        roles: ['cx_agent', 'creative', 'coder', 'support_manager'],
+        roles: rolesFor('/dashboard/my-day'),
         items: []
       },
       {
@@ -56,7 +83,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/overview',
         icon: 'dashboard',
         shortcut: ['c', 't'],
-        roles: ['founder', 'ops_lead'],
+        roles: rolesFor('/dashboard/overview'),
         items: []
       },
       {
@@ -64,7 +91,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/my-team',
         icon: 'teams',
         shortcut: ['m', 't'],
-        roles: ['support_manager'],
+        roles: rolesFor('/dashboard/my-team'),
         items: []
       },
       {
@@ -72,7 +99,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/briefs',
         icon: 'post',
         shortcut: ['b', 'b'],
-        roles: ['creative'],
+        roles: rolesFor('/dashboard/briefs'),
         items: []
       },
       {
@@ -80,7 +107,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/my-projects',
         icon: 'code',
         shortcut: ['m', 'p'],
-        roles: ['coder'],
+        roles: rolesFor('/dashboard/my-projects'),
         items: []
       },
       {
@@ -91,7 +118,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/extraction',
         icon: 'inbox',
         shortcut: ['c', 'q'],
-        roles: ['founder', 'ops_lead', 'support_manager'],
+        roles: rolesFor('/dashboard/extraction'),
         badge: 'reviewPending',
         items: []
       },
@@ -100,7 +127,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/automations',
         icon: 'zap',
         shortcut: ['a', 'u'],
-        roles: ['ops_lead'],
+        roles: rolesFor('/dashboard/automations'),
         items: []
       },
       {
@@ -108,7 +135,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/reporting',
         icon: 'barChart',
         shortcut: ['r', 'p'],
-        roles: ['ops_lead', 'agency'],
+        roles: rolesFor('/dashboard/reporting'),
         items: []
       },
       {
@@ -119,7 +146,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/ai-search',
         icon: 'search',
         shortcut: ['a', 'i'],
-        roles: ['founder', 'ops_lead', 'support_manager', 'cx_agent', 'creative', 'coder'],
+        roles: rolesFor('/dashboard/ai-search'),
         items: []
       }
     ]
@@ -134,7 +161,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/people',
         icon: 'teams',
         shortcut: ['p', 'p'],
-        roles: ['founder', 'ops_lead'],
+        roles: rolesFor('/dashboard/people'),
         items: []
       },
       {
@@ -142,7 +169,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/founder-offload',
         icon: 'share',
         shortcut: ['f', 'o'],
-        roles: ['founder', 'ops_lead'],
+        roles: rolesFor('/dashboard/founder-offload'),
         items: []
       }
     ]
@@ -173,7 +200,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/tracker',
         icon: 'checks',
         shortcut: ['t', 't'],
-        roles: ['founder', 'ops_lead'],
+        roles: rolesFor('/dashboard/tracker'),
         items: []
       },
       {
@@ -181,7 +208,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/identities',
         icon: 'userPen',
         shortcut: ['i', 'i'],
-        roles: ['founder', 'ops_lead'],
+        roles: rolesFor('/dashboard/identities'),
         badge: 'identitiesUnlinked',
         items: []
       },
@@ -190,7 +217,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/connectors',
         icon: 'settings',
         shortcut: ['c', 'c'],
-        roles: ['founder', 'ops_lead'],
+        roles: rolesFor('/dashboard/connectors'),
         items: []
       },
       {
@@ -198,7 +225,7 @@ export const navGroups: NavGroup[] = [
         url: '/dashboard/role-profiles',
         icon: 'badgeCheck',
         shortcut: ['r', 'r'],
-        roles: ['founder', 'ops_lead'],
+        roles: rolesFor('/dashboard/role-profiles'),
         items: []
       }
     ]
@@ -212,7 +239,7 @@ export const navGroups: NavGroup[] = [
  * live in the static config above — but its role gate belongs beside the others
  * rather than inline in the sidebar, so the whole matrix reads from one file.
  */
-export const DEPARTMENTS_SECTION_ROLES = ['founder', 'ops_lead'] as const;
+export const DEPARTMENTS_SECTION_ROLES = navRolesForRoute('/dashboard/departments');
 
 /**
  * Which roles get the copilot input on the top bar rather than the plain

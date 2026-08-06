@@ -17,6 +17,8 @@
 import { and, asc, count, desc, eq, ilike, inArray, sql } from 'drizzle-orm';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
+import { requireRole } from '@/lib/current-actor';
+import { rolesForRoute } from '@/lib/route-access';
 import {
   candidateActionItem,
   department,
@@ -520,9 +522,18 @@ async function sampleOpenRoles(): Promise<OpenRole[]> {
  * ⚠️ NO `now` PARAMETER, deliberately — nothing here is time-dependent, so there
  * is no clock to thread and no hydration risk to manage. Do not add one "for
  * consistency": an unused instant in a query key is a cache that misses hourly.
+ *
+ * ⚠️ ROLE GATE, INSIDE THE SERVICE — defence in depth, not the UX.
+ *
+ * The page guard (`requireRouteAccess`) already redirects an unauthorised reader.
+ * It does NOT protect this function: `'use server'` publishes every export as its
+ * own POST endpoint, reachable without ever loading the page. For the org chart the
+ * RETURN VALUE is the thing worth protecting, so the check belongs here too.
+ *
+ * ⚠️ Roles come from `ROUTE_ACCESS`, so this list cannot drift from the page's.
  */
 export async function getPeopleOrg(): Promise<PeopleOrg> {
-  await requireUser();
+  await requireRole(rolesForRoute('/dashboard/people'), 'the org chart');
 
   const rows = await db
     .select({

@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
 import PageContainer from '@/components/layout/page-container';
 import FounderOffloadListing from '@/features/founder-offload/components/founder-offload-listing';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = { title: 'Founder task offload' };
 
@@ -25,8 +24,9 @@ export const metadata = { title: 'Founder task offload' };
  * ⚠️ NO `now`. Nothing on this screen is time-dependent; see `getFounderOffload`.
  */
 export default async function Page() {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/founder-offload');
 
   return (
     // ⚠️ NO pageTitle. The "Founder task offload" header row inside the feature IS

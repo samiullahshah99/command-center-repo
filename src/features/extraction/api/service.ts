@@ -21,6 +21,8 @@
 import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { db } from '@/db';
+import { requireRole } from '@/lib/current-actor';
+import { rolesForRoute } from '@/lib/route-access';
 import {
   candidateActionItem,
   person,
@@ -430,9 +432,18 @@ export async function getExtractionDetail(firefliesId: string): Promise<Extracti
  * read-only Notion/Ocean mirror records its own reference; see the
  * external_task_id semantics note in CLAUDE.md. NOTHING here writes to any
  * external system.
+ *
+ * ⚠️ ROLE GATE, INSIDE THE SERVICE — defence in depth, not the UX.
+ *
+ * The page guard (`requireRouteAccess`) already redirects an unauthorised reader.
+ * It does NOT protect this function: `'use server'` publishes every export as its
+ * own POST endpoint, reachable without ever loading the page. For approving a candidate the
+ * RETURN VALUE is the thing worth protecting, so the check belongs here too.
+ *
+ * ⚠️ Roles come from `ROUTE_ACCESS`, so this list cannot drift from the page's.
  */
 export async function approveCandidate(input: unknown): Promise<ReviewResult> {
-  await requireUser();
+  await requireRole(rolesForRoute('/dashboard/extraction'), 'approving a candidate');
 
   const parsed = approveCandidateSchema.safeParse(input);
   if (!parsed.success) {
@@ -560,9 +571,18 @@ export async function approveCandidate(input: unknown): Promise<ReviewResult> {
   });
 }
 
-/** Reject: status only. No tracked_item, nothing promoted. */
+/** Reject: status only. No tracked_item, nothing promoted. *
+ * ⚠️ ROLE GATE, INSIDE THE SERVICE — defence in depth, not the UX.
+ *
+ * The page guard (`requireRouteAccess`) already redirects an unauthorised reader.
+ * It does NOT protect this function: `'use server'` publishes every export as its
+ * own POST endpoint, reachable without ever loading the page. For rejecting a candidate the
+ * RETURN VALUE is the thing worth protecting, so the check belongs here too.
+ *
+ * ⚠️ Roles come from `ROUTE_ACCESS`, so this list cannot drift from the page's.
+ */
 export async function rejectCandidate(input: unknown): Promise<ReviewResult> {
-  await requireUser();
+  await requireRole(rolesForRoute('/dashboard/extraction'), 'rejecting a candidate');
 
   const parsed = rejectCandidateSchema.safeParse(input);
   if (!parsed.success) {
@@ -685,9 +705,18 @@ function captureSourceLabel(source: string): string {
  *
  * ⚠️ ONE pre-aggregated call. A widget that needs more data extends this; a second
  * endpoint would be free to disagree with it about what is pending.
+ *
+ * ⚠️ ROLE GATE, INSIDE THE SERVICE — defence in depth, not the UX.
+ *
+ * The page guard (`requireRouteAccess`) already redirects an unauthorised reader.
+ * It does NOT protect this function: `'use server'` publishes every export as its
+ * own POST endpoint, reachable without ever loading the page. For the capture queue the
+ * RETURN VALUE is the thing worth protecting, so the check belongs here too.
+ *
+ * ⚠️ Roles come from `ROUTE_ACCESS`, so this list cannot drift from the page's.
  */
 export async function getCaptureQueue(): Promise<CaptureQueue> {
-  await requireUser();
+  await requireRole(rolesForRoute('/dashboard/extraction'), 'the capture queue');
 
   const now = new Date();
 

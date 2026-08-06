@@ -1,6 +1,4 @@
 import { Suspense } from 'react';
-import { auth } from '@clerk/nextjs/server';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import PageContainer from '@/components/layout/page-container';
 import { Icons } from '@/components/icons';
@@ -8,7 +6,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { SectionLabel } from '@/components/ui/panel';
 import { cn } from '@/lib/utils';
-import { getCurrentActor } from '@/lib/current-actor';
+import { getCurrentActor, requireRouteAccess } from '@/lib/current-actor';
 import BriefBoardListing from '@/features/briefs/components/brief-board-listing';
 import BriefsQuotaListing from '@/features/briefs/components/briefs-quota-listing';
 
@@ -26,8 +24,9 @@ export const metadata = { title: 'Briefs & quota' };
  * handoff build the same query key from the same instant.
  */
 export default async function BriefsPage() {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/briefs');
 
   /**
    * ⚠️ `getCurrentActor()`, NOT `requirePersonId()`. The quota hero is me-scoped, and

@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { notFound, redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
+import { notFound } from 'next/navigation';
 import PageContainer from '@/components/layout/page-container';
 import DepartmentListing from '@/features/department/components/department-listing';
 import { getDepartment } from '@/features/department/api/service';
+import { requireRouteAccess } from '@/lib/current-actor';
 
 export const metadata = { title: 'Department' };
 
@@ -19,8 +19,9 @@ type PageProps = { params: Promise<{ departmentId: string }> };
  * derives from one instant and both sides of the SSR handoff build the same key.
  */
 export default async function Page(props: PageProps) {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/departments/[departmentId]');
 
   const { departmentId } = await props.params;
   const nowIso = new Date().toISOString();

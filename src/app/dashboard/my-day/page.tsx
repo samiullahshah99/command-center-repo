@@ -1,13 +1,11 @@
 import { Suspense } from 'react';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { auth } from '@clerk/nextjs/server';
 import PageContainer from '@/components/layout/page-container';
 import { Icons } from '@/components/icons';
 import { buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { getCurrentActor } from '@/lib/current-actor';
+import { getCurrentActor, requireRouteAccess } from '@/lib/current-actor';
 import MyDayListing from '@/features/my-day/components/my-day-listing';
 
 export const metadata = { title: 'My day' };
@@ -26,8 +24,9 @@ export const metadata = { title: 'My day' };
  * same query key from the same instant. See `myDayQueryOptions`.
  */
 export default async function MyDayPage() {
-  const { userId } = await auth();
-  if (!userId) redirect('/auth/sign-in');
+  // ⚠️ Role gate + auth in one call. Redirects to the caller's own role home
+  // rather than 403ing; the map is @/lib/route-access.
+  await requireRouteAccess('/dashboard/my-day');
 
   /**
    * ⚠️ `getCurrentActor()`, NOT `requirePersonId()`.

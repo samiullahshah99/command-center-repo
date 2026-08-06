@@ -19,6 +19,69 @@ and flipping one field in one file removes both.
 
 ---
 
+## Founder offload — THE WHOLE SCREEN *(first fully sample-backed page)*
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/founder-offload` — every element on it |
+| **Generator** | `sampleOffload()` in `src/features/founder-offload/api/service.ts` |
+| **Marker** | `TODO(backend): founder offload model — design its verification concept together with the completion engine's evidence model` |
+| **DTO flag** | `FounderOffload.isSample` |
+| **Audit ref** | §2.8 (0 ✅ / 0 🟡 / 2 🔴 — entire model absent), D5 |
+
+⚠️⚠️ **THIS IS THE FIRST PAGE IN THE BUILD WITH NO REAL HALF.** Every other entry
+in this file is one widget on a page of real data. Here the service touches no
+table and imports no schema, because there is nothing to query:
+
+- there is **no `founder_offload` table** and no offload column on any table;
+- **`source_type` is a pgEnum** — `meeting | slack | manual | system` — with **no
+  `founder_offload` member**;
+- the stats, the rows, the owners and the hours are all invented.
+
+**The caption sits ABOVE the stats, not inside the table card.** The three stat
+numbers are derived from the same invented rows, so a caption placed lower would
+leave three fabricated figures sitting above their own disclaimer — which is
+exactly the crop someone screenshots.
+
+### ⚠️ Do NOT resolve this by adding the enum value or a table
+
+Two separate reasons, and the second is the real one:
+
+1. `source_type` is a Postgres `pgEnum`. `ALTER TYPE … ADD VALUE` **cannot run
+   inside a transaction** and a value can **never be removed**, so a speculative
+   addition is expensive to undo. (Same reasoning that moved
+   `tracked_item.source_system` and `.status` to TEXT + CHECK.)
+2. **The model's hard part is not its columns — it is what counts as PROOF.** The
+   PRD's core concept is "evidenced, never self-declared", and this screen's whole
+   claim is that a task is only *handed off* when there is evidence it ran without
+   the founder. That is the same question the completion engine has to answer
+   (audit D5: **one evidence model, two surfaces**). Designed separately, the two
+   produce two incompatible notions of proof and a reconciliation problem nobody
+   has budgeted for.
+
+### Owner selection — a deliberate constraint
+
+Owners are the `@demo.local` demo people **plus Ardin**. Ardin appears because the
+workflow names him ("Ardin assigns an owner") and omitting him would obscure what
+the screen depicts. **No other real colleague appears**, because every row carries
+an invented weekly-hour commitment, and a fabricated "5h/wk" beside a real person's
+name is precisely the number that gets pulled into a workload conversation. Demo
+people cannot be misread that way.
+
+### Stats are DERIVED, even though everything is sample
+
+`deriveStats(rows)` counts the rows the table renders. **The no-ghost rule applies
+to sample surfaces too** — hand-authored counts drift the moment a row is edited,
+and a stat disagreeing with the table under it reads as a data bug rather than a
+stale constant.
+
+⚠️ The workflow has **four** stages and the mockup shows **three** stats, so
+`assigned` and `in_transition` fold into one "In transition" bucket. The fold lives
+in `deriveStats` only; the table still renders the two stages distinctly, so the
+summary is coarser than the detail rather than the detail being lost.
+
+---
+
 ## People & org — the Miro org-chart claim *(a relabel, not a mock)*
 
 | | |

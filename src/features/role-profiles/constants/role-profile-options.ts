@@ -4,7 +4,7 @@
  * There are no static filter option lists here — the only filter is a text
  * search on name. Signal and channel vocabularies are free-form strings today;
  * if they settle into a fixed set, this is where the option lists belong (see
- * src/features/products/constants/product-options.ts for the pattern).
+ * src/features/people/constants/person-options.ts for the pattern).
  */
 
 export const MAX_VISIBLE_SIGNALS = 3;

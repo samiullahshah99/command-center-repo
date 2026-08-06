@@ -110,34 +110,18 @@ const UNGATED: Record<string, Exemption> = {
     why: 'Gated by the DEMO_ROLE_SWITCHER env flag (notFound() when off), not by role — it must stay reachable whatever role you are wearing.',
     auth: 'explicit',
     mayBeAbsent: true
-  },
-
-  /**
-   * ⚠️⚠️ THESE THREE HAVE NO AUTHENTICATION CHECK AT ALL, and that is a real gap,
-   * not a category of exemption anyone should copy.
-   *
-   * They are template leftovers returning MOCK data (CLAUDE.md lists `products`
-   * and `users` as the two mock services, and names them as not the example to
-   * copy). Their only protection today is `src/proxy.ts`'s route matcher — which
-   * CLAUDE.md says not to rely on, because `createRouteMatcher` is deprecated and
-   * its path matching can diverge from how Next.js actually routes.
-   *
-   * They are recorded here rather than quietly gated so the debt is visible and
-   * countable. The right fix is DELETING them with the rest of the template.
-   */
-  'product/page.tsx': {
-    why: '⚠️ Template leftover, mock data, NO auth check. Delete with the template.',
-    auth: 'none'
-  },
-  'product/[productId]/page.tsx': {
-    why: '⚠️ Template leftover, mock data, NO auth check. Delete with the template.',
-    auth: 'none'
-  },
-  'users/page.tsx': {
-    why: '⚠️ Template leftover, mock data, NO auth check. Delete with the template.',
-    auth: 'none'
   }
 };
+
+/**
+ * A CALL, not a mention.
+ *
+ * ⚠️ THE OPEN PAREN IS LOAD-BEARING. A bare `includes('requireRouteAccess')`
+ * also matches the `import { requireRouteAccess } from …` line — so deleting the
+ * call while leaving the import behind (exactly what a careless edit does) left
+ * this test green. Caught by probing it; do not relax this back to a substring.
+ */
+const CALLS_GUARD = /requireRouteAccess\s*\(/;
 
 /** Evidence that a page resolves a session for itself. */
 const AUTHENTICATES =
@@ -177,19 +161,23 @@ describe('dashboard route coverage', () => {
   });
 
   it('every page either calls requireRouteAccess() or is on the UNGATED allow-list', () => {
-    const undeclared = PAGES.filter(
-      (p) => !p.source.includes('requireRouteAccess') && !(p.key in UNGATED)
-    ).map((p) => p.key);
+    const undeclared = PAGES.filter((p) => !CALLS_GUARD.test(p.source) && !(p.key in UNGATED)).map(
+      (p) => p.key
+    );
 
     expect(
       undeclared,
-      `\n\nThese dashboard pages declare no access rule:\n` +
-        undeclared.map((k) => `  • ${k}`).join('\n') +
-        `\n\nFix ONE of:\n` +
-        `  1. Gate it — add the route to ROUTE_ACCESS in src/lib/route-access.ts and\n` +
-        `     call await requireRouteAccess('<route>') at the top of the page; or\n` +
-        `  2. Open it deliberately — add it to UNGATED in this file WITH A REASON.\n\n` +
-        `A page reachable by URL with no rule is readable by every signed-in user.\n`
+      '\n\n' +
+        undeclared
+          .map(
+            (k) =>
+              `New dashboard page ${routeOf(k)} is unguarded — call requireRouteAccess(route) ` +
+              `and add the route to ROUTE_ACCESS, or add it to UNGATED with a reason.\n` +
+              `  file: ${join(DASHBOARD, k)}`
+          )
+          .join('\n\n') +
+        `\n\n  ROUTE_ACCESS lives in src/lib/route-access.ts; UNGATED is at the top of this file.\n` +
+        `  A page reachable by URL with no rule is readable by every signed-in user.\n`
     ).toEqual([]);
   });
 
@@ -246,15 +234,28 @@ describe('dashboard route coverage', () => {
   });
 
   /**
-   * Not a failure — a visible count. Each of these is reachable by any signed-in
-   * user with no check of our own, and the number should only ever go down.
+   * ⚠️ THIS LIST IS NOW EMPTY AND MUST STAY EMPTY.
+   *
+   * It used to hold three template leftovers — `product`, `product/[productId]`
+   * and `users` — which had NO authentication check of any kind and leaned
+   * entirely on `src/proxy.ts`'s deprecated route matcher. They have been deleted
+   * (inventory §4.2), so every dashboard page now resolves a session one way or
+   * another.
+   *
+   * The `'none'` category is kept rather than removed so that adding a page with
+   * no check at all is a deliberate, reviewable act that fails this test — not
+   * something anyone can do by omission.
    */
-  it('records exactly the known no-auth template leftovers', () => {
+  it('no dashboard page is exempt from authentication entirely', () => {
     const noAuth = Object.entries(UNGATED)
       .filter(([, e]) => e.auth === 'none')
       .map(([key]) => key)
       .sort();
 
-    expect(noAuth).toEqual(['product/[productId]/page.tsx', 'product/page.tsx', 'users/page.tsx']);
+    expect(
+      noAuth,
+      `\n\nThese pages have NO authentication check:\n${noAuth.map((k) => `  • ${k}`).join('\n')}\n` +
+        `\n"Ungated" must mean any AUTHENTICATED role, never "no check".\n`
+    ).toEqual([]);
   });
 });

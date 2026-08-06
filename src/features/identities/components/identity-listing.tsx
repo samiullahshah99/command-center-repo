@@ -4,7 +4,7 @@ import { searchParamsCache } from '@/lib/searchparams';
 import { identitySourceOptionsQuery, unresolvedIdentitiesQueryOptions } from '../api/queries';
 import { IdentityTable } from './identity-tables';
 
-// Server component. Mirrors src/features/products/components/product-listing.tsx.
+// Server component. Mirrors src/features/people/components/people-listing.tsx.
 export default function IdentityListingPage() {
   const page = searchParamsCache.get('page');
   const search = searchParamsCache.get('name');

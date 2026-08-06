@@ -4,7 +4,7 @@ import { searchParamsCache } from '@/lib/searchparams';
 import { roleProfilesQueryOptions } from '../api/queries';
 import { RoleProfilesTable } from './role-profiles-table';
 
-// Server component. Mirrors src/features/products/components/product-listing.tsx.
+// Server component. Mirrors src/features/people/components/people-listing.tsx.
 export default function RoleProfilesListingPage() {
   const page = searchParamsCache.get('page');
   const search = searchParamsCache.get('name');

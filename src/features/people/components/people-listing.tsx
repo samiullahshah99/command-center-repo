@@ -4,7 +4,8 @@ import { searchParamsCache } from '@/lib/searchparams';
 import { peopleBoardQueryOptions, roleProfileOptionsQuery } from '../api/queries';
 import { PeopleTable } from './people-table';
 
-// Server component. Mirrors src/features/products/components/product-listing.tsx.
+// Server component. This is now the canonical prefetch+HydrationBoundary shape
+// (CLAUDE.md "Feature folder anatomy"); identities and role-profiles mirror it.
 export default function PeopleListingPage() {
   const page = searchParamsCache.get('page');
   const search = searchParamsCache.get('name');

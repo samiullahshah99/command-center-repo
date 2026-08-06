@@ -1,7 +1,7 @@
 // ============================================================
 // People Service — Data Access Layer
 // ============================================================
-// Pattern 1 from src/features/products/api/service.ts: Server Actions + ORM.
+// Pattern 1, as in src/features/tracker/api/service.ts: Server Actions + ORM.
 //
 // 'use server' is REQUIRED, not stylistic. queries.ts is consumed on both sides
 // of the SSR handoff — the server prefetches, and every `shallow: true` nuqs

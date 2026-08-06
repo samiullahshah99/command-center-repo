@@ -8,18 +8,20 @@ type BreadcrumbItem = {
   link: string;
 };
 
-// This allows to add custom title as well
+/**
+ * Custom breadcrumb trails for paths whose auto-generated one reads badly.
+ *
+ * ⚠️ `/dashboard/product` and `/dashboard/employee` WERE HERE AND HAVE BEEN
+ * REMOVED — both were template routes, and `product` no longer exists at all
+ * (deleted with the `products`/`users` features, inventory §4.2). A mapping for a
+ * dead route is not inert: it is keyed on `pathname`, so it would silently
+ * reappear the day something else is mounted at the same path.
+ *
+ * Everything not listed falls through to the segment-derived trail below, which
+ * is what every real screen uses today.
+ */
 const routeMapping: Record<string, BreadcrumbItem[]> = {
-  '/dashboard': [{ title: 'Dashboard', link: '/dashboard' }],
-  '/dashboard/employee': [
-    { title: 'Dashboard', link: '/dashboard' },
-    { title: 'Employee', link: '/dashboard/employee' }
-  ],
-  '/dashboard/product': [
-    { title: 'Dashboard', link: '/dashboard' },
-    { title: 'Product', link: '/dashboard/product' }
-  ]
-  // Add more custom mappings as needed
+  '/dashboard': [{ title: 'Dashboard', link: '/dashboard' }]
 };
 
 export function useBreadcrumbs() {

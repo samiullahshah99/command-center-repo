@@ -37,55 +37,66 @@ still in use.** Do not reintroduce `useOrganization`, `<Protect>`, `has({ plan }
 
 ### Feature folder anatomy
 
-`src/features/products/` is the canonical example **of the folder shape**. New
+`src/features/people/` is the canonical example **of the folder shape**. New
 features replicate it exactly.
 
-> ⚠️ **Copy the shape from `products`, the service layer from `tracker`.**
-> `products` and `users` are template leftovers whose `service.ts` returns mock
-> data and is not `'use server'` — see
-> [Route-handler placement](#route-handler-placement). Copying that file wholesale
-> reintroduces the mock path into a real feature.
+> ⚠️ **`products` WAS the canonical example and HAS BEEN DELETED**, along with
+> `users`, their `/dashboard/product*` and `/dashboard/users` routes and their four
+> mock route handlers (inventory §4.2). They were the last two mock services and
+> the last two without `'use server'`, so every remaining feature is DB-backed and
+> there is no longer a wrong folder to copy from.
+>
+> `people` replaces it because it is the only surviving feature whose tree matches
+> this shape file-for-file — all four `api/` modules, a `*-table/` subfolder, plus
+> `constants/` and `schemas/`. It is also genuinely `'use server'` + ORM, so unlike
+> `products` the service layer is worth copying too. `my-day` is the minimal
+> read-only variant: `api/{types,service,queries}.ts` and two components, no
+> mutations, no table, no schema.
 
 ```
-src/features/products/
+src/features/people/
 ├── api/
 │   ├── types.ts        # Response shapes, filter types, mutation payloads
 │   ├── service.ts      # Data access. THE ONLY FILE that changes when the backend changes
 │   ├── queries.ts      # queryOptions() factories + the query-key factory
 │   └── mutations.ts    # useMutation hooks + cache invalidation
 ├── components/
-│   ├── product-listing.tsx      # Server component: prefetch + HydrationBoundary
-│   ├── product-form.tsx
-│   ├── product-view-page.tsx
-│   └── product-tables/
+│   ├── people-listing.tsx       # Server component: prefetch + HydrationBoundary
+│   ├── person-form.tsx
+│   ├── person-view-page.tsx
+│   └── people-table/
 │       ├── index.tsx            # 'use client' — useSuspenseQuery + useDataTable
 │       ├── columns.tsx
-│       ├── cell-action.tsx
-│       └── options.tsx          # Filter option definitions
+│       └── cell-action.tsx
 ├── constants/
-│   └── product-options.ts
+│   └── person-options.ts
 └── schemas/
-    └── product.ts               # Zod schemas
+    └── person.ts                # Zod schemas
 ```
 
 Route pages stay thin and live separately under
-`src/app/dashboard/<route>/page.tsx` — they parse search params and render the
-feature's listing component. See `src/app/dashboard/product/page.tsx`.
+`src/app/dashboard/<route>/page.tsx` — they parse search params, call
+`requireRouteAccess()`, and render the feature's listing component. See
+`src/app/dashboard/people/page.tsx`.
 
 **The dependency direction is one-way:** `types.ts` → `service.ts` →
 `queries.ts` → components. Components never import mock APIs directly.
 
 ### Which features are real — three tiers, and they look identical from the tree
 
-`src/features/` has 17 folders. Knowing which tier one is in is not inferable
+`src/features/` has 21 folders. Knowing which tier one is in is not inferable
 from its name, and picking the wrong one to copy is the common mistake.
 
 | Tier | Folders |
 | --- | --- |
-| **Real, DB-backed** | `tracker`, `extraction`, `people`, `person-profile`, `briefs`, `home`, `connector-health`, `role-profiles`, `identities`, plus the non-UI `connectors`, `identity`, `normalise` |
-| **Template leftovers — mock data** | `products`, `users` |
+| **Real, DB-backed** | `tracker`, `extraction`, `people`, `person-profile`, `briefs`, `home`, `connector-health`, `role-profiles`, `identities`, `my-day`, `my-team`, `my-projects`, `department`, `automations`, plus the non-UI `connectors`, `identity`, `normalise` |
+| **Sample-backed — no model exists yet** | `founder-offload` (see docs/gaps.md) |
 | **Mockups — screenshots, not features** | `tracker-mockups` |
 | **Clerk UI shells — no data layer** | `auth`, `profile` |
+
+> ✅ **The "template leftovers" tier is GONE.** `products` and `users` were the
+> only two mock services; both are deleted. Every feature above is either
+> DB-backed or explicitly labelled sample-backed in the UI.
 
 > ⚠️⚠️ **`tracker-mockups` is NOT `tracker`, and it contains a rule-breaking
 > constant on purpose.** `MOCKUP_TODAY = '2026-08-12'` is hardcoded so the
@@ -104,8 +115,9 @@ direction, and the backend is audited against it.**
 ### Zod schema location
 
 Schemas live at `src/features/<feature>/schemas/<entity>.ts`. Verified:
-`src/features/products/schemas/product.ts`,
-`src/features/users/schemas/user.ts`.
+`src/features/people/schemas/person.ts`,
+`src/features/tracker/schemas/tracker.ts`,
+`src/features/extraction/schemas/action-item.ts`.
 
 When the database arrives, Zod schemas **mirror** the Drizzle table definitions
 — they do not replace them. Drizzle owns the DB shape; Zod validates at the
@@ -113,15 +125,17 @@ boundary (forms, route handlers, external payloads).
 
 ### Route-handler placement
 
-**The data-access pattern is SETTLED: Pattern 1, Server Actions + ORM.** Eight
-features use it — `tracker`, `extraction`, `people`, `briefs`, `home`,
-`connector-health`, `role-profiles`, `identities`. Their `service.ts` is
-`'use server'` and imports `@/db` directly.
+**The data-access pattern is SETTLED: Pattern 1, Server Actions + ORM.** Every
+UI feature uses it — `tracker`, `extraction`, `people`, `briefs`, `home`,
+`connector-health`, `role-profiles`, `identities`, `my-day`, `my-team`,
+`my-projects`, `department`, `automations`. Their `service.ts` is `'use server'`
+and imports `@/db` directly.
 
-> ⚠️ `api/products` and `api/users` are **template leftovers** — the only two
-> services still returning mock data and the only two without `'use server'`.
-> They are not the example to copy. `src/features/tracker/api/service.ts` and
-> `src/features/identities/api/service.ts` are.
+> ✅ **The two exceptions are gone.** `api/products` and `api/users` were the only
+> services returning mock data and the only ones without `'use server'`; those
+> features and their four route handlers have been deleted (inventory §4.2). There
+> is no longer a counter-example in the tree. `src/features/tracker/api/service.ts`
+> and `src/features/identities/api/service.ts` remain the ones to copy.
 
 Two consequences that are easy to get wrong:
 
@@ -153,44 +167,44 @@ and _not_ as the primary read path.
 Three parts, all required. This is the official TanStack pattern; do not
 improvise around it.
 
-**1. Server component prefetches** (`product-listing.tsx`):
+**1. Server component prefetches** (`people-listing.tsx`):
 
 ```tsx
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/query-client';
 import { searchParamsCache } from '@/lib/searchparams';
-import { productsQueryOptions } from '../api/queries';
+import { peopleBoardQueryOptions } from '../api/queries';
 
-export default function ProductListingPage() {
+export default function PeopleListingPage() {
   const filters = { page: searchParamsCache.get("page") /* … */ };
   const queryClient = getQueryClient();
 
-  void queryClient.prefetchQuery(productsQueryOptions(filters)); // note: void, not await
+  void queryClient.prefetchQuery(peopleBoardQueryOptions(filters)); // note: void, not await
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <ProductTable />
+      <PeopleTable />
     </HydrationBoundary>
   );
 }
 ```
 
-**2. Client component consumes** (`product-tables/index.tsx`):
+**2. Client component consumes** (`people-table/index.tsx`):
 
 ```tsx
 'use client';
-const { data } = useSuspenseQuery(productsQueryOptions(filters));
+const { data } = useSuspenseQuery(peopleBoardQueryOptions(filters));
 ```
 
 **3. Both sides build the same query key** from the same `queryOptions` factory
 in `api/queries.ts`, using a key factory:
 
 ```ts
-export const productKeys = {
-  all: ["products"] as const,
-  list: (filters: ProductFilters) =>
-    [...productKeys.all, "list", filters] as const,
-  detail: (id: number) => [...productKeys.all, "detail", id] as const,
+export const personKeys = {
+  all: ["people"] as const,
+  list: (filters: PersonFilters) => [...personKeys.all, "list", filters] as const,
+  board: (filters: PersonFilters) => [...personKeys.all, "board", filters] as const,
+  detail: (id: string) => [...personKeys.all, "detail", id] as const,
 };
 ```
 

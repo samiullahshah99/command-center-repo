@@ -19,6 +19,68 @@ and flipping one field in one file removes both.
 
 ---
 
+## Automations — rule FIRED counts (hybrid)
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/automations` → "Auto-completion rules" card, FIRED column |
+| **Generator** | `sampleFired()` in `src/features/automations/api/service.ts` |
+| **Marker** | `TODO(backend): completion engine (audit D5)` |
+| **DTO flag** | `Automations.firedIsSample` |
+| **Audit ref** | D5, §2.14, §3.5 AutomationRule |
+
+⚠️ **Hybrid — read the split.**
+
+**Real:** every recurring task row, its owner, its cadence, its watched signal
+(from `auto_complete_rule.source` + `.event`), its `fallback_manual` flag, and
+**both status columns**. Also real: the entire Role profiles table — names, people
+counts and names, tracked signals, quota, rule and source.
+
+**Invented:** the FIRED count and last-fired timestamp. `completion_event` has **0
+rows and no writer**, and nothing evaluates `auto_complete_rule` — so nothing has
+ever fired. Counts are derived from the row's index and cadence (a daily task
+plausibly fires more than a weekly one) and share the Capture-queue ledger's
+one-day-apart spread, so the same task tells the same story on both screens.
+
+> ⚠️ **NEVER seed `completion_event` to fix this.** A seeded row makes a
+> fabricated firing indistinguishable from a measured one at the database level.
+
+### ⚠️ Two DERIVED status columns — and the swap point
+
+Neither `role_profile` nor `recurring_task` has a status column. Both pills are
+computed in `../api/service.ts`:
+
+| Column | Derivation |
+| --- | --- |
+| Role profile → STATUS | `live` when the profile's people have an auto-complete rule; `manual` otherwise |
+| Rule → STATUS | `active` when a rule exists; `manual_fallback` when only `fallback_manual`; `no_rule` otherwise |
+
+**When the `role_profile` rebuild (audit §3.4) adds a real status column, those two
+functions are the only place to change.** The derivation is deliberately kept out of
+the components — a derived value that looks stored is how a screen starts
+disagreeing with the database.
+
+⚠️ **A rule wins over a fallback in the status.** Two of the five seeded tasks carry
+BOTH a rule and `fallback_manual = true`. They read "Active", because something *is*
+watching; the fallback is surfaced separately on the row ("manual fallback
+available") so the real field is not hidden by the derivation.
+
+⚠️ **`manual_fallback` is warning, not destructive.** The PRD plans for it — "where
+no reliable signal exists, tasks fall back to a lightweight manual check-off" — so it
+is a known design limitation, not a failure.
+
+### The three untyped JSONB columns
+
+`tracked_signals`, `quota_config` and `source_channels` are untyped jsonb and the
+inventory says rebuild them (audit §3.4). Every parse on this page returns a
+fallback and **cannot throw** — exercised against arrays, nulls, strings, numbers,
+mixed-type arrays, `NaN`, `Infinity`, negatives and stringified numbers. A malformed
+config renders an em dash in one cell rather than taking down the operator's only
+view of what is configured. **Today every `quota_config` is `{}`, so the QUOTA
+column is em dashes across the board** — that is real, not a gap.
+
+---
+
 ## My projects — Slack nudge status note *(not a data mock)*
 
 | | |

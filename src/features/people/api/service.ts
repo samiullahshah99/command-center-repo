@@ -19,17 +19,25 @@ import { auth } from '@clerk/nextjs/server';
 import { db } from '@/db';
 import {
   candidateActionItem,
+  department,
   person,
   personIdentity,
+  role,
   roleProfile,
   unifiedEvent
 } from '@/db/schema';
+import { departmentAccentVar } from '@/lib/dept-accent';
+import { personAccentVar } from '@/lib/person-accent';
 import {
   BOARD_SOURCES,
   type ActivityDay,
   type BoardSource,
   type IdentityBadge,
+  type OpenRole,
+  type OrgDeptColumn,
+  type OrgPersonChip,
   type PeopleBoardResponse,
+  type PeopleOrg,
   type PeopleResponse,
   type PersonBoardRow,
   type PersonByIdResponse,
@@ -472,6 +480,167 @@ export async function getRoleProfileOptions(): Promise<RoleProfileOption[]> {
     .from(roleProfile)
     .orderBy(asc(roleProfile.name));
   return rows;
+}
+
+// ── Org chart ───────────────────────────────────────────────────────────────
+
+/** Local, as in every other service on this codebase (8 copies and counting). */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/**
+ * TODO(backend): recruiting source (model or ATS — decision not yet made).
+ *
+ * ⚠️ INVENTED. There is NO recruiting model, no ATS integration, and no ATS in
+ * the PRD's integration list (audit §2.7). Nothing in this database describes a
+ * hiring pipeline, so there is no query that could return these.
+ *
+ * ⚠️ Kept behind the service seam so the components stay honest: they render
+ * whatever `openRoles` holds and the caption from `recruitingIsSample`. When a
+ * real source lands, this function is the only thing that changes.
+ *
+ * ⚠️ NEVER "fix" this by adding an `open_role` table and seeding it. A seeded row
+ * makes an invented vacancy indistinguishable from a real one — and a vacancy is
+ * the kind of thing someone repeats out loud in a meeting.
+ */
+async function sampleOpenRoles(): Promise<OpenRole[]> {
+  return [
+    { id: 'sample-1', title: 'CX agent', employmentType: 'Full-time', stage: '2 in final round' },
+    { id: 'sample-2', title: 'Video editor', employmentType: 'Contract', stage: 'Sourcing' }
+  ];
+}
+
+/**
+ * Everything the org chart renders, in ONE query.
+ *
+ * ⚠️ NO `now` PARAMETER, deliberately — nothing here is time-dependent, so there
+ * is no clock to thread and no hydration risk to manage. Do not add one "for
+ * consistency": an unused instant in a query key is a cache that misses hourly.
+ */
+export async function getPeopleOrg(): Promise<PeopleOrg> {
+  await requireUser();
+
+  const rows = await db
+    .select({
+      id: person.id,
+      name: person.name,
+      // ⚠️ `code` drives every branch below; `displayName` is only ever rendered.
+      roleCode: role.code,
+      roleLabel: role.displayName,
+      departmentId: person.departmentId,
+      departmentName: department.name
+    })
+    .from(person)
+    .leftJoin(role, eq(role.id, person.roleId))
+    .leftJoin(department, eq(department.id, person.departmentId))
+    .orderBy(asc(department.name), asc(person.name));
+
+  const chip = (r: (typeof rows)[number]): OrgPersonChip => ({
+    id: r.id,
+    name: r.name,
+    initials: initialsOf(r.name),
+    accentVar: personAccentVar(r.id),
+    roleLabel: r.roleLabel,
+    // ⚠️ `?from=people` is in the profile page's ALLOW-LIST (verified). An
+    // unrecognised value falls back to People & org rather than erroring.
+    href: `/dashboard/people/${r.id}/profile?from=people`
+  });
+
+  /**
+   * ⚠️ THE PARTITION IS THE WHOLE DESIGN, so it is written once, here.
+   *
+   * A founder or ops lead is rendered at their elevated node and is then EXCLUDED
+   * from their department's column. Without the exclusion they render twice, and
+   * the chart claims a headcount the roster does not have.
+   *
+   * ⚠️ THIS IS NOT HYPOTHETICAL ON THE CURRENT DATA. Both elevated people sit in
+   * Operations, and it is the only department they are in — so excluding them
+   * empties that column completely. That state is rendered, not hidden: see the
+   * note on the empty column in ../components/people-org.tsx.
+   *
+   * ⚠️ Compared on `role.code`, never `role_id`. `code === 'ops_lead'` greps;
+   * `role_id === 2` does not, and it silently rots if the seed order ever moves.
+   */
+  const founders = rows.filter((r) => r.roleCode === 'founder').map(chip);
+  const opsLeads = rows.filter((r) => r.roleCode === 'ops_lead').map(chip);
+  const elevated = new Set([...founders, ...opsLeads].map((c) => c.id));
+
+  const byDept = new Map<string, OrgPersonChip[]>();
+  const unassigned: OrgPersonChip[] = [];
+  /**
+   * ⚠️ Counted per department so an empty column can say WHY it is empty. See the
+   * note on `OrgDeptColumn.elevatedCount` — "all shown above" and "nobody here"
+   * are different facts and an empty array cannot distinguish them.
+   */
+  const elevatedByDept = new Map<string, number>();
+
+  for (const r of rows) {
+    if (elevated.has(r.id)) {
+      if (r.departmentId) {
+        elevatedByDept.set(r.departmentId, (elevatedByDept.get(r.departmentId) ?? 0) + 1);
+      }
+      continue;
+    }
+
+    if (!r.departmentId || !r.departmentName) {
+      unassigned.push(chip(r));
+      continue;
+    }
+    byDept.set(r.departmentId, [...(byDept.get(r.departmentId) ?? []), chip(r)]);
+  }
+
+  /**
+   * ⚠️ EVERY department, from the `department` table — not only the ones with
+   * members. A column that vanishes when its last person leaves would make this
+   * chart disagree with the sidebar and the Control Tower's health grid, which
+   * both read the table.
+   */
+  const deptRows = await db
+    .select({ id: department.id, name: department.name })
+    .from(department)
+    .orderBy(asc(department.name));
+
+  const departments: OrgDeptColumn[] = deptRows.map((d) => ({
+    id: d.id,
+    name: d.name,
+    accentVar: departmentAccentVar(d.id),
+    members: byDept.get(d.id) ?? [],
+    elevatedCount: elevatedByDept.get(d.id) ?? 0,
+    isUnassigned: false
+  }));
+
+  /**
+   * ⚠️ ONLY WHEN NON-EMPTY, and it must exist at all — `person.department_id` is
+   * nullable, so this is a reachable state and not a defensive nicety. Dropping
+   * these people would make the chart quietly disagree with the roster count
+   * below it, which is the one error nobody would catch by looking.
+   *
+   * Muted rather than a chart accent: it is an absence, not a fifth team.
+   */
+  if (unassigned.length > 0) {
+    departments.push({
+      id: 'unassigned',
+      name: 'Unassigned',
+      accentVar: 'var(--muted-foreground)',
+      members: unassigned,
+      // Pushed only when non-empty, so this column never renders the empty branch.
+      elevatedCount: 0,
+      isUnassigned: true
+    });
+  }
+
+  return {
+    founders,
+    opsLeads,
+    departments,
+    openRoles: await sampleOpenRoles(),
+    recruitingIsSample: true,
+    headcount: rows.length
+  };
 }
 
 export async function createPerson(data: PersonMutationPayload) {

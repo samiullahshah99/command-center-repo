@@ -17,6 +17,8 @@
     "node_modules/**",
     "scripts/**",
     "pnpm-lock.yaml",
+    "design/mockup/**",
+    "drizzle/meta/**",
     "**/*.md",
     "**/*.mdc",
     "**/*.mdx",

@@ -19,6 +19,69 @@ and flipping one field in one file removes both.
 
 ---
 
+## People & org — the Miro org-chart claim *(a relabel, not a mock)*
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/people` → subtitle |
+| **Mockup says** | "Org chart seeded from Miro · live embed: luckyfours.app/embed/org" |
+| **We render** | "Org chart derived live from roles and departments." |
+| **Audit ref** | §2.7 — an embed URL is config, not an integration |
+
+⚠️ **NOTHING IS MOCKED HERE — the claim was removed, not simulated.** There is no
+Miro integration, no Miro credential, no embed route, and no `luckyfours.app/embed`
+anywhere in this repo. The chart the page renders is genuinely derived from `role`
+and `department`, so the subtitle now describes what actually produced it.
+
+**Why the mockup's line could not ship as written.** It names a *source of truth*
+for the org chart. A reader who believes the chart mirrors Miro will go and fix a
+wrong reporting line **in Miro** and wait for it to appear here — and it never
+will, because the arrow points the other way: this chart is built from
+`person.role_id` and `person.department_id`, and Miro (if it exists at all) is
+downstream of nobody. That is a worse failure than a missing feature, because
+nothing looks broken.
+
+### If the team does want the real Miro embed
+
+Per audit §2.7, **this is a one-line env var, not a build.** An embed is an
+`<iframe>` pointing at a board URL — no OAuth, no client, no webhook, no sync. Add
+the URL to config, render the iframe, and drop the derived chart or keep both. What
+it is *not* is an integration: an embedded board cannot be queried, cannot be
+diffed against the roster, and would not keep itself in step with `person`. So if
+both ship, the derived chart stays the source of truth and the embed is a picture.
+
+---
+
+## People & org — Recruiting card (fully mocked)
+
+| | |
+| --- | --- |
+| **Surface** | `/dashboard/people` → "Recruiting" card |
+| **Generator** | `sampleOpenRoles()` in `src/features/people/api/service.ts` |
+| **Marker** | `TODO(backend): recruiting source (model or ATS — decision not yet made)` |
+| **DTO flag** | `PeopleOrg.recruitingIsSample` |
+| **Audit ref** | §2.7 — no ATS in the PRD's integration list |
+
+⚠️ **EVERY FIELD IS INVENTED.** There is no recruiting model, no `open_role` table,
+and no ATS connection. Nothing in this database describes a hiring pipeline, so
+there is no query that could return these rows — unlike most gaps on this page,
+this one is not "a real table we have not wired up yet".
+
+Two illustrative rows render behind a `SampleDataCaption`. **The decision is
+upstream of the build:** a lightweight `open_role` table we own, or an ATS
+integration, has not been made yet.
+
+> ⚠️ **Do NOT resolve this by adding an `open_role` table and seeding it.** A
+> seeded vacancy is indistinguishable from a real one at the database level, and a
+> vacancy is exactly the kind of thing someone repeats out loud in a meeting or
+> forwards to a candidate. The caption is the safeguard; a seed removes it.
+
+⚠️ **Everything else on this screen is real** — every chip, name, role display and
+department comes from `person`, `role` and `department`. The org chart is not
+mocked in any part.
+
+---
+
 ## Automations — rule FIRED counts (hybrid)
 
 | | |

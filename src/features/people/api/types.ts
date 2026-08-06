@@ -157,4 +157,94 @@ export type PersonPanel = {
   now: string;
 };
 
+// ── Org chart ───────────────────────────────────────────────────────────────
+
+/**
+ * One person, as the org chart renders them.
+ *
+ * ⚠️ `accentVar` is a THEME TOKEN REFERENCE (`var(--chart-2)`), never a colour
+ * literal — see @/lib/person-accent. A hex here would not follow the theme.
+ */
+export type OrgPersonChip = {
+  id: string;
+  name: string;
+  initials: string;
+  accentVar: string;
+  /** `role.display_name`. DISPLAY ONLY — every branch uses `role.code`. */
+  roleLabel: string | null;
+  /** Profile link, already carrying its `?from=` value. */
+  href: string;
+};
+
+/**
+ * One column of the org chart's bottom row.
+ *
+ * ⚠️ `members` EXCLUDES anyone already rendered at the founder or ops-lead level.
+ * See the partition comment in ./service.ts.
+ */
+export type OrgDeptColumn = {
+  /** A department uuid, or the literal `'unassigned'` for the synthetic column. */
+  id: string;
+  name: string;
+  accentVar: string;
+  members: OrgPersonChip[];
+  /**
+   * How many of this department's people are rendered at an ELEVATED level
+   * instead of in this column.
+   *
+   * ⚠️ THIS IS WHAT MAKES THE EMPTY-COLUMN COPY HONEST. "All members shown above"
+   * and "No members yet" are different facts, and only this number separates
+   * them — an empty column alone cannot tell you which. Operations is currently
+   * the first case (both its people are the founder and the ops lead); an
+   * unstaffed department would be the second, and telling a reader to look above
+   * for people who do not exist sends them hunting for a rendering bug.
+   */
+  elevatedCount: number;
+  /**
+   * ⚠️ The synthetic "Unassigned" column, which has no `department` row behind it.
+   * A flag rather than an id comparison at the call site — the component must not
+   * need to know that `'unassigned'` is a magic string.
+   */
+  isUnassigned: boolean;
+};
+
+/**
+ * An open role on the recruiting card.
+ *
+ * ⚠️ MOCKED — there is no ATS integration and no recruiting model. See the note
+ * on `PeopleOrg.recruitingIsSample`.
+ */
+export type OpenRole = {
+  id: string;
+  title: string;
+  /** e.g. "Full-time", "Contract". Free text — no enum exists to constrain it. */
+  employmentType: string;
+  /** Where the search has got to, e.g. "2 in final round". */
+  stage: string;
+};
+
+export type PeopleOrg = {
+  /**
+   * ⚠️ ARRAYS, not single people, at both elevated levels. Nothing in the schema
+   * makes `founder` or `ops_lead` singular — `person.role_id` is a plain FK and
+   * two people can hold either. Modelling these as `founder: Person | null` would
+   * crash or silently drop someone the day a co-founder is added.
+   */
+  founders: OrgPersonChip[];
+  opsLeads: OrgPersonChip[];
+  departments: OrgDeptColumn[];
+  openRoles: OpenRole[];
+  /**
+   * ⚠️ Covers `openRoles` ONLY. Everything else on this page is a real query.
+   * The caption renders from this flag, so when a real source lands the service
+   * flips one field and it disappears — see @/components/sample-data-caption.
+   */
+  recruitingIsSample: boolean;
+  /**
+   * Every roster row, including the elevated ones. The org chart must account for
+   * all of them — see the "Unassigned" column note in ./service.ts.
+   */
+  headcount: number;
+};
+
 export type RoleProfileOption = { value: string; label: string };

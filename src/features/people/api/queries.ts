@@ -2,6 +2,7 @@ import { queryOptions } from '@tanstack/react-query';
 import {
   getPeople,
   getPeopleBoard,
+  getPeopleOrg,
   getPersonById,
   getPersonPanel,
   getRoleProfileOptions
@@ -16,8 +17,22 @@ export const personKeys = {
   board: (filters: PersonFilters) => [...personKeys.all, 'board', filters] as const,
   panel: (id: string) => [...personKeys.all, 'panel', id] as const,
   detail: (id: string) => [...personKeys.all, 'detail', id] as const,
-  roleProfileOptions: () => [...personKeys.all, 'role-profile-options'] as const
+  roleProfileOptions: () => [...personKeys.all, 'role-profile-options'] as const,
+  org: () => [...personKeys.all, 'org'] as const
 };
+
+/**
+ * The org chart.
+ *
+ * ⚠️ NO FILTER AND NO `now` IN THE KEY — the chart is the whole roster and nothing
+ * on it is time-dependent, so the key is a constant and both sides of the SSR
+ * handoff build it identically without having to agree on an instant.
+ */
+export const peopleOrgQueryOptions = () =>
+  queryOptions({
+    queryKey: personKeys.org(),
+    queryFn: () => getPeopleOrg()
+  });
 
 export const peopleBoardQueryOptions = (filters: PersonFilters) =>
   queryOptions({

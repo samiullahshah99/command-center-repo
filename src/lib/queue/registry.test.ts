@@ -11,8 +11,23 @@
  *     pnpm test:db
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
+
+/**
+ * ⚠️ The default 5s is not enough since normalisation began ENQUEUEING.
+ *
+ * `normaliseRawEvent` now sends a `completion.evaluate` job inside its
+ * transaction, so the first handler call in this file triggers pg-boss's initial
+ * `start()` — creating the `pgboss` schema and its queues over the public Railway
+ * proxy. That is a one-time cost of several seconds and it landed on whichever
+ * test ran first, which read as three unrelated handlers "hanging".
+ *
+ * `ingest.test.ts` solved the same problem the same way — it warms `getBoss()` in
+ * its own setup. Both are needed: the warm-up moves the cost into beforeAll, the
+ * raised timeout covers the proxy being slow.
+ */
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const HAS_DB = Boolean(process.env.DATABASE_URL ?? process.env.DATABASE_PUBLIC_URL);
 const describeDb = HAS_DB ? describe : describe.skip;
@@ -30,7 +45,12 @@ describeDb('HANDLERS', () => {
     ({ db, pool } = await import('@/db'));
     ({ rawEvent, RAW_EVENT_SOURCES } = await import('@/db/schema'));
     ({ HANDLERS } = await import('./registry'));
-  }, 30_000);
+
+    // ⚠️ Warm pg-boss BEFORE the timed tests — see the note at the top of the
+    // file. Same move as ingest.test.ts's setup, and for the same reason.
+    const queue = await import('./index');
+    await queue.getBoss();
+  }, 60_000);
 
   afterAll(async () => {
     await db.execute(sql`delete from raw_event where external_id like ${RUN + '%'}`);

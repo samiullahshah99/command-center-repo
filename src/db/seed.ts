@@ -43,6 +43,7 @@ import {
   type RoleCode
 } from './schema';
 import type { TrackedItemStatus } from './schema/tracked-item';
+import { PENDING_CHANNEL_ID } from './schema/recurring-task';
 import { seedTracker } from './seed-tracker';
 
 // ── Departments ──────────────────────────────────────────────────────────────
@@ -513,40 +514,125 @@ function rosterEmails(): Map<string, string> {
 // today and the loop throws if it ever stops holding, rather than silently
 // picking one.
 
+/**
+ * The five recurring tasks, with their rules REWRITTEN against real events
+ * (design §0 and §3.2, 2026-08-06).
+ *
+ * ⚠️⚠️ THE OLD RULES COULD NEVER HAVE FIRED. Measured against all 604
+ * `unified_event` rows, not one of the five named a `(source, event_type)` pair
+ * that exists:
+ *
+ *   - `portal` and `brief_tracker` are not event sources at all. `unified_event`
+ *     is constrained to RAW_EVENT_SOURCES (slack|clickup|fireflies|ugc|vision);
+ *     `portal` lives in IDENTITY_SOURCES only — it issues identities and delivers
+ *     no webhooks.
+ *   - Slack emits exactly one event_type: `message`. There was no
+ *     `ops_review_posted` and no `standup_message`.
+ *   - Fireflies emits `meeting.transcribed`, not `recap_delivered`.
+ *
+ * They described INTENT IN ENGLISH, not matching criteria. Migrating them was
+ * therefore a data task with a human in the loop, NOT a cast — a mechanical
+ * tightening would have produced five rules that validate and match nothing: a
+ * green engine with a permanently empty ledger, which reads as "nobody did their
+ * work" rather than "nothing is wired up".
+ *
+ * ⚠️ TWO TASKS DELIBERATELY CARRY NO RULE (`{}`), which is a real supported
+ * configuration and not an omission — see each note below.
+ */
 const RECURRING_TASKS = [
   {
-    // Mockup: "CX metrics recap — Ronalyn"
+    /**
+     * Mockup: "CX metrics recap — Ronalyn".
+     *
+     * ⚠️ NO RULE, and `fallback_manual: true`. The honest rule would be
+     * `fireflies/meeting.transcribed` with `actor: 'must_be_owner'` — but
+     * Fireflies attribution is 0% (audit D4: webhooks carry a meeting_id and no
+     * actor), so that rule could never complete and would look exactly like
+     * Ronalyn not doing the work. `validateRule()` rejects it for that reason.
+     *
+     * `actor: 'any'` would make it fire on ANYONE's meeting, which is worse than
+     * manual. Revisit if §7 decision 5 lands as "allow" AND Fireflies attribution
+     * is solved.
+     */
     ownerName: 'Ronalyn',
     cadence: 'weekly',
-    autoCompleteRule: { source: 'fireflies', event: 'recap_delivered', within: '7d' },
+    autoCompleteRule: {},
     fallbackManual: true
   },
   {
-    // Mockup: "Daily returns review — Diane"
+    /**
+     * Mockup: "Daily returns review — Diane".
+     *
+     * ⚠️ NO RULE, and no rule is EXPRESSIBLE. The old rule named `source:
+     * 'portal'`, which cannot appear on a `unified_event` — this is a
+     * manual-only task until an internal backend endpoint emits a real event.
+     */
     ownerName: 'Diane',
     cadence: 'daily',
-    autoCompleteRule: { source: 'portal', event: 'awaiting_review_acknowledged', within: '24h' },
+    autoCompleteRule: {},
     fallbackManual: true
   },
   {
-    // No mockup counterpart — stands in for the unowned fifth row. See above.
+    /**
+     * ⚠️ Carries PENDING_CHANNEL_ID. The shape is right and the source is real,
+     * but nobody has supplied the ops channel id — so `validateRule()` reports
+     * "cannot fire — channel id missing" rather than letting it sit looking
+     * healthy while never matching. Ask sent 2026-08-06 (§7 decision 7).
+     */
     ownerName: 'Ardin',
     cadence: 'weekly',
-    autoCompleteRule: { source: 'slack', event: 'ops_review_posted', within: '7d' },
+    autoCompleteRule: {
+      version: 1,
+      signal: 'ops_review_posted',
+      match: {
+        source: 'slack',
+        eventType: 'message',
+        metadata: { channel: PENDING_CHANNEL_ID }
+      },
+      actor: 'must_be_owner',
+      window: { cadence: 'weekly' }
+    },
     fallbackManual: false
   },
   {
-    // Mockup: "Weekly brief quota — Hashim". Unchanged — it already matched.
+    /**
+     * Mockup: "Weekly brief quota — Hashim". ⚠️ THE ONE THAT FULLY MIGRATES.
+     *
+     * `brief_tracker` was never a source; Vision is the real one, and
+     * `vision/brief.submitted` has 17 real events. Vision attribution is ~43%, so
+     * this fires for attributed submissions and under-reports the rest — which is
+     * why the ledger records `attribution` per row rather than assuming.
+     */
     ownerName: 'Hashim',
     cadence: 'weekly',
-    autoCompleteRule: { source: 'brief_tracker', event: 'briefs_submitted', within: '7d' },
+    autoCompleteRule: {
+      version: 1,
+      signal: 'briefs_submitted',
+      match: { source: 'vision', eventType: 'brief.submitted' },
+      actor: 'must_be_owner',
+      window: { cadence: 'weekly' }
+    },
     fallbackManual: false
   },
   {
-    // Mockup: "Standup notes — Usama"
+    /**
+     * Mockup: "Standup notes — Usama". Same PENDING_CHANNEL_ID situation as
+     * Ardin's — Slack is 90.9% attributed, so this works the moment the standup
+     * channel id is supplied.
+     */
     ownerName: 'Usama',
     cadence: 'daily',
-    autoCompleteRule: { source: 'slack', event: 'standup_message', within: '24h' },
+    autoCompleteRule: {
+      version: 1,
+      signal: 'standup_posted',
+      match: {
+        source: 'slack',
+        eventType: 'message',
+        metadata: { channel: PENDING_CHANNEL_ID }
+      },
+      actor: 'must_be_owner',
+      window: { cadence: 'daily' }
+    },
     fallbackManual: false
   }
 ] as const;

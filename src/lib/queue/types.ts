@@ -48,7 +48,48 @@ export function isExtractJobData(v: unknown): v is ExtractJobData {
   );
 }
 
-export const ALL_QUEUE_NAMES = [...RAW_EVENT_SOURCES.map(queueNameFor), EXTRACTION_QUEUE];
+/**
+ * Completion evaluation — "did this event satisfy anybody's recurring rule?"
+ *
+ * ⚠️ NOT a `parse.*` queue, for the same reason extraction is not: those are
+ * one-per-raw-event-source and derived from RAW_EVENT_SOURCES. Completion runs
+ * AFTER normalisation and belongs to no connector — squeezing it into
+ * `queueNameFor()` would mean inventing a fake source.
+ *
+ * Dots, not colons — pg-boss v12 rejects `:`.
+ */
+export const COMPLETION_QUEUE = 'completion.evaluate';
+
+/**
+ * The nightly window-closing sweep.
+ *
+ * ⚠️ A SEPARATE QUEUE from `completion.evaluate`, not a job type on it. The two
+ * have opposite failure modes: an evaluate job that dead-letters loses one
+ * completion, while a sweep that dead-letters loses a whole night's window
+ * closures. Separate queues keep one from consuming the other's retry budget.
+ */
+export const COMPLETION_SWEEP_QUEUE = 'completion.sweep';
+
+/** What a completion job carries: which unified_event to evaluate. */
+export type CompletionJobData = {
+  unifiedEventId: string;
+};
+
+export function isCompletionJobData(v: unknown): v is CompletionJobData {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as { unifiedEventId?: unknown }).unifiedEventId === 'string' &&
+    (v as { unifiedEventId: string }).unifiedEventId.length > 0
+  );
+}
+
+export const ALL_QUEUE_NAMES = [
+  ...RAW_EVENT_SOURCES.map(queueNameFor),
+  EXTRACTION_QUEUE,
+  COMPLETION_QUEUE,
+  COMPLETION_SWEEP_QUEUE
+];
 
 /**
  * Dead-letter queue. pg-boss moves a job here after `retryLimit` is exhausted;

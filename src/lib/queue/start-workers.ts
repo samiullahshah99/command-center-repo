@@ -12,15 +12,20 @@
 
 import type { JobResult, JobWithMetadata } from 'pg-boss';
 import { RAW_EVENT_SOURCES, type RawEventSource } from '@/db/schema';
+import type { Cadence } from '@/db/schema/recurring-task';
 import { getBoss, RETRY_LIMIT } from './index';
 import { HANDLERS } from './registry';
 import { registerShutdownHandlers } from './shutdown';
 import {
+  COMPLETION_QUEUE,
+  COMPLETION_SWEEP_QUEUE,
   EXTRACTION_QUEUE,
+  isCompletionJobData,
   isExtractJobData,
   isParseJobData,
   isPermanentJobError,
   queueNameFor,
+  type CompletionJobData,
   type ExtractJobData,
   type ParseJobData
 } from './types';
@@ -73,6 +78,42 @@ export async function startWorkers(): Promise<void> {
     makeExtractionBatchHandler()
   );
 
+  // ── Completion ────────────────────────────────────────────────────────────
+  // ⚠️ Same options, same reason, and it matters MORE here: a batch of two events
+  // can belong to two different people's recurring tasks. Without perJobResults,
+  // one malformed rule drags an unrelated person's completion through the whole
+  // retry ladder and into the dead-letter queue with it. Pinned by
+  // completion-batch-isolation.test.ts.
+  await boss.work(
+    COMPLETION_QUEUE,
+    { batchSize: BATCH_SIZE, includeMetadata: true, perJobResults: true },
+    makeCompletionBatchHandler()
+  );
+
+  // ⚠️ batchSize 1. The sweep is one job that reads the clock; batching it would
+  // just run the same computation twice in one poll.
+  await boss.work(COMPLETION_SWEEP_QUEUE, { batchSize: 1, includeMetadata: true }, async () => {
+    const { runCompletionSweep } = await import('@/features/completion/sweep');
+    const { db } = await import('@/db');
+    const { recurringTask } = await import('@/db/schema');
+    const tasks = await db
+      .select({
+        id: recurringTask.id,
+        cadence: recurringTask.cadence,
+        createdAt: recurringTask.createdAt
+      })
+      .from(recurringTask);
+
+    // ⚠️ `now` resolved ONCE here and threaded in, per the house rule.
+    const summary = await runCompletionSweep({
+      now: new Date(),
+      tasks: tasks.map((t) => ({ ...t, cadence: t.cadence as Cadence }))
+    });
+    console.warn(
+      `[queue:completion.sweep] observed ${summary.closed} closed window(s); wrote ${summary.written} rows (always 0 by design)`
+    );
+  });
+
   console.warn(
     `[queue] workers started for ${RAW_EVENT_SOURCES.length + 1} queues ` +
       `(batchSize=${BATCH_SIZE}, retryLimit=${RETRY_LIMIT})`
@@ -112,6 +153,70 @@ export function makeBatchHandler(source: RawEventSource) {
  * Two mechanisms, both required — `perJobResults: true` at the work() call, and
  * this function never throwing.
  */
+/**
+ * The completion queue's batch handler.
+ *
+ * ⚠️ Identical isolation guarantees to makeBatchHandler and
+ * makeExtractionBatchHandler — and the stake is higher: two jobs in one batch can
+ * belong to two different PEOPLE. A throw here without perJobResults would fail
+ * an innocent colleague's completion because someone else's rule is malformed.
+ */
+export function makeCompletionBatchHandler() {
+  return async (jobs: JobWithMetadata<CompletionJobData>[]): Promise<JobResult[]> =>
+    Promise.all(jobs.map((job) => runCompletion(job)));
+}
+
+/**
+ * ⚠️ Memoised import, same as loadExtractor and for the same measured reason: two
+ * simultaneous `import()` calls of one specifier are two module resolutions until
+ * one settles, which once let the second job in a batch bypass a mocked module.
+ * The rejection is deliberately not cached.
+ */
+let completionModule: Promise<typeof import('@/features/completion/evaluate')> | null = null;
+
+function loadCompletion(): Promise<typeof import('@/features/completion/evaluate')> {
+  if (completionModule) return completionModule;
+  const loading = import('@/features/completion/evaluate');
+  completionModule = loading;
+  loading.catch(() => {
+    if (completionModule === loading) completionModule = null;
+  });
+  return loading;
+}
+
+async function runCompletion(job: JobWithMetadata<CompletionJobData>): Promise<JobResult> {
+  const attempt = job.retryCount ?? 0;
+
+  if (!isCompletionJobData(job.data)) {
+    // Malformed data will not improve on retry.
+    console.error(`[queue:completion] job=${job.id} malformed data — dead-lettering`);
+    return { id: job.id, status: 'deadletter' } as JobResult;
+  }
+
+  try {
+    const { evaluateEvent } = await loadCompletion();
+    const outcomes = await evaluateEvent(job.data.unifiedEventId);
+
+    // ⚠️ `recorded: false` is NORMAL — the window already had a completion. It is
+    // logged as information, never as a failure, and never retried.
+    const written = outcomes.filter((o) => o.recorded).length;
+    if (outcomes.length > 0) {
+      console.warn(
+        `[queue:completion] event=${job.data.unifiedEventId} matched ${outcomes.length} rule(s), ` +
+          `${written} new completion(s), ${outcomes.length - written} already closed`
+      );
+    }
+    return { id: job.id, status: 'completed' } as JobResult;
+  } catch (err) {
+    if (isPermanentJobError(err)) {
+      console.error(`[queue:completion] job=${job.id} permanent failure — dead-lettering`, err);
+      return { id: job.id, status: 'deadletter' } as JobResult;
+    }
+    console.error(`[queue:completion] job=${job.id} attempt=${attempt + 1} failed`, err);
+    return { id: job.id, status: 'failed' } as JobResult;
+  }
+}
+
 export function makeExtractionBatchHandler() {
   return async (jobs: JobWithMetadata<ExtractJobData>[]): Promise<JobResult[]> =>
     Promise.all(jobs.map((job) => runExtraction(job)));

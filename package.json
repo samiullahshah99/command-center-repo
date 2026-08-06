@@ -46,7 +46,7 @@
     "webhook:slack": "tsx scripts/send-test-webhook.ts slack",
     "webhook:clickup": "tsx scripts/send-test-webhook.ts clickup",
     "test:queue": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue",
-    "test:db": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue src/features/connectors/ingest.test.ts src/features/connectors/ingest-rollback.test.ts src/features/identity src/features/normalise src/features/extraction"
+    "test:db": "tsx --env-file=.env.local ./node_modules/vitest/vitest.mjs run src/lib/queue src/features/connectors/ingest.test.ts src/features/connectors/ingest-rollback.test.ts src/features/identity src/features/normalise src/features/extraction src/features/completion"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

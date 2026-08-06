@@ -98,26 +98,45 @@ export async function normaliseRawEvent(rawEventId: string): Promise<NormaliseRe
       }
     }
 
-    await db
-      .insert(unifiedEvent)
-      .values({
-        rawEventId: row.id,
-        sourceSeq: event.sourceSeq,
-        source: row.source,
-        eventType: event.eventType,
-        occurredAt: event.occurredAt,
-        occurredAtSource: event.occurredAtSource,
-        personId,
-        personIdentityId,
-        subjectType: event.subjectType,
-        subjectId: event.subjectId,
-        subjectLabel: event.subjectLabel,
-        metadata: event.metadata,
-        normaliserVersion: NORMALISER_VERSION
-      })
-      .onConflictDoUpdate({
-        target: [unifiedEvent.rawEventId, unifiedEvent.sourceSeq],
-        set: {
+    /**
+     * ⚠️⚠️ THE ROW AND ITS COMPLETION JOB COMMIT TOGETHER, OR NEITHER DOES.
+     *
+     * `fromDrizzle(tx, sql)` adapts this open Drizzle transaction so pg-boss's job
+     * INSERT joins it — exactly the mechanism `ingestAndEnqueue` uses, and for a
+     * sharper reason here.
+     *
+     * The earlier best-effort version (write, then enqueue outside the
+     * transaction) had a hole that the `xmax` gate itself made unrecoverable: if
+     * the process died between the row write and the enqueue, the ROW would exist,
+     * so the next `pnpm renormalise` would take the UPDATE path, `xmax != 0` would
+     * suppress the enqueue, and that event's completion would be lost PERMANENTLY
+     * — the sweep never catches up completions by design (design §1). Recovery
+     * required noticing and hand-fixing, which is the same as no recovery.
+     *
+     * In one transaction a crash rolls the row back, so the next normalise takes
+     * the INSERT path and enqueues. Self-healing instead of silently lossy.
+     *
+     * ⚠️ A QUEUE FAILURE THEREFORE ROLLS BACK THE NORMALISATION AND THROWS. That is
+     * correct here: `unified_event` is derived data, rebuildable from `raw_event`
+     * at any time, so discarding it costs a re-run — while keeping it would cost a
+     * completion nobody can recover. The worker turns the throw into a failed job
+     * with the retry ladder applied.
+     */
+    await db.transaction(async (tx) => {
+      /**
+       * ⚠️ `xmax = 0` IS HOW WE KNOW IT WAS AN INSERT, not an update.
+       *
+       * Postgres sets `xmax` to the locking transaction on a row an upsert
+       * UPDATED and leaves it 0 on one it INSERTED. This is the only way to tell
+       * the two apart from an `ON CONFLICT DO UPDATE`, and it is what gates the
+       * enqueue.
+       */
+      const [result] = await tx
+        .insert(unifiedEvent)
+        .values({
+          rawEventId: row.id,
+          sourceSeq: event.sourceSeq,
+          source: row.source,
           eventType: event.eventType,
           occurredAt: event.occurredAt,
           occurredAtSource: event.occurredAtSource,
@@ -127,12 +146,52 @@ export async function normaliseRawEvent(rawEventId: string): Promise<NormaliseRe
           subjectId: event.subjectId,
           subjectLabel: event.subjectLabel,
           metadata: event.metadata,
-          normaliserVersion: NORMALISER_VERSION,
-          updatedAt: new Date()
-        }
-        // createdAt is deliberately NOT in the set: it records when the row was
-        // FIRST derived, so a re-normalise does not rewrite history.
-      });
+          normaliserVersion: NORMALISER_VERSION
+        })
+        .onConflictDoUpdate({
+          target: [unifiedEvent.rawEventId, unifiedEvent.sourceSeq],
+          set: {
+            eventType: event.eventType,
+            occurredAt: event.occurredAt,
+            occurredAtSource: event.occurredAtSource,
+            personId,
+            personIdentityId,
+            subjectType: event.subjectType,
+            subjectId: event.subjectId,
+            subjectLabel: event.subjectLabel,
+            metadata: event.metadata,
+            normaliserVersion: NORMALISER_VERSION,
+            updatedAt: new Date()
+          }
+          // createdAt is deliberately NOT in the set: it records when the row was
+          // FIRST derived, so a re-normalise does not rewrite history.
+        })
+        .returning({ id: unifiedEvent.id, inserted: sql<boolean>`xmax = 0` });
+
+      /**
+       * ⚠️ THE GATE STAYS. `unified_event` upserts on
+       * `(raw_event_id, source_seq)`, so `pnpm renormalise` re-runs this path for
+       * EVERY row. An ungated enqueue would fire a completion job for all 604
+       * existing events on every renormalise, flooding the queue to re-derive
+       * completions the unique index then rejects one by one.
+       *
+       * Same reasoning as `ingestAndEnqueue`, which gates on `result.inserted`
+       * because providers retry routinely.
+       */
+      if (result?.inserted) {
+        // Imported lazily so route modules do not pull pg-boss in at module load
+        // — `next build` imports every route to collect page data, and the queue
+        // must not demand a connection string at build time.
+        const [{ sendCompletionJob }, { fromDrizzle }] = await Promise.all([
+          import('@/lib/queue'),
+          import('pg-boss')
+        ]);
+
+        await sendCompletionJob({ unifiedEventId: result.id }, { db: fromDrizzle(tx, sql) });
+      }
+
+      return result;
+    });
   }
 
   await db.update(rawEvent).set({ processed: true }).where(eq(rawEvent.id, row.id));

@@ -1,9 +1,12 @@
 import { PgBoss, type Db as PgBossDb } from 'pg-boss';
 import {
   ALL_QUEUE_NAMES,
+  COMPLETION_QUEUE,
+  COMPLETION_SWEEP_QUEUE,
   DEAD_LETTER_QUEUE,
   EXTRACTION_QUEUE,
   queueNameFor,
+  type CompletionJobData,
   type ExtractJobData,
   type ParseJobData
 } from './types';
@@ -228,6 +231,46 @@ export async function sendExtractionJob(
     retryDelayMax: RETRY_DELAY_MAX_SECONDS,
     ...options
   });
+}
+
+/**
+ * Enqueue a completion evaluation for one `unified_event`.
+ *
+ * ⚠️ CALLED FROM INSIDE THE NORMALISER'S TRANSACTION, via
+ * `options.db = fromDrizzle(tx, sql)` — the same mechanism `ingestAndEnqueue`
+ * uses. The job must never be visible before the row it names, or the worker
+ * picks up an id that does not resolve.
+ *
+ * ⚠️ A SMALL RETRY BUDGET. Unlike a parse job, a completion evaluation is pure
+ * computation against rows that already exist: if it fails six times it is a bug
+ * in the matcher, not a transient upstream. Burning the full ladder just delays
+ * the dead-letter that tells you so.
+ */
+export async function sendCompletionJob(
+  data: CompletionJobData,
+  options: ParseJobOptions = {}
+): Promise<string | null> {
+  const boss = await getBoss();
+  return boss.send(COMPLETION_QUEUE, data, {
+    retryLimit: Number(process.env.COMPLETION_RETRY_LIMIT ?? 3),
+    retryDelay: RETRY_DELAY_SECONDS,
+    retryBackoff: true,
+    retryDelayMax: RETRY_DELAY_MAX_SECONDS,
+    ...options
+  });
+}
+
+/**
+ * Enqueue the window-closing sweep.
+ *
+ * ⚠️ NO RETRIES BEYOND ONE. The sweep is idempotent and runs again on the next
+ * schedule; a failed sweep that retries for an hour can overlap the next one.
+ */
+export async function sendCompletionSweepJob(
+  options: ParseJobOptions = {}
+): Promise<string | null> {
+  const boss = await getBoss();
+  return boss.send(COMPLETION_SWEEP_QUEUE, {}, { retryLimit: 1, ...options });
 }
 
 export { DEAD_LETTER_QUEUE, queueNameFor, ALL_QUEUE_NAMES, EXTRACTION_QUEUE };
